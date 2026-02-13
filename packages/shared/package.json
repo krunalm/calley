@@ -15,8 +15,8 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "type-check": "tsc --noEmit",
-    "lint": "echo 'lint not yet configured'",
-    "format": "echo 'format not yet configured'",
+    "lint": "eslint src/",
+    "format": "prettier --check \"src/**/*.ts\"",
     "test": "echo 'no tests yet'"
   },
   "dependencies": {

@@ -28,12 +28,12 @@
 
 ### 0.2 Code Quality & Hooks
 
-- [ ] Configure ESLint (flat config) for all packages (TypeScript, React rules, import sorting)
-- [ ] Configure Prettier (consistent formatting: single quotes, trailing commas, 100 print width)
-- [ ] Install and configure Husky (`.husky/pre-commit`)
-- [ ] Configure lint-staged to run ESLint + Prettier on staged files
-- [ ] Add `tsconfig.json` base config at root, extend in each package
-- [ ] Verify `pnpm lint`, `pnpm format`, `pnpm type-check` all pass on clean scaffold
+- [x] Configure ESLint (flat config) for all packages (TypeScript, React rules, import sorting)
+- [x] Configure Prettier (consistent formatting: single quotes, trailing commas, 100 print width)
+- [x] Install and configure Husky (`.husky/pre-commit`)
+- [x] Configure lint-staged to run ESLint + Prettier on staged files
+- [x] Add `tsconfig.json` base config at root, extend in each package
+- [x] Verify `pnpm lint`, `pnpm format`, `pnpm type-check` all pass on clean scaffold
 
 ### 0.3 CI/CD Pipeline (GitHub Actions)
 
@@ -976,4 +976,4 @@
 
 ---
 
-*Last updated: February 2026*
+_Last updated: February 2026_

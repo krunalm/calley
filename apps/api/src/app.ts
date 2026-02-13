@@ -1,5 +1,5 @@
-import { Hono } from 'hono';
 import { greetingSchema } from '@calley/shared';
+import { Hono } from 'hono';
 
 export const app = new Hono();
 

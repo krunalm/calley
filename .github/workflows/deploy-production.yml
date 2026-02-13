@@ -1,0 +1,57 @@
+name: Deploy Production
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
+      # Deploy frontend to Vercel production
+      - name: Deploy Frontend to Vercel
+        if: env.VERCEL_TOKEN != ''
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          vercel-args: --prod
+          working-directory: apps/web
+
+      # Deploy API to Railway
+      - name: Deploy API to Railway
+        if: env.RAILWAY_TOKEN != ''
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        uses: bervProject/railway-deploy@0.2.0-beta
+        with:
+          railway_token: ${{ secrets.RAILWAY_TOKEN }}
+          service: calley-api
+
+      # Run database migrations post-deploy
+      - name: Run Database Migrations
+        if: env.DATABASE_URL != ''
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: pnpm --filter api db:push

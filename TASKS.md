@@ -37,39 +37,39 @@
 
 ### 0.3 CI/CD Pipeline (GitHub Actions)
 
-- [ ] Create `.github/workflows/ci.yml`:
+- [x] Create `.github/workflows/ci.yml`:
   - Trigger on push to `main`, `staging`, and all PRs
   - Steps: install deps → lint → type-check → unit tests → build → integration tests
-- [ ] Create `.github/workflows/deploy-preview.yml`:
+- [x] Create `.github/workflows/deploy-preview.yml`:
   - Trigger on PR open/update
   - Deploy frontend preview to Vercel
   - Deploy API preview to Railway (or skip if Railway doesn't support PR previews)
-- [ ] Create `.github/workflows/deploy-production.yml`:
+- [x] Create `.github/workflows/deploy-production.yml`:
   - Trigger on push to `main`
   - Deploy frontend to Vercel production
   - Deploy API to Railway production
   - Run DB migrations post-deploy
-- [ ] Add GitHub Actions secrets placeholder documentation in README
+- [x] Add GitHub Actions secrets placeholder documentation in README
 
 ### 0.4 Docker Setup
 
-- [ ] Create `apps/api/Dockerfile` (multi-stage: deps → build → runtime, non-root user)
-- [ ] Create `apps/web/Dockerfile` (multi-stage: build → nginx serve)
-- [ ] Create `docker/docker-compose.yml` (api, web, postgres, redis, nginx)
-- [ ] Create `docker/docker-compose.dev.yml` (dev overrides: volume mounts, hot reload)
-- [ ] Create `docker/nginx.conf` (reverse proxy: `/` → web, `/api` → api, SSL termination placeholder)
-- [ ] Create `docker/.env.example` with all required variables documented
-- [ ] Verify `docker compose up` starts all services and health checks pass
-- [ ] Document Docker self-host setup in README
+- [x] Create `apps/api/Dockerfile` (multi-stage: deps → build → runtime, non-root user)
+- [x] Create `apps/web/Dockerfile` (multi-stage: build → nginx serve)
+- [x] Create `docker/docker-compose.yml` (api, web, postgres, redis, nginx)
+- [x] Create `docker/docker-compose.dev.yml` (dev overrides: volume mounts, hot reload)
+- [x] Create `docker/nginx.conf` (reverse proxy: `/` → web, `/api` → api, SSL termination placeholder)
+- [x] Create `docker/.env.example` with all required variables documented
+- [x] Verify `docker compose up` starts all services and health checks pass
+- [x] Document Docker self-host setup in README
 
 ### 0.5 Developer Experience
 
-- [ ] Create `.env.example` files for `apps/web` and `apps/api`
-- [ ] Add `pnpm dev` script that starts web + api + docker db/redis concurrently
-- [ ] Verify hot reload works for both frontend and backend
-- [ ] Create a root `README.md` with: project overview, prerequisites, setup instructions, scripts reference
-- [ ] Add VS Code recommended extensions (`.vscode/extensions.json`)
-- [ ] Add VS Code settings (`.vscode/settings.json`: format on save, ESLint auto-fix)
+- [x] Create `.env.example` files for `apps/web` and `apps/api`
+- [x] Add `pnpm dev` script that starts web + api + docker db/redis concurrently
+- [x] Verify hot reload works for both frontend and backend
+- [x] Create a root `README.md` with: project overview, prerequisites, setup instructions, scripts reference
+- [x] Add VS Code recommended extensions (`.vscode/extensions.json`)
+- [x] Add VS Code settings (`.vscode/settings.json`: format on save, ESLint auto-fix)
 
 ---
 

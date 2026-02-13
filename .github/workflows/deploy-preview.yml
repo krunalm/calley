@@ -12,7 +12,6 @@ jobs:
   deploy-preview:
     name: Deploy Preview
     runs-on: ubuntu-latest
-    if: ${{ secrets.VERCEL_TOKEN != '' }}
     permissions:
       contents: read
       pull-requests: write
@@ -32,6 +31,7 @@ jobs:
 
       # Deploy frontend preview to Vercel
       - name: Deploy Frontend to Vercel
+        if: ${{ secrets.VERCEL_TOKEN != '' }}
         id: vercel-deploy
         uses: amondnet/vercel-action@v25
         with:

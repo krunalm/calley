@@ -35,9 +35,17 @@ coverage/
 
 # Vite
 *.local
+# tsc -b composite output for vite.config.ts
+apps/web/vite.config.d.ts
+apps/web/vite.config.d.ts.map
+apps/web/vite.config.js
+apps/web/vite.config.js.map
 
 # Docker volumes
 docker/data/
+
+# TypeScript incremental build
+*.tsbuildinfo
 
 # Drizzle
 drizzle/meta/

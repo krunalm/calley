@@ -27,7 +27,27 @@ export default tseslint.config(
       'simple-import-sort': simpleImportSort,
     },
     rules: {
-      'simple-import-sort/imports': 'error',
+      'simple-import-sort/imports': [
+        'error',
+        {
+          groups: [
+            // Side-effect imports
+            ['^\\u0000'],
+            // Node builtins
+            ['^node:(?!.*\\u0000$)'],
+            // External packages (not @calley)
+            ['^(?!@calley/)(?!.*\\u0000$)@?\\w'],
+            // @calley packages
+            ['^@calley/(?!.*\\u0000$)'],
+            // Internal @/ aliases
+            ['^@/(?!.*\\u0000$)'],
+            // Relative imports
+            ['^\\.(?!.*\\u0000$)'],
+            // Type-only imports (last)
+            ['^.+\\u0000$'],
+          ],
+        },
+      ],
       'simple-import-sort/exports': 'error',
       '@typescript-eslint/consistent-type-imports': [
         'error',

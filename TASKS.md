@@ -18,13 +18,13 @@
 
 ### 0.1 Monorepo & Package Management
 
-- [ ] Initialize Git repository with `.gitignore` (node_modules, .env, dist, .turbo, .vercel)
-- [ ] Initialize pnpm workspace (`pnpm-workspace.yaml`) with `apps/*` and `packages/*`
-- [ ] Configure Turborepo (`turbo.json`) with build, dev, lint, test, type-check pipelines
-- [ ] Create `packages/shared` package with `tsconfig.json` and `package.json`
-- [ ] Create `apps/web` package (Vite + React + TypeScript scaffold)
-- [ ] Create `apps/api` package (Hono + TypeScript scaffold)
-- [ ] Verify cross-package imports work (`shared` → `web`, `shared` → `api`)
+- [x] Initialize Git repository with `.gitignore` (node_modules, .env, dist, .turbo, .vercel)
+- [x] Initialize pnpm workspace (`pnpm-workspace.yaml`) with `apps/*` and `packages/*`
+- [x] Configure Turborepo (`turbo.json`) with build, dev, lint, test, type-check pipelines
+- [x] Create `packages/shared` package with `tsconfig.json` and `package.json`
+- [x] Create `apps/web` package (Vite + React + TypeScript scaffold)
+- [x] Create `apps/api` package (Hono + TypeScript scaffold)
+- [x] Verify cross-package imports work (`shared` → `web`, `shared` → `api`)
 
 ### 0.2 Code Quality & Hooks
 

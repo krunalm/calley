@@ -1,0 +1,33 @@
+services:
+  db:
+    image: postgres:16-alpine
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata_dev:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: calley
+      POSTGRES_USER: calley
+      POSTGRES_PASSWORD: calley_dev
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U calley']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - '6379:6379'
+    volumes:
+      - redisdata_dev:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata_dev:
+  redisdata_dev:

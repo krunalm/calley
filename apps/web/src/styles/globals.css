@@ -3,6 +3,12 @@
 /*
  * Calley Design Tokens (spec §8.1)
  * Using Tailwind CSS v4 @theme directive for custom tokens.
+ *
+ * Note: The @theme at-rule is a Tailwind CSS v4 directive processed by
+ * @tailwindcss/vite at build time. No Stylelint or Biome CSS linting is
+ * currently configured. If CSS linting is added in the future, ensure
+ * @theme, @import "tailwindcss", and other Tailwind directives are
+ * allowlisted (e.g., at-rule-no-unknown ignore list or a Tailwind preset).
  */
 @theme {
   /* Colors — Light Theme */

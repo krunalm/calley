@@ -53,6 +53,10 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
         setError('root', {
           message: 'Reset link is invalid or has expired. Please request a new one.',
         });
+      } else {
+        setError('root', {
+          message: 'An unexpected error occurred. Please try again.',
+        });
       }
     }
   };

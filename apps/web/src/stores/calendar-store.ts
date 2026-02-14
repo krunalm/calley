@@ -1,7 +1,16 @@
 import { addDays, addMonths, addWeeks, subDays, subMonths, subWeeks } from 'date-fns';
+import { toZonedTime } from 'date-fns-tz';
 import { create } from 'zustand';
 
 export type CalendarView = 'month' | 'week' | 'day' | 'agenda';
+
+/**
+ * Returns "now" in the user's timezone. Uses the browser's detected timezone
+ * as a default; callers can pass an explicit IANA timezone from the user profile.
+ */
+function getNowInUserTimezone(tz: string = Intl.DateTimeFormat().resolvedOptions().timeZone): Date {
+  return toZonedTime(new Date(), tz);
+}
 
 interface CalendarStore {
   currentDate: Date;
@@ -19,7 +28,7 @@ interface CalendarStore {
 }
 
 export const useCalendarStore = create<CalendarStore>((set, get) => ({
-  currentDate: new Date(),
+  currentDate: getNowInUserTimezone(),
   view: 'month',
   selectedItemId: null,
   isTaskPanelOpen: false,
@@ -31,7 +40,7 @@ export const useCalendarStore = create<CalendarStore>((set, get) => ({
     const { currentDate, view } = get();
 
     if (direction === 'today') {
-      set({ currentDate: new Date() });
+      set({ currentDate: getNowInUserTimezone() });
       return;
     }
 

@@ -41,6 +41,7 @@ export function OAuthButtons() {
   return (
     <div className="grid grid-cols-2 gap-3">
       <Button
+        type="button"
         variant="outline"
         className="w-full"
         onClick={() => {
@@ -51,6 +52,7 @@ export function OAuthButtons() {
         Google
       </Button>
       <Button
+        type="button"
         variant="outline"
         className="w-full"
         onClick={() => {

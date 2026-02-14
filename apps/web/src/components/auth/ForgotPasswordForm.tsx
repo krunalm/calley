@@ -20,14 +20,19 @@ export function ForgotPasswordForm() {
   const {
     register,
     handleSubmit,
+    setError,
     formState: { errors, isSubmitting },
   } = useForm<ForgotPasswordInput>({
     resolver: zodResolver(forgotPasswordSchema),
   });
 
   const onSubmit = async (data: ForgotPasswordInput) => {
-    await forgotPassword.mutateAsync(data);
-    setSubmitted(true);
+    try {
+      await forgotPassword.mutateAsync(data);
+      setSubmitted(true);
+    } catch {
+      setError('root', { message: 'Unable to send reset link. Please try again.' });
+    }
   };
 
   if (submitted) {
@@ -79,6 +84,12 @@ export function ForgotPasswordForm() {
           </p>
         )}
       </div>
+
+      {errors.root && (
+        <p className="text-sm text-[var(--color-danger)]" role="alert">
+          {errors.root.message}
+        </p>
+      )}
 
       <Button type="submit" className="w-full" disabled={isSubmitting}>
         {isSubmitting ? 'Sending...' : 'Send reset link'}

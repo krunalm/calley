@@ -4,7 +4,7 @@ export const Route = createFileRoute('/_app/calendar/')({
   component: CalendarPage,
 });
 
-function CalendarPage() {
+export default function CalendarPage() {
   return (
     <div className="flex h-full items-center justify-center">
       <div className="text-center">

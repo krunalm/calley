@@ -107,6 +107,9 @@ export const passwordResetTokens = pgTable(
   (table) => [
     index('idx_reset_tokens_user').on(table.userId),
     index('idx_reset_tokens_expires').on(table.expiresAt),
+    uniqueIndex('idx_reset_tokens_one_active_per_user')
+      .on(table.userId)
+      .where(sql`${table.usedAt} IS NULL`),
   ],
 );
 

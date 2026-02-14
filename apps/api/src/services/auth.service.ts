@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 
 import argon2 from 'argon2';
-import { and, eq, isNull, ne } from 'drizzle-orm';
+import { and, eq, gte, isNull, ne, sql } from 'drizzle-orm';
 
 import { DEFAULT_CATEGORY_COLOR } from '@calley/shared';
 
@@ -220,23 +220,24 @@ export class AuthService {
       return;
     }
 
-    // Invalidate any existing unused reset tokens for this user
-    await db
-      .update(passwordResetTokens)
-      .set({ usedAt: new Date() })
-      .where(and(eq(passwordResetTokens.userId, user.id), isNull(passwordResetTokens.usedAt)));
-
     // Generate a cryptographically random token (256-bit)
     const rawToken = randomBytes(32).toString('hex');
     const tokenHash = hashToken(rawToken);
 
     const expiresAt = new Date(Date.now() + PASSWORD_RESET_TOKEN_EXPIRY_MS);
 
-    // Store the hashed token
-    await db.insert(passwordResetTokens).values({
-      userId: user.id,
-      tokenHash,
-      expiresAt,
+    // Atomically invalidate existing tokens and insert the new one
+    await db.transaction(async (tx) => {
+      await tx
+        .update(passwordResetTokens)
+        .set({ usedAt: new Date() })
+        .where(and(eq(passwordResetTokens.userId, user.id), isNull(passwordResetTokens.usedAt)));
+
+      await tx.insert(passwordResetTokens).values({
+        userId: user.id,
+        tokenHash,
+        expiresAt,
+      });
     });
 
     // Build the reset URL
@@ -274,43 +275,45 @@ export class AuthService {
   async resetPassword(data: ResetPasswordInput): Promise<void> {
     const tokenHash = hashToken(data.token);
 
-    // Look up the token by hash
-    const resetToken = await db.query.passwordResetTokens.findFirst({
-      where: and(eq(passwordResetTokens.tokenHash, tokenHash), isNull(passwordResetTokens.usedAt)),
-    });
-
-    if (!resetToken) {
-      throw new AppError(400, 'VALIDATION_ERROR', 'Invalid or expired reset token');
-    }
-
-    // Check expiry
-    if (resetToken.expiresAt < new Date()) {
-      throw new AppError(400, 'VALIDATION_ERROR', 'Invalid or expired reset token');
-    }
-
-    // Hash the new password
+    // Hash the new password before entering the transaction
     const newPasswordHash = await argon2.hash(data.password, ARGON2_OPTIONS);
 
-    // Update the user's password and clear any lockout state
-    await db
-      .update(users)
-      .set({
-        passwordHash: newPasswordHash,
-        failedLogins: 0,
-        lockedUntil: null,
-      })
-      .where(eq(users.id, resetToken.userId));
+    const userId = await db.transaction(async (tx) => {
+      // Atomically consume the token: update usedAt only if it's still unused and not expired
+      const [consumed] = await tx
+        .update(passwordResetTokens)
+        .set({ usedAt: new Date() })
+        .where(
+          and(
+            eq(passwordResetTokens.tokenHash, tokenHash),
+            isNull(passwordResetTokens.usedAt),
+            gte(passwordResetTokens.expiresAt, sql`now()`),
+          ),
+        )
+        .returning({ userId: passwordResetTokens.userId });
 
-    // Mark token as used
-    await db
-      .update(passwordResetTokens)
-      .set({ usedAt: new Date() })
-      .where(eq(passwordResetTokens.id, resetToken.id));
+      if (!consumed) {
+        throw new AppError(400, 'VALIDATION_ERROR', 'Invalid or expired reset token');
+      }
 
-    // Invalidate all sessions for the user (force re-login)
-    await lucia.invalidateUserSessions(resetToken.userId);
+      // Update the user's password and clear any lockout state
+      await tx
+        .update(users)
+        .set({
+          passwordHash: newPasswordHash,
+          failedLogins: 0,
+          lockedUntil: null,
+        })
+        .where(eq(users.id, consumed.userId));
 
-    logger.info({ userId: resetToken.userId }, 'Password reset completed');
+      return consumed.userId;
+    });
+
+    // Invalidate all sessions for the user (force re-login) — outside transaction
+    // since Lucia manages sessions independently
+    await lucia.invalidateUserSessions(userId);
+
+    logger.info({ userId }, 'Password reset completed');
   }
 
   /**

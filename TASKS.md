@@ -176,25 +176,25 @@
 
 ### 1.7 CSRF Protection
 
-- [ ] Generate CSRF token on session creation, store in separate cookie (HttpOnly: false, SameSite: Strict)
-- [ ] Create CSRF validation middleware for POST/PATCH/DELETE routes
-- [ ] Exempt GET endpoints (including SSE `/stream`)
-- [ ] Add CSRF token reading utility to frontend API client
+- [x] Generate CSRF token on session creation, store in separate cookie (HttpOnly: false, SameSite: Strict)
+- [x] Create CSRF validation middleware for POST/PATCH/DELETE routes
+- [x] Exempt GET endpoints (including SSE `/stream`)
+- [x] Add CSRF token reading utility to frontend API client
 
 ### 1.8 Session Management
 
-- [ ] Implement `GET /auth/sessions` — list active sessions with userAgent, last active, current indicator
-- [ ] Implement `DELETE /auth/sessions/:id` — revoke specific session (cannot revoke current)
-- [ ] Implement `DELETE /auth/sessions` — revoke all sessions except current
-- [ ] Enforce max 10 sessions per user (delete oldest on overflow)
+- [x] Implement `GET /auth/sessions` — list active sessions with userAgent, last active, current indicator
+- [x] Implement `DELETE /auth/sessions/:id` — revoke specific session (cannot revoke current)
+- [x] Implement `DELETE /auth/sessions` — revoke all sessions except current
+- [x] Enforce max 10 sessions per user (delete oldest on overflow)
 
 ### 1.9 Audit Logging
 
-- [ ] Implement `audit.service.ts` — `log(action, userId, entityType?, entityId?, metadata?)`
-- [ ] Log all auth events: signup, login, login.failed, logout, password.reset, lockout, oauth.link
-- [ ] Log destructive operations: account.delete
-- [ ] Ensure no PII in audit metadata
-- [ ] Hash IP addresses before storage
+- [x] Implement `audit.service.ts` — `log(action, userId, entityType?, entityId?, metadata?)`
+- [x] Log all auth events: signup, login, login.failed, logout, password.reset, lockout, oauth.link
+- [x] Log destructive operations: account.delete
+- [x] Ensure no PII in audit metadata
+- [x] Hash IP addresses before storage
 
 ---
 

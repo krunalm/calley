@@ -13,6 +13,7 @@ import {
   updateProfileSchema,
 } from '@calley/shared';
 
+import { clearCsrfCookie, generateCsrfToken, setCsrfCookie } from '../lib/csrf';
 import { AppError } from '../lib/errors';
 import { logger } from '../lib/logger';
 import { githubOAuth, googleOAuth } from '../lib/oauth';
@@ -37,6 +38,15 @@ const emptySchema = z.object({});
 
 const auth = new Hono<{ Variables: AppVariables }>();
 
+// ─── Helpers ──────────────────────────────────────────────────────────
+
+/** Extract client IP address from request headers. */
+function getIpAddress(c: { req: { header: (name: string) => string | undefined } }): string | null {
+  return (
+    c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || c.req.header('x-real-ip') || null
+  );
+}
+
 // ─── Public Routes (no auth required) ──────────────────────────────────
 
 auth.post(
@@ -47,12 +57,17 @@ auth.post(
   async (c) => {
     const data = c.get('validatedBody') as SignupInput;
     const userAgent = c.req.header('user-agent') ?? null;
-    const ipAddress =
-      c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || c.req.header('x-real-ip') || null;
+    const ipAddress = getIpAddress(c);
 
     const { user, cookie } = await authService.signup(data, { userAgent, ipAddress });
 
+    // Set session cookie
     c.header('Set-Cookie', cookie.serialize(), { append: true });
+
+    // Set CSRF cookie for subsequent requests
+    const csrfToken = generateCsrfToken();
+    setCsrfCookie(c, csrfToken);
+
     return c.json(user, 201);
   },
 );
@@ -65,12 +80,17 @@ auth.post(
   async (c) => {
     const data = c.get('validatedBody') as LoginInput;
     const userAgent = c.req.header('user-agent') ?? null;
-    const ipAddress =
-      c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || c.req.header('x-real-ip') || null;
+    const ipAddress = getIpAddress(c);
 
     const { user, cookie } = await authService.login(data, { userAgent, ipAddress });
 
+    // Set session cookie
     c.header('Set-Cookie', cookie.serialize(), { append: true });
+
+    // Set CSRF cookie for subsequent requests
+    const csrfToken = generateCsrfToken();
+    setCsrfCookie(c, csrfToken);
+
     return c.json(user);
   },
 );
@@ -110,9 +130,17 @@ auth.post(
   validate('query', emptySchema),
   async (c) => {
     const session = c.get('session')!;
-    const { cookie } = await authService.logout(session.id);
+    const userId = c.get('userId')!;
+    const userAgent = c.req.header('user-agent') ?? null;
+    const ipAddress = getIpAddress(c);
+
+    const { cookie } = await authService.logout(session.id, userId, { userAgent, ipAddress });
 
     c.header('Set-Cookie', cookie.serialize(), { append: true });
+
+    // Clear the CSRF cookie on logout
+    clearCsrfCookie(c);
+
     return c.body(null, 204);
   },
 );
@@ -145,7 +173,10 @@ auth.patch(
     const userId = c.get('userId')!;
     const session = c.get('session')!;
     const data = c.get('validatedBody') as ChangePasswordInput;
-    await authService.changePassword(userId, session.id, data);
+    const userAgent = c.req.header('user-agent') ?? null;
+    const ipAddress = getIpAddress(c);
+
+    await authService.changePassword(userId, session.id, data, { userAgent, ipAddress });
     return c.json({ message: 'Password changed successfully' });
   },
 );
@@ -158,13 +189,61 @@ auth.delete(
   async (c) => {
     const userId = c.get('userId')!;
     const data = c.get('validatedBody') as DeleteAccountInput;
-    await authService.deleteAccount(userId, data);
+    const userAgent = c.req.header('user-agent') ?? null;
+    const ipAddress = getIpAddress(c);
+
+    await authService.deleteAccount(userId, data, { userAgent, ipAddress });
 
     const blankCookie = (await import('../lib/lucia')).lucia.createBlankSessionCookie();
     c.header('Set-Cookie', blankCookie.serialize(), { append: true });
+
+    // Clear the CSRF cookie
+    clearCsrfCookie(c);
+
     return c.body(null, 204);
   },
 );
+
+// ─── Session Management (§1.8) ──────────────────────────────────────
+
+/**
+ * GET /auth/sessions — List all active sessions for the current user.
+ * Returns session info with a `isCurrent` flag for the active session.
+ */
+auth.get('/auth/sessions', authMiddleware, async (c) => {
+  const userId = c.get('userId')!;
+  const session = c.get('session')!;
+
+  const sessions = await authService.listSessions(userId, session.id);
+  return c.json(sessions);
+});
+
+/**
+ * DELETE /auth/sessions/:id — Revoke a specific session.
+ * Cannot revoke the current session (use logout instead).
+ */
+auth.delete('/auth/sessions/:id', authMiddleware, doubleSubmitCsrf, async (c) => {
+  const userId = c.get('userId')!;
+  const session = c.get('session')!;
+  const targetSessionId = c.req.param('id');
+
+  await authService.revokeSession(userId, session.id, targetSessionId);
+  return c.body(null, 204);
+});
+
+/**
+ * DELETE /auth/sessions — Revoke all sessions except the current one.
+ */
+auth.delete('/auth/sessions', authMiddleware, doubleSubmitCsrf, async (c) => {
+  const userId = c.get('userId')!;
+  const session = c.get('session')!;
+
+  const result = await authService.revokeAllOtherSessions(userId, session.id);
+  return c.json({
+    message: `Revoked ${result.revokedCount} session(s)`,
+    revokedCount: result.revokedCount,
+  });
+});
 
 // ─── OAuth Constants & Schemas ────────────────────────────────────────
 
@@ -279,8 +358,7 @@ auth.get(
       const email = googleProfile.email_verified ? (googleProfile.email ?? null) : null;
 
       const userAgent = c.req.header('user-agent') ?? null;
-      const ipAddress =
-        c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || c.req.header('x-real-ip') || null;
+      const ipAddress = getIpAddress(c);
 
       const { cookie } = await authService.handleOAuthCallback(
         'google',
@@ -294,6 +372,11 @@ auth.get(
       );
 
       c.header('Set-Cookie', cookie.serialize(), { append: true });
+
+      // Set CSRF cookie for subsequent requests
+      const csrfToken = generateCsrfToken();
+      setCsrfCookie(c, csrfToken);
+
       return c.redirect(`${FRONTEND_URL}/calendar`);
     } catch (err) {
       if (err instanceof AppError) {
@@ -407,8 +490,7 @@ auth.get(
       }
 
       const userAgent = c.req.header('user-agent') ?? null;
-      const ipAddress =
-        c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || c.req.header('x-real-ip') || null;
+      const ipAddress = getIpAddress(c);
 
       const { cookie } = await authService.handleOAuthCallback(
         'github',
@@ -422,6 +504,11 @@ auth.get(
       );
 
       c.header('Set-Cookie', cookie.serialize(), { append: true });
+
+      // Set CSRF cookie for subsequent requests
+      const csrfToken = generateCsrfToken();
+      setCsrfCookie(c, csrfToken);
+
       return c.redirect(`${FRONTEND_URL}/calendar`);
     } catch (err) {
       if (err instanceof AppError) {

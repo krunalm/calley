@@ -43,10 +43,19 @@ vi.mock('../../lib/sanitize', () => ({
   sanitizeHtml: vi.fn((html: string) => html.replace(/<script[^>]*>.*?<\/script>/gi, '')),
 }));
 
+// Mock recurrence service
+vi.mock('../recurrence.service', () => ({
+  recurrenceService: {
+    expandRecurringEvents: vi.fn((events: unknown[]) => events),
+    validateRrule: vi.fn(),
+  },
+}));
+
 import { db } from '../../db';
 import { AppError } from '../../lib/errors';
 import { sanitizeHtml } from '../../lib/sanitize';
 import { EventService } from '../event.service';
+import { recurrenceService } from '../recurrence.service';
 
 // ─── Test Fixtures ──────────────────────────────────────────────────
 
@@ -275,6 +284,9 @@ describe('EventService', () => {
       (db.query.calendarCategories.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(
         makeCategory(),
       );
+      (recurrenceService.validateRrule as ReturnType<typeof vi.fn>).mockImplementation(() => {
+        throw new AppError(422, 'INVALID_RRULE', 'Invalid recurrence rule: missing FREQ');
+      });
 
       await expect(
         service.createEvent(TEST_USER_ID, {
@@ -297,6 +309,7 @@ describe('EventService', () => {
       (db.query.calendarCategories.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(
         makeCategory(),
       );
+      (recurrenceService.validateRrule as ReturnType<typeof vi.fn>).mockImplementation(() => {});
       mockTransactionForInsert([eventRow]);
 
       const result = await service.createEvent(TEST_USER_ID, {
@@ -695,6 +708,9 @@ describe('EventService', () => {
       (db.query.calendarCategories.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(
         makeCategory(),
       );
+      (recurrenceService.validateRrule as ReturnType<typeof vi.fn>).mockImplementation(() => {
+        throw new AppError(422, 'INVALID_RRULE', 'Invalid recurrence rule: missing FREQ');
+      });
 
       await expect(
         service.createEvent(TEST_USER_ID, {
@@ -716,6 +732,9 @@ describe('EventService', () => {
       (db.query.calendarCategories.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(
         makeCategory(),
       );
+      (recurrenceService.validateRrule as ReturnType<typeof vi.fn>).mockImplementation(() => {
+        throw new AppError(422, 'INVALID_RRULE', 'Invalid recurrence rule: invalid FREQ value');
+      });
 
       await expect(
         service.createEvent(TEST_USER_ID, {
@@ -737,6 +756,8 @@ describe('EventService', () => {
       (db.query.calendarCategories.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(
         makeCategory(),
       );
+      // validateRrule mock default is no-op (doesn't throw), so valid rrules pass through
+      (recurrenceService.validateRrule as ReturnType<typeof vi.fn>).mockImplementation(() => {});
 
       for (const freq of ['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY']) {
         const eventRow = makeEventRow({ rrule: `FREQ=${freq}` });
@@ -766,6 +787,7 @@ describe('EventService', () => {
       (db.query.events.findMany as ReturnType<typeof vi.fn>)
         .mockResolvedValueOnce(eventRows) // regular events
         .mockResolvedValueOnce([]); // recurring parents
+      (db.query.eventExceptions.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([]);
 
       const result = await service.listEvents(
         TEST_USER_ID,
@@ -785,6 +807,7 @@ describe('EventService', () => {
       (db.query.events.findMany as ReturnType<typeof vi.fn>)
         .mockResolvedValueOnce([eventRow])
         .mockResolvedValueOnce([eventRow]);
+      (db.query.eventExceptions.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([]);
 
       const result = await service.listEvents(
         TEST_USER_ID,
@@ -800,6 +823,7 @@ describe('EventService', () => {
       (db.query.events.findMany as ReturnType<typeof vi.fn>)
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
+      (db.query.eventExceptions.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([]);
 
       const result = await service.listEvents(
         TEST_USER_ID,

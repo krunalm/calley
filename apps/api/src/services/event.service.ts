@@ -271,38 +271,42 @@ export class EventService {
       this.validateRrule(data.rrule);
     }
 
-    const [event] = await db
-      .insert(events)
-      .values({
-        userId,
-        categoryId: data.categoryId,
-        title: data.title,
-        description,
-        location: data.location ?? null,
-        startAt: new Date(data.startAt),
-        endAt: new Date(data.endAt),
-        isAllDay: data.isAllDay,
-        color: data.color ?? null,
-        visibility: data.visibility ?? 'private',
-        rrule: data.rrule ?? null,
-      })
-      .returning();
+    const event = await db.transaction(async (tx) => {
+      const [inserted] = await tx
+        .insert(events)
+        .values({
+          userId,
+          categoryId: data.categoryId,
+          title: data.title,
+          description,
+          location: data.location ?? null,
+          startAt: new Date(data.startAt),
+          endAt: new Date(data.endAt),
+          isAllDay: data.isAllDay,
+          color: data.color ?? null,
+          visibility: data.visibility ?? 'private',
+          rrule: data.rrule ?? null,
+        })
+        .returning();
 
-    // Create reminder if specified
-    if (data.reminder) {
-      const triggerAt = new Date(
-        new Date(data.startAt).getTime() - data.reminder.minutesBefore * 60 * 1000,
-      );
+      // Create reminder if specified
+      if (data.reminder) {
+        const triggerAt = new Date(
+          new Date(data.startAt).getTime() - data.reminder.minutesBefore * 60 * 1000,
+        );
 
-      await db.insert(reminders).values({
-        userId,
-        itemType: 'event',
-        itemId: event.id,
-        minutesBefore: data.reminder.minutesBefore,
-        method: data.reminder.method,
-        triggerAt,
-      });
-    }
+        await tx.insert(reminders).values({
+          userId,
+          itemType: 'event',
+          itemId: inserted.id,
+          minutesBefore: data.reminder.minutesBefore,
+          method: data.reminder.method,
+          triggerAt,
+        });
+      }
+
+      return inserted;
+    });
 
     logger.info({ userId, eventId: event.id }, 'Event created');
 

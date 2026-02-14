@@ -104,6 +104,18 @@ function mockInsertChain(result: unknown[]) {
   return chain;
 }
 
+function mockTransactionForInsert(result: unknown[]) {
+  const txInsertChain = {
+    values: vi.fn().mockReturnThis(),
+    returning: vi.fn().mockResolvedValue(result),
+  };
+  const tx = {
+    insert: vi.fn().mockReturnValue(txInsertChain),
+  };
+  (db.transaction as ReturnType<typeof vi.fn>).mockImplementation(async (fn) => fn(tx));
+  return tx;
+}
+
 function mockUpdateChain(result: unknown[]) {
   const chain = {
     set: vi.fn().mockReturnThis(),
@@ -177,7 +189,7 @@ describe('EventService', () => {
       (db.query.calendarCategories.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(
         makeCategory(),
       );
-      mockInsertChain([eventRow]);
+      const tx = mockTransactionForInsert([eventRow]);
 
       const result = await service.createEvent(TEST_USER_ID, {
         title: 'Test Event',
@@ -190,7 +202,8 @@ describe('EventService', () => {
 
       expect(result.id).toBe(TEST_EVENT_ID);
       expect(result.title).toBe('Test Event');
-      expect(db.insert).toHaveBeenCalled();
+      expect(db.transaction).toHaveBeenCalled();
+      expect(tx.insert).toHaveBeenCalled();
     });
 
     it('should sanitize description HTML on create', async () => {
@@ -198,7 +211,7 @@ describe('EventService', () => {
       (db.query.calendarCategories.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(
         makeCategory(),
       );
-      mockInsertChain([eventRow]);
+      mockTransactionForInsert([eventRow]);
 
       await service.createEvent(TEST_USER_ID, {
         title: 'Test Event',
@@ -240,12 +253,8 @@ describe('EventService', () => {
         makeCategory(),
       );
 
-      // First insert returns event, second insert is the reminder
-      const insertChain = {
-        values: vi.fn().mockReturnThis(),
-        returning: vi.fn().mockResolvedValue([eventRow]),
-      };
-      (db.insert as ReturnType<typeof vi.fn>).mockReturnValue(insertChain);
+      // tx.insert is called twice inside the transaction: event + reminder
+      const tx = mockTransactionForInsert([eventRow]);
 
       await service.createEvent(TEST_USER_ID, {
         title: 'Test Event',
@@ -257,8 +266,9 @@ describe('EventService', () => {
         reminder: { minutesBefore: 15, method: 'push' },
       });
 
-      // db.insert called twice: once for event, once for reminder
-      expect(db.insert).toHaveBeenCalledTimes(2);
+      // tx.insert called twice inside the transaction: once for event, once for reminder
+      expect(db.transaction).toHaveBeenCalled();
+      expect(tx.insert).toHaveBeenCalledTimes(2);
     });
 
     it('should reject invalid RRULE', async () => {
@@ -287,7 +297,7 @@ describe('EventService', () => {
       (db.query.calendarCategories.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(
         makeCategory(),
       );
-      mockInsertChain([eventRow]);
+      mockTransactionForInsert([eventRow]);
 
       const result = await service.createEvent(TEST_USER_ID, {
         title: 'Recurring Event',
@@ -307,7 +317,7 @@ describe('EventService', () => {
       (db.query.calendarCategories.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(
         makeCategory(),
       );
-      mockInsertChain([eventRow]);
+      mockTransactionForInsert([eventRow]);
 
       const result = await service.createEvent(TEST_USER_ID, {
         title: 'Test Event',
@@ -730,7 +740,7 @@ describe('EventService', () => {
 
       for (const freq of ['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY']) {
         const eventRow = makeEventRow({ rrule: `FREQ=${freq}` });
-        mockInsertChain([eventRow]);
+        mockTransactionForInsert([eventRow]);
 
         await expect(
           service.createEvent(TEST_USER_ID, {

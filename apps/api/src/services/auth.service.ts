@@ -6,7 +6,13 @@ import { and, eq, gte, isNull, ne, sql } from 'drizzle-orm';
 import { DEFAULT_CATEGORY_COLOR } from '@calley/shared';
 
 import { db } from '../db';
-import { calendarCategories, passwordResetTokens, sessions, users } from '../db/schema';
+import {
+  calendarCategories,
+  oauthAccounts,
+  passwordResetTokens,
+  sessions,
+  users,
+} from '../db/schema';
 import { passwordResetEmail } from '../emails/password-reset';
 import { sendEmail } from '../lib/email';
 import { AppError } from '../lib/errors';
@@ -424,6 +430,143 @@ export class AuthService {
     await db.delete(users).where(eq(users.id, userId));
 
     logger.info({ userId }, 'Account deleted');
+  }
+
+  /**
+   * Handle OAuth callback for both Google and GitHub.
+   *
+   * Implements the account lookup/linking/creation logic from spec §13.3:
+   * 1. If an OAuthAccount exists for this provider + providerAccountId → load that user.
+   * 2. Else if the OAuth email matches an existing user → link the OAuth account to them.
+   * 3. Else → create a new user + OAuthAccount + default category.
+   *
+   * Edge case: if the OAuth provider doesn't return an email, we return an error
+   * since we need email for account management.
+   */
+  async handleOAuthCallback(
+    provider: 'google' | 'github',
+    profile: {
+      providerAccountId: string;
+      email: string | null;
+      name: string;
+      avatarUrl: string | null;
+    },
+    meta: { userAgent: string | null; ipAddress: string | null },
+  ): Promise<{ cookie: Cookie }> {
+    // Edge case: OAuth provider doesn't return email
+    if (!profile.email) {
+      throw new AppError(
+        422,
+        'VALIDATION_ERROR',
+        'Your OAuth account does not have a public email address. Please set a public email on your account and try again.',
+      );
+    }
+
+    const email = profile.email.toLowerCase();
+
+    // All user/oauthAccount/category writes are wrapped in a single transaction
+    // to ensure atomicity. The unique index on (provider, providerAccountId) and
+    // the unique index on users.email guard against races where two concurrent
+    // OAuth callbacks attempt to create the same account.
+    const userId = await db.transaction(async (tx) => {
+      // Step 1: Check if this OAuth account is already linked
+      const existingOAuth = await tx.query.oauthAccounts.findFirst({
+        where: and(
+          eq(oauthAccounts.provider, provider),
+          eq(oauthAccounts.providerAccountId, profile.providerAccountId),
+        ),
+      });
+
+      if (existingOAuth) {
+        // OAuth account already linked — just update avatar and return
+        if (profile.avatarUrl) {
+          await tx
+            .update(users)
+            .set({ avatarUrl: profile.avatarUrl })
+            .where(eq(users.id, existingOAuth.userId));
+        }
+
+        logger.info({ userId: existingOAuth.userId, provider }, 'OAuth login — existing account');
+        return existingOAuth.userId;
+      }
+
+      // Step 2: Check if email matches an existing user
+      const existingUser = await tx.query.users.findFirst({
+        where: eq(users.email, email),
+      });
+
+      if (existingUser) {
+        // Link OAuth account to the existing user
+        await tx.insert(oauthAccounts).values({
+          userId: existingUser.id,
+          provider,
+          providerAccountId: profile.providerAccountId,
+        });
+
+        // Update avatar if user doesn't have one yet
+        if (!existingUser.avatarUrl && profile.avatarUrl) {
+          await tx
+            .update(users)
+            .set({ avatarUrl: profile.avatarUrl })
+            .where(eq(users.id, existingUser.id));
+        }
+
+        logger.info(
+          { userId: existingUser.id, provider },
+          'OAuth login — linked to existing email account',
+        );
+        return existingUser.id;
+      }
+
+      // Step 3: Create a brand new user + OAuth account + default category.
+      // The unique index on users.email will cause this insert to fail if a
+      // concurrent request already created a user with the same email — the
+      // entire transaction rolls back, surfacing as an error to the caller.
+      const [newUser] = await tx
+        .insert(users)
+        .values({
+          email,
+          passwordHash: null, // OAuth-only user, no password
+          name: profile.name || email.split('@')[0],
+          avatarUrl: profile.avatarUrl,
+          timezone: 'UTC',
+          weekStart: 0,
+          timeFormat: '12h',
+        })
+        .returning();
+
+      await tx.insert(oauthAccounts).values({
+        userId: newUser.id,
+        provider,
+        providerAccountId: profile.providerAccountId,
+      });
+
+      // Create default "Personal" category
+      await tx.insert(calendarCategories).values({
+        userId: newUser.id,
+        name: 'Personal',
+        color: DEFAULT_CATEGORY_COLOR,
+        isDefault: true,
+        sortOrder: 0,
+      });
+
+      logger.info({ userId: newUser.id, provider }, 'OAuth signup — new account created');
+      return newUser.id;
+    });
+
+    // Session creation happens after a successful transaction commit so no
+    // partial state remains if the DB writes fail. Lucia manages sessions in
+    // its own table operations which are independent of the user-creation tx.
+    await enforceMaxSessions(userId);
+    const session = await lucia.createSession(userId, {
+      userAgent: meta.userAgent,
+      ipAddress: meta.ipAddress ? hashIpAddress(meta.ipAddress) : null,
+      lastActiveAt: new Date(),
+    });
+
+    const cookie = lucia.createSessionCookie(session.id);
+
+    return { cookie };
   }
 }
 

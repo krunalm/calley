@@ -1,12 +1,13 @@
 import { Hono } from 'hono';
 
-import { greetingSchema } from '@calley/shared';
+import { loginSchema } from '@calley/shared';
 
 export const app = new Hono();
 
 app.get('/', (c) => {
-  const result = greetingSchema.safeParse({ message: 'Calley API is running' });
-  return c.json({ message: result.success ? result.data.message : 'Error' });
+  // Quick schema verification — confirms @calley/shared imports work
+  const schemaKeys = Object.keys(loginSchema.shape);
+  return c.json({ message: 'Calley API is running', schemaFields: schemaKeys.length });
 });
 
 app.get('/health', (c) => {

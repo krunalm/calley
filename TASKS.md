@@ -79,38 +79,38 @@
 
 ### 1.1 Database Setup
 
-- [ ] Install Drizzle ORM + `drizzle-kit` + `@neondatabase/serverless` or `postgres` driver
-- [ ] Configure `drizzle.config.ts` with environment-based connection
-- [ ] Create Drizzle schema for `users` table (all fields from spec §6.1)
-- [ ] Create Drizzle schema for `oauth_accounts` table
-- [ ] Create Drizzle schema for `sessions` table
-- [ ] Create Drizzle schema for `password_reset_tokens` table
-- [ ] Create Drizzle schema for `audit_logs` table
-- [ ] Create Drizzle schema for `calendar_categories` table
-- [ ] Create Drizzle schema for `events` table (including recurrence fields, soft delete)
-- [ ] Create Drizzle schema for `tasks` table (including recurrence fields, soft delete)
-- [ ] Create Drizzle schema for `reminders` table
-- [ ] Create Drizzle schema for `user_push_subscriptions` table
-- [ ] Define all foreign key constraints with correct cascade rules (per spec §7.2)
-- [ ] Create all indexes (per spec §7.1) — include partial indexes for soft deletes
-- [ ] Create full-text search indexes (GIN indexes on events + tasks)
-- [ ] Generate initial migration (`drizzle-kit generate`)
-- [ ] Run migration and verify schema in database (`drizzle-kit push` for dev)
-- [ ] Create `db/index.ts` — connection pool with configurable max connections
-- [ ] Create `db/seed.ts` — dev seed data (test user, categories, sample events/tasks)
+- [x] Install Drizzle ORM + `drizzle-kit` + `@neondatabase/serverless` or `postgres` driver
+- [x] Configure `drizzle.config.ts` with environment-based connection
+- [x] Create Drizzle schema for `users` table (all fields from spec §6.1)
+- [x] Create Drizzle schema for `oauth_accounts` table
+- [x] Create Drizzle schema for `sessions` table
+- [x] Create Drizzle schema for `password_reset_tokens` table
+- [x] Create Drizzle schema for `audit_logs` table
+- [x] Create Drizzle schema for `calendar_categories` table
+- [x] Create Drizzle schema for `events` table (including recurrence fields, soft delete)
+- [x] Create Drizzle schema for `tasks` table (including recurrence fields, soft delete)
+- [x] Create Drizzle schema for `reminders` table
+- [x] Create Drizzle schema for `user_push_subscriptions` table
+- [x] Define all foreign key constraints with correct cascade rules (per spec §7.2)
+- [x] Create all indexes (per spec §7.1) — include partial indexes for soft deletes
+- [x] Create full-text search indexes (GIN indexes on events + tasks)
+- [x] Generate initial migration (`drizzle-kit generate`)
+- [x] Run migration and verify schema in database (`drizzle-kit push` for dev)
+- [x] Create `db/index.ts` — connection pool with configurable max connections
+- [x] Create `db/seed.ts` — dev seed data (test user, categories, sample events/tasks)
 
 ### 1.2 Shared Schemas (packages/shared)
 
-- [ ] Create `schemas/common.schema.ts` — CUID2 pattern, pagination, date range, hex color regex
-- [ ] Create `schemas/auth.schema.ts` — signup, login, forgot-password, reset-password, update-profile
-- [ ] Create `schemas/event.schema.ts` — create, update, query params (with field length limits)
-- [ ] Create `schemas/task.schema.ts` — create, update, query params
-- [ ] Create `schemas/category.schema.ts` — create, update
-- [ ] Create `schemas/reminder.schema.ts` — create
-- [ ] Create `types/index.ts` — inferred TypeScript types from all Zod schemas
-- [ ] Create `constants/priorities.ts`, `constants/statuses.ts`, `constants/colors.ts`
-- [ ] Export everything from `packages/shared/src/index.ts`
-- [ ] Verify imports work from both `apps/web` and `apps/api`
+- [x] Create `schemas/common.schema.ts` — CUID2 pattern, pagination, date range, hex color regex
+- [x] Create `schemas/auth.schema.ts` — signup, login, forgot-password, reset-password, update-profile
+- [x] Create `schemas/event.schema.ts` — create, update, query params (with field length limits)
+- [x] Create `schemas/task.schema.ts` — create, update, query params
+- [x] Create `schemas/category.schema.ts` — create, update
+- [x] Create `schemas/reminder.schema.ts` — create
+- [x] Create `types/index.ts` — inferred TypeScript types from all Zod schemas
+- [x] Create `constants/priorities.ts`, `constants/statuses.ts`, `constants/colors.ts`
+- [x] Export everything from `packages/shared/src/index.ts`
+- [x] Verify imports work from both `apps/web` and `apps/api`
 
 ### 1.3 API Skeleton & Middleware
 

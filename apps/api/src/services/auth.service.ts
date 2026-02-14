@@ -137,9 +137,9 @@ export class AuthService {
       throw new AppError(401, 'UNAUTHORIZED', 'Invalid email or password');
     }
 
-    // Check account lockout
+    // Check account lockout — return generic error to prevent account state enumeration
     if (user.lockedUntil && user.lockedUntil > new Date()) {
-      throw new AppError(423, 'LOCKED', 'Account is temporarily locked. Try again later.');
+      throw new AppError(401, 'UNAUTHORIZED', 'Invalid email or password');
     }
 
     // OAuth-only users cannot login with password
@@ -164,7 +164,7 @@ export class AuthService {
           .where(eq(users.id, user.id));
 
         logger.warn({ userId: user.id }, 'Account locked after failed login attempts');
-        throw new AppError(423, 'LOCKED', 'Account is temporarily locked. Try again later.');
+        throw new AppError(401, 'UNAUTHORIZED', 'Invalid email or password');
       }
 
       await db.update(users).set({ failedLogins: newFailedLogins }).where(eq(users.id, user.id));

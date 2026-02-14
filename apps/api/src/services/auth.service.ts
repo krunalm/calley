@@ -1,12 +1,14 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 
 import argon2 from 'argon2';
-import { and, eq, ne } from 'drizzle-orm';
+import { and, eq, gte, isNull, ne, sql } from 'drizzle-orm';
 
 import { DEFAULT_CATEGORY_COLOR } from '@calley/shared';
 
 import { db } from '../db';
-import { calendarCategories, sessions, users } from '../db/schema';
+import { calendarCategories, passwordResetTokens, sessions, users } from '../db/schema';
+import { passwordResetEmail } from '../emails/password-reset';
+import { sendEmail } from '../lib/email';
 import { AppError } from '../lib/errors';
 import { logger } from '../lib/logger';
 import { lucia } from '../lib/lucia';
@@ -14,7 +16,9 @@ import { lucia } from '../lib/lucia';
 import type {
   ChangePasswordInput,
   DeleteAccountInput,
+  ForgotPasswordInput,
   LoginInput,
+  ResetPasswordInput,
   SignupInput,
   UpdateProfileInput,
 } from '@calley/shared';
@@ -25,6 +29,8 @@ import type { Cookie } from 'lucia';
 const LOCKOUT_THRESHOLD = 5;
 const LOCKOUT_DURATION_MS = 30 * 60 * 1000; // 30 minutes
 const MAX_SESSIONS_PER_USER = 10;
+const PASSWORD_RESET_TOKEN_EXPIRY_MS = 60 * 60 * 1000; // 1 hour
+const PASSWORD_RESET_TOKEN_EXPIRY_MINUTES = 60;
 
 /** Argon2id parameters per spec §4.1 */
 const ARGON2_OPTIONS: argon2.Options & { raw?: false } = {
@@ -38,6 +44,10 @@ const ARGON2_OPTIONS: argon2.Options & { raw?: false } = {
 
 function hashIpAddress(ip: string): string {
   return createHash('sha256').update(ip).digest('hex').slice(0, 16);
+}
+
+function hashToken(token: string): string {
+  return createHash('sha256').update(token).digest('hex');
 }
 
 function stripSensitiveFields(user: typeof users.$inferSelect) {
@@ -188,6 +198,122 @@ export class AuthService {
     logger.info({ userId: user.id }, 'User logged in');
 
     return { user: stripSensitiveFields(user), cookie };
+  }
+
+  /**
+   * Request a password reset email.
+   * Always returns the same response regardless of whether the email exists
+   * to prevent user enumeration.
+   */
+  async forgotPassword(data: ForgotPasswordInput): Promise<void> {
+    const user = await db.query.users.findFirst({
+      where: eq(users.email, data.email),
+    });
+
+    // Always return success to prevent email enumeration.
+    // Only proceed with token creation + email if the user exists and has a password.
+    if (!user || !user.passwordHash) {
+      logger.info(
+        { email: data.email },
+        'Password reset requested for non-existent or OAuth-only email',
+      );
+      return;
+    }
+
+    // Generate a cryptographically random token (256-bit)
+    const rawToken = randomBytes(32).toString('hex');
+    const tokenHash = hashToken(rawToken);
+
+    const expiresAt = new Date(Date.now() + PASSWORD_RESET_TOKEN_EXPIRY_MS);
+
+    // Atomically invalidate existing tokens and insert the new one
+    await db.transaction(async (tx) => {
+      await tx
+        .update(passwordResetTokens)
+        .set({ usedAt: new Date() })
+        .where(and(eq(passwordResetTokens.userId, user.id), isNull(passwordResetTokens.usedAt)));
+
+      await tx.insert(passwordResetTokens).values({
+        userId: user.id,
+        tokenHash,
+        expiresAt,
+      });
+    });
+
+    // Build the reset URL
+    const frontendUrl = process.env.CORS_ORIGIN || 'http://localhost:5173';
+    const resetUrl = `${frontendUrl}/reset-password?token=${rawToken}`;
+
+    // Send the email
+    const { html, text } = passwordResetEmail({
+      resetUrl,
+      expiresInMinutes: PASSWORD_RESET_TOKEN_EXPIRY_MINUTES,
+    });
+
+    try {
+      await sendEmail({
+        to: user.email,
+        subject: 'Reset Your Password — Calley',
+        html,
+        text,
+      });
+
+      logger.info({ userId: user.id }, 'Password reset email sent');
+    } catch (err) {
+      logger.error(
+        { err, email: user.email, userId: user.id },
+        'Failed to send password reset email',
+      );
+    }
+  }
+
+  /**
+   * Reset password using a valid token.
+   * Verifies the hashed token, checks expiry, updates the password,
+   * marks the token as used, and invalidates all sessions.
+   */
+  async resetPassword(data: ResetPasswordInput): Promise<void> {
+    const tokenHash = hashToken(data.token);
+
+    // Hash the new password before entering the transaction
+    const newPasswordHash = await argon2.hash(data.password, ARGON2_OPTIONS);
+
+    const userId = await db.transaction(async (tx) => {
+      // Atomically consume the token: update usedAt only if it's still unused and not expired
+      const [consumed] = await tx
+        .update(passwordResetTokens)
+        .set({ usedAt: new Date() })
+        .where(
+          and(
+            eq(passwordResetTokens.tokenHash, tokenHash),
+            isNull(passwordResetTokens.usedAt),
+            gte(passwordResetTokens.expiresAt, sql`now()`),
+          ),
+        )
+        .returning({ userId: passwordResetTokens.userId });
+
+      if (!consumed) {
+        throw new AppError(400, 'VALIDATION_ERROR', 'Invalid or expired reset token');
+      }
+
+      // Update the user's password and clear any lockout state
+      await tx
+        .update(users)
+        .set({
+          passwordHash: newPasswordHash,
+          failedLogins: 0,
+          lockedUntil: null,
+        })
+        .where(eq(users.id, consumed.userId));
+
+      return consumed.userId;
+    });
+
+    // Invalidate all sessions for the user (force re-login) — outside transaction
+    // since Lucia manages sessions independently
+    await lucia.invalidateUserSessions(userId);
+
+    logger.info({ userId }, 'Password reset completed');
   }
 
   /**

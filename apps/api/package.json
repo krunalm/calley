@@ -19,10 +19,13 @@
   "dependencies": {
     "@calley/shared": "workspace:*",
     "@hono/node-server": "^1.13.0",
+    "@lucia-auth/adapter-drizzle": "^1.1.0",
     "@paralleldrive/cuid2": "^3.3.0",
+    "argon2": "^0.44.0",
     "drizzle-orm": "^0.45.1",
     "hono": "^4.11.9",
     "ioredis": "^5.9.3",
+    "lucia": "^3.2.2",
     "pino": "^10.3.1",
     "postgres": "^3.4.8",
     "zod": "^3.24.0"

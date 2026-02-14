@@ -132,22 +132,22 @@
 
 ### 1.4 Authentication — Email/Password
 
-- [ ] Install Lucia Auth v3 + PostgreSQL adapter + argon2
-- [ ] Configure `lib/lucia.ts` — session configuration, cookie settings (per spec §13.2)
-- [ ] Implement `auth.middleware.ts` — extract session from cookie, validate, attach user to context
-- [ ] Implement `auth.service.ts`:
-  - [ ] `signup()` — validate, check email uniqueness, hash password (Argon2id), create user + default category + session
-  - [ ] `login()` — check lockout, verify credentials, handle failed attempts, rotate session
-  - [ ] `logout()` — invalidate session, clear cookie
-  - [ ] `getMe()` — return current user profile (strip passwordHash)
-  - [ ] `updateProfile()` — update name, timezone, weekStart, timeFormat
-  - [ ] `changePassword()` — verify current password, hash new, invalidate other sessions
-  - [ ] `deleteAccount()` — verify password, cascade delete (DB handles via FK)
-- [ ] Implement `auth.routes.ts` — wire all endpoints with validation middleware
-- [ ] Apply rate limiting to login (5/15min), signup (3/1hr)
-- [ ] Test all auth flows manually with curl/Hoppscotch
-- [ ] Verify session cookie is HttpOnly, Secure, SameSite=Lax
-- [ ] Verify account lockout after 5 failed attempts
+- [x] Install Lucia Auth v3 + PostgreSQL adapter + argon2
+- [x] Configure `lib/lucia.ts` — session configuration, cookie settings (per spec §13.2)
+- [x] Implement `auth.middleware.ts` — extract session from cookie, validate, attach user to context
+- [x] Implement `auth.service.ts`:
+  - [x] `signup()` — validate, check email uniqueness, hash password (Argon2id), create user + default category + session
+  - [x] `login()` — check lockout, verify credentials, handle failed attempts, rotate session
+  - [x] `logout()` — invalidate session, clear cookie
+  - [x] `getMe()` — return current user profile (strip passwordHash)
+  - [x] `updateProfile()` — update name, timezone, weekStart, timeFormat
+  - [x] `changePassword()` — verify current password, hash new, invalidate other sessions
+  - [x] `deleteAccount()` — verify password, cascade delete (DB handles via FK)
+- [x] Implement `auth.routes.ts` — wire all endpoints with validation middleware
+- [x] Apply rate limiting to login (5/15min), signup (3/1hr)
+- [x] Test all auth flows manually with curl/Hoppscotch
+- [x] Verify session cookie is HttpOnly, Secure, SameSite=Lax
+- [x] Verify account lockout after 5 failed attempts
 
 ### 1.5 Authentication — Password Reset
 

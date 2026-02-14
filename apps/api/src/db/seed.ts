@@ -76,6 +76,8 @@ async function seed() {
     return d;
   };
 
+  const dentistEventId = createId();
+
   await db.insert(schema.events).values([
     {
       userId,
@@ -97,6 +99,7 @@ async function seed() {
       endAt: relativeDate(1, 11, 0),
     },
     {
+      id: dentistEventId,
       userId,
       categoryId: personalCategoryId,
       title: 'Dentist Appointment',
@@ -199,7 +202,7 @@ async function seed() {
     {
       userId,
       itemType: 'event',
-      itemId: 'placeholder',
+      itemId: dentistEventId,
       minutesBefore: 15,
       method: 'push',
       triggerAt: relativeDate(2, 13, 45),

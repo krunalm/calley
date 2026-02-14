@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 
 import argon2 from 'argon2';
-import { and, eq, gte, isNull, ne, sql } from 'drizzle-orm';
+import { and, asc, eq, gte, isNull, ne, sql } from 'drizzle-orm';
 
 import { DEFAULT_CATEGORY_COLOR } from '@calley/shared';
 
@@ -18,6 +18,7 @@ import { sendEmail } from '../lib/email';
 import { AppError } from '../lib/errors';
 import { logger } from '../lib/logger';
 import { lucia } from '../lib/lucia';
+import { auditService } from './audit.service';
 
 import type {
   ChangePasswordInput,
@@ -45,6 +46,22 @@ const ARGON2_OPTIONS: argon2.Options & { raw?: false } = {
   timeCost: 3,
   parallelism: 4,
 };
+
+// ─── Types ─────────────────────────────────────────────────────────────
+
+interface RequestMeta {
+  userAgent: string | null;
+  ipAddress: string | null;
+}
+
+interface SessionInfo {
+  id: string;
+  userAgent: string | null;
+  ipAddress: string | null;
+  lastActiveAt: Date;
+  createdAt: Date;
+  isCurrent: boolean;
+}
 
 // ─── Helpers ───────────────────────────────────────────────────────────
 
@@ -85,7 +102,7 @@ export class AuthService {
    */
   async signup(
     data: SignupInput,
-    meta: { userAgent: string | null; ipAddress: string | null },
+    meta: RequestMeta,
   ): Promise<{ user: ReturnType<typeof stripSensitiveFields>; cookie: Cookie }> {
     // Check email uniqueness
     const existing = await db.query.users.findFirst({
@@ -133,6 +150,14 @@ export class AuthService {
 
     logger.info({ userId: user.id }, 'User signed up');
 
+    // Audit log
+    auditService.log({
+      action: 'user.signup',
+      userId: user.id,
+      ipAddress: meta.ipAddress,
+      userAgent: meta.userAgent,
+    });
+
     return { user: stripSensitiveFields(user), cookie };
   }
 
@@ -142,7 +167,7 @@ export class AuthService {
    */
   async login(
     data: LoginInput,
-    meta: { userAgent: string | null; ipAddress: string | null },
+    meta: RequestMeta,
   ): Promise<{ user: ReturnType<typeof stripSensitiveFields>; cookie: Cookie }> {
     // Lookup user by email — generic error prevents enumeration
     const user = await db.query.users.findFirst({
@@ -150,16 +175,37 @@ export class AuthService {
     });
 
     if (!user) {
+      // Audit failed login for non-existent account
+      auditService.log({
+        action: 'user.login.failed',
+        metadata: { reason: 'unknown_email' },
+        ipAddress: meta.ipAddress,
+        userAgent: meta.userAgent,
+      });
       throw new AppError(401, 'UNAUTHORIZED', 'Invalid email or password');
     }
 
     // Check account lockout — return generic error to prevent account state enumeration
     if (user.lockedUntil && user.lockedUntil > new Date()) {
+      auditService.log({
+        action: 'user.login.failed',
+        userId: user.id,
+        metadata: { reason: 'account_locked' },
+        ipAddress: meta.ipAddress,
+        userAgent: meta.userAgent,
+      });
       throw new AppError(401, 'UNAUTHORIZED', 'Invalid email or password');
     }
 
     // OAuth-only users cannot login with password
     if (!user.passwordHash) {
+      auditService.log({
+        action: 'user.login.failed',
+        userId: user.id,
+        metadata: { reason: 'oauth_only_account' },
+        ipAddress: meta.ipAddress,
+        userAgent: meta.userAgent,
+      });
       throw new AppError(401, 'UNAUTHORIZED', 'Invalid email or password');
     }
 
@@ -180,10 +226,29 @@ export class AuthService {
           .where(eq(users.id, user.id));
 
         logger.warn({ userId: user.id }, 'Account locked after failed login attempts');
+
+        // Audit lockout
+        auditService.log({
+          action: 'user.lockout',
+          userId: user.id,
+          metadata: { failedAttempts: newFailedLogins },
+          ipAddress: meta.ipAddress,
+          userAgent: meta.userAgent,
+        });
+
         throw new AppError(401, 'UNAUTHORIZED', 'Invalid email or password');
       }
 
       await db.update(users).set({ failedLogins: newFailedLogins }).where(eq(users.id, user.id));
+
+      // Audit failed login
+      auditService.log({
+        action: 'user.login.failed',
+        userId: user.id,
+        metadata: { reason: 'invalid_password', failedAttempts: newFailedLogins },
+        ipAddress: meta.ipAddress,
+        userAgent: meta.userAgent,
+      });
 
       throw new AppError(401, 'UNAUTHORIZED', 'Invalid email or password');
     }
@@ -202,6 +267,14 @@ export class AuthService {
     const cookie = lucia.createSessionCookie(session.id);
 
     logger.info({ userId: user.id }, 'User logged in');
+
+    // Audit log
+    auditService.log({
+      action: 'user.login',
+      userId: user.id,
+      ipAddress: meta.ipAddress,
+      userAgent: meta.userAgent,
+    });
 
     return { user: stripSensitiveFields(user), cookie };
   }
@@ -320,14 +393,29 @@ export class AuthService {
     await lucia.invalidateUserSessions(userId);
 
     logger.info({ userId }, 'Password reset completed');
+
+    // Audit log
+    auditService.log({
+      action: 'user.password.reset',
+      userId,
+    });
   }
 
   /**
    * Invalidate the current session and return a blank cookie.
    */
-  async logout(sessionId: string): Promise<{ cookie: Cookie }> {
+  async logout(sessionId: string, userId: string, meta?: RequestMeta): Promise<{ cookie: Cookie }> {
     await lucia.invalidateSession(sessionId);
     const cookie = lucia.createBlankSessionCookie();
+
+    // Audit log
+    auditService.log({
+      action: 'user.logout',
+      userId,
+      ipAddress: meta?.ipAddress,
+      userAgent: meta?.userAgent,
+    });
+
     return { cookie };
   }
 
@@ -370,6 +458,7 @@ export class AuthService {
     userId: string,
     currentSessionId: string,
     data: ChangePasswordInput,
+    meta?: RequestMeta,
   ): Promise<void> {
     const user = await db.query.users.findFirst({
       where: eq(users.id, userId),
@@ -398,13 +487,21 @@ export class AuthService {
     }
 
     logger.info({ userId }, 'Password changed');
+
+    // Audit log
+    auditService.log({
+      action: 'user.password.changed',
+      userId,
+      ipAddress: meta?.ipAddress,
+      userAgent: meta?.userAgent,
+    });
   }
 
   /**
    * Delete the current user's account after verifying password.
    * Database cascades handle related data cleanup.
    */
-  async deleteAccount(userId: string, data: DeleteAccountInput): Promise<void> {
+  async deleteAccount(userId: string, data: DeleteAccountInput, meta?: RequestMeta): Promise<void> {
     const user = await db.query.users.findFirst({
       where: eq(users.id, userId),
     });
@@ -422,6 +519,14 @@ export class AuthService {
     if (!validPassword) {
       throw new AppError(401, 'UNAUTHORIZED', 'Password is incorrect');
     }
+
+    // Audit log (before deletion, so userId is still valid in audit_logs via SET NULL)
+    auditService.log({
+      action: 'account.delete',
+      userId,
+      ipAddress: meta?.ipAddress,
+      userAgent: meta?.userAgent,
+    });
 
     // Invalidate all sessions first
     await lucia.invalidateUserSessions(userId);
@@ -451,7 +556,7 @@ export class AuthService {
       name: string;
       avatarUrl: string | null;
     },
-    meta: { userAgent: string | null; ipAddress: string | null },
+    meta: RequestMeta,
   ): Promise<{ cookie: Cookie }> {
     // Edge case: OAuth provider doesn't return email
     if (!profile.email) {
@@ -468,7 +573,7 @@ export class AuthService {
     // to ensure atomicity. The unique index on (provider, providerAccountId) and
     // the unique index on users.email guard against races where two concurrent
     // OAuth callbacks attempt to create the same account.
-    const userId = await db.transaction(async (tx) => {
+    const { userId, action } = await db.transaction(async (tx) => {
       // Step 1: Check if this OAuth account is already linked
       const existingOAuth = await tx.query.oauthAccounts.findFirst({
         where: and(
@@ -487,7 +592,7 @@ export class AuthService {
         }
 
         logger.info({ userId: existingOAuth.userId, provider }, 'OAuth login — existing account');
-        return existingOAuth.userId;
+        return { userId: existingOAuth.userId, action: 'login' as const };
       }
 
       // Step 2: Check if email matches an existing user
@@ -515,7 +620,7 @@ export class AuthService {
           { userId: existingUser.id, provider },
           'OAuth login — linked to existing email account',
         );
-        return existingUser.id;
+        return { userId: existingUser.id, action: 'link' as const };
       }
 
       // Step 3: Create a brand new user + OAuth account + default category.
@@ -551,7 +656,7 @@ export class AuthService {
       });
 
       logger.info({ userId: newUser.id, provider }, 'OAuth signup — new account created');
-      return newUser.id;
+      return { userId: newUser.id, action: 'signup' as const };
     });
 
     // Session creation happens after a successful transaction commit so no
@@ -566,7 +671,105 @@ export class AuthService {
 
     const cookie = lucia.createSessionCookie(session.id);
 
+    // Audit log based on action
+    if (action === 'signup') {
+      auditService.log({
+        action: 'user.signup',
+        userId,
+        metadata: { provider },
+        ipAddress: meta.ipAddress,
+        userAgent: meta.userAgent,
+      });
+    } else if (action === 'link') {
+      auditService.log({
+        action: 'oauth.link',
+        userId,
+        metadata: { provider },
+        ipAddress: meta.ipAddress,
+        userAgent: meta.userAgent,
+      });
+    } else {
+      auditService.log({
+        action: 'user.login',
+        userId,
+        metadata: { provider },
+        ipAddress: meta.ipAddress,
+        userAgent: meta.userAgent,
+      });
+    }
+
     return { cookie };
+  }
+
+  // ─── Session Management (§1.8) ──────────────────────────────────────
+
+  /**
+   * List all active sessions for a user with a current session indicator.
+   */
+  async listSessions(userId: string, currentSessionId: string): Promise<SessionInfo[]> {
+    const userSessions = await db.query.sessions.findMany({
+      where: eq(sessions.userId, userId),
+      orderBy: [asc(sessions.createdAt)],
+    });
+
+    return userSessions.map((s) => ({
+      id: s.id,
+      userAgent: s.userAgent,
+      ipAddress: s.ipAddress, // Already hashed when stored
+      lastActiveAt: s.lastActiveAt,
+      createdAt: s.createdAt,
+      isCurrent: s.id === currentSessionId,
+    }));
+  }
+
+  /**
+   * Revoke a specific session. Cannot revoke the current session.
+   */
+  async revokeSession(
+    userId: string,
+    currentSessionId: string,
+    targetSessionId: string,
+  ): Promise<void> {
+    if (targetSessionId === currentSessionId) {
+      throw new AppError(
+        400,
+        'VALIDATION_ERROR',
+        'Cannot revoke your current session. Use logout instead.',
+      );
+    }
+
+    // Verify the session belongs to this user
+    const targetSession = await db.query.sessions.findFirst({
+      where: and(eq(sessions.id, targetSessionId), eq(sessions.userId, userId)),
+    });
+
+    if (!targetSession) {
+      throw new AppError(404, 'NOT_FOUND', 'Session not found');
+    }
+
+    await lucia.invalidateSession(targetSessionId);
+
+    logger.info({ userId, revokedSessionId: targetSessionId }, 'Session revoked');
+  }
+
+  /**
+   * Revoke all sessions except the current one.
+   */
+  async revokeAllOtherSessions(
+    userId: string,
+    currentSessionId: string,
+  ): Promise<{ revokedCount: number }> {
+    const otherSessions = await db.query.sessions.findMany({
+      where: and(eq(sessions.userId, userId), ne(sessions.id, currentSessionId)),
+    });
+
+    for (const s of otherSessions) {
+      await lucia.invalidateSession(s.id);
+    }
+
+    logger.info({ userId, revokedCount: otherSessions.length }, 'All other sessions revoked');
+
+    return { revokedCount: otherSessions.length };
   }
 }
 

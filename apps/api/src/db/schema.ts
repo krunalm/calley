@@ -188,6 +188,32 @@ export const events = pgTable(
   ],
 );
 
+// ─── Event Exceptions (per-instance overrides for recurring events) ──
+
+export const eventExceptions = pgTable(
+  'event_exceptions',
+  {
+    id: cuid2('id').primaryKey(),
+    recurringEventId: varchar('recurring_event_id', { length: 128 })
+      .notNull()
+      .references(() => events.id, { onDelete: 'cascade' }),
+    userId: varchar('user_id', { length: 128 })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    originalDate: timestamp('original_date', { withTimezone: true }).notNull(),
+    overrides: jsonb('overrides').$type<Record<string, unknown>>().notNull(),
+    ...timestamps,
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  },
+  (table) => [
+    index('idx_event_exceptions_parent').on(table.recurringEventId),
+    index('idx_event_exceptions_user').on(table.userId),
+    index('idx_event_exceptions_date')
+      .on(table.recurringEventId, table.originalDate)
+      .where(sql`${table.deletedAt} IS NULL`),
+  ],
+);
+
 // ─── Tasks ───────────────────────────────────────────────────────────
 
 export const tasks = pgTable(
@@ -311,6 +337,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   passwordResetTokens: many(passwordResetTokens),
   calendarCategories: many(calendarCategories),
   events: many(events),
+  eventExceptions: many(eventExceptions),
   tasks: many(tasks),
   reminders: many(reminders),
   userPushSubscriptions: many(userPushSubscriptions),
@@ -362,7 +389,19 @@ export const eventsRelations = relations(events, ({ one, many }) => ({
     relationName: 'eventExceptions',
   }),
   exceptions: many(events, { relationName: 'eventExceptions' }),
+  eventExceptionOverrides: many(eventExceptions),
   reminders: many(reminders),
+}));
+
+export const eventExceptionsRelations = relations(eventExceptions, ({ one }) => ({
+  recurringEvent: one(events, {
+    fields: [eventExceptions.recurringEventId],
+    references: [events.id],
+  }),
+  user: one(users, {
+    fields: [eventExceptions.userId],
+    references: [users.id],
+  }),
 }));
 
 export const tasksRelations = relations(tasks, ({ one, many }) => ({

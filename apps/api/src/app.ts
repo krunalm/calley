@@ -7,6 +7,7 @@ import { rateLimit } from './middleware/rate-limit.middleware';
 import { requestId } from './middleware/request-id.middleware';
 import { securityHeaders } from './middleware/security-headers.middleware';
 import auth from './routes/auth.routes';
+import eventsRouter from './routes/events.routes';
 import health from './routes/health.routes';
 
 import type { AppVariables } from './types/hono';
@@ -35,3 +36,6 @@ app.route('/', health);
 
 // Auth routes (rate limiting applied per-route in auth.routes.ts)
 app.route('/', auth);
+
+// Event routes (auth required, handled per-route in events.routes.ts)
+app.route('/events', eventsRouter);

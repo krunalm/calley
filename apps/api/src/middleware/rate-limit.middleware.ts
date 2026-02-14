@@ -1,3 +1,4 @@
+import { logger } from '../lib/logger';
 import { redis } from '../lib/redis';
 
 import type { AppVariables } from '../types/hono';
@@ -32,14 +33,35 @@ export function rateLimit(
     const windowMs = windowSeconds * 1000;
     const windowStart = now - windowMs;
 
-    const multi = redis.multi();
-    multi.zremrangebyscore(key, 0, windowStart);
-    multi.zadd(key, now, `${now}:${Math.random()}`);
-    multi.zcard(key);
-    multi.expire(key, windowSeconds);
+    let count: number;
 
-    const results = await multi.exec();
-    const count = results?.[2]?.[1] as number;
+    try {
+      const multi = redis.multi();
+      multi.zremrangebyscore(key, 0, windowStart);
+      multi.zadd(key, now, `${now}:${Math.random()}`);
+      multi.zcard(key);
+      multi.expire(key, windowSeconds);
+
+      const results = await multi.exec();
+      const rawCount = results?.[2]?.[1];
+
+      if (typeof rawCount !== 'number') {
+        // Redis returned unexpected result — allow request through
+        c.header('X-RateLimit-Limit', String(limit));
+        c.header('X-RateLimit-Remaining', String(limit));
+        await next();
+        return;
+      }
+
+      count = rawCount;
+    } catch (err) {
+      // Redis unavailable — degrade gracefully, allow request through
+      logger.warn({ err, keyPrefix }, 'Rate limit check failed, allowing request');
+      c.header('X-RateLimit-Limit', String(limit));
+      c.header('X-RateLimit-Remaining', String(limit));
+      await next();
+      return;
+    }
 
     c.header('X-RateLimit-Limit', String(limit));
     c.header('X-RateLimit-Remaining', String(Math.max(0, limit - count)));

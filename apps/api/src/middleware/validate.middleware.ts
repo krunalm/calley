@@ -19,7 +19,20 @@ export function validate(
 
     switch (target) {
       case 'json':
-        data = await c.req.json();
+        try {
+          data = await c.req.json();
+        } catch {
+          return c.json(
+            {
+              error: {
+                code: 'VALIDATION_ERROR',
+                message: 'Invalid JSON',
+                details: [{ path: [], message: 'Request body must be valid JSON' }],
+              },
+            },
+            400,
+          );
+        }
         break;
       case 'query':
         data = c.req.query();

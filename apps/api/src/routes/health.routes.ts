@@ -4,6 +4,17 @@ import { Hono } from 'hono';
 import { db } from '../db';
 import { redis } from '../lib/redis';
 
+const HEALTH_CHECK_TIMEOUT_MS = 1000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Health check timed out')), ms),
+    ),
+  ]);
+}
+
 const health = new Hono();
 
 health.get('/health', async (c) => {
@@ -14,21 +25,13 @@ health.get('/health', async (c) => {
 });
 
 health.get('/health/ready', async (c) => {
-  let dbStatus = 'ok';
-  let redisStatus = 'ok';
+  const [dbResult, redisResult] = await Promise.allSettled([
+    withTimeout(db.execute(sql`SELECT 1`), HEALTH_CHECK_TIMEOUT_MS),
+    withTimeout(redis.ping(), HEALTH_CHECK_TIMEOUT_MS),
+  ]);
 
-  try {
-    await db.execute(sql`SELECT 1`);
-  } catch {
-    dbStatus = 'error';
-  }
-
-  try {
-    await redis.ping();
-  } catch {
-    redisStatus = 'error';
-  }
-
+  const dbStatus = dbResult.status === 'fulfilled' ? 'ok' : 'error';
+  const redisStatus = redisResult.status === 'fulfilled' ? 'ok' : 'error';
   const allOk = dbStatus === 'ok' && redisStatus === 'ok';
 
   return c.json(

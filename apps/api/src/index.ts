@@ -23,16 +23,31 @@ async function start() {
 async function shutdown(signal: string) {
   logger.info({ signal }, 'Shutdown signal received, closing gracefully');
 
-  // Stop accepting new connections
-  server?.close(() => {
-    logger.info('HTTP server closed');
-  });
-
   // Wait for in-flight requests (max 30s)
   const forceTimeout = setTimeout(() => {
     logger.error('Forced shutdown after timeout');
     process.exit(1);
   }, 30_000);
+
+  // Stop accepting new connections and wait for in-flight requests
+  try {
+    await new Promise<void>((resolve, reject) => {
+      if (!server) {
+        resolve();
+        return;
+      }
+      server.close((err) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve();
+        }
+      });
+    });
+    logger.info('HTTP server closed');
+  } catch (err) {
+    logger.error({ err }, 'Error closing HTTP server');
+  }
 
   try {
     await disconnectRedis();

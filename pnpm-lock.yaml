@@ -81,9 +81,6 @@ importers:
       '@types/node':
         specifier: ^25.2.3
         version: 25.2.3
-      '@types/pino':
-        specifier: ^7.0.5
-        version: 7.0.5
       drizzle-kit:
         specifier: ^0.31.9
         version: 0.31.9
@@ -1051,10 +1048,6 @@ packages:
 
   '@types/node@25.2.3':
     resolution: {integrity: sha512-m0jEgYlYz+mDJZ2+F4v8D1AyQb+QzsNqRuI7xg1VQX/KlKS0qT9r1Mo16yo5F/MtifXFgaofIFsdFMox2SxIbQ==}
-
-  '@types/pino@7.0.5':
-    resolution: {integrity: sha512-wKoab31pknvILkxAF8ss+v9iNyhw5Iu/0jLtRkUD74cNfOOLJNnqfFKAv0r7wVaTQxRZtWrMpGfShwwBjOcgcg==}
-    deprecated: This is a stub types definition. pino provides its own type definitions, so you do not need this installed.
 
   '@types/prop-types@15.7.15':
     resolution: {integrity: sha512-F6bEyamV9jKGAFBEmlQnesRPGOQqS2+Uwi0Em15xenOxHaf2hv6L8YCVn3rPdPJOiJfPiCnLIRyvwVaqMY3MIw==}
@@ -3142,10 +3135,6 @@ snapshots:
   '@types/node@25.2.3':
     dependencies:
       undici-types: 7.16.0
-
-  '@types/pino@7.0.5':
-    dependencies:
-      pino: 10.3.1
 
   '@types/prop-types@15.7.15': {}
 

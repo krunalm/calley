@@ -204,37 +204,37 @@
 
 ### 2.1 Event Service (Backend)
 
-- [ ] Implement `event.service.ts`:
-  - [ ] `listEvents(userId, start, end, categoryIds?)` — date range query, include expanded recurring instances
-  - [ ] `getEvent(userId, eventId)` — single event with ownership check
-  - [ ] `createEvent(userId, data)` — validate, create, emit SSE event
-  - [ ] `updateEvent(userId, eventId, data, scope)` — handle non-recurring + 3 recurrence scopes
-  - [ ] `deleteEvent(userId, eventId, scope)` — soft delete, handle recurrence scopes
-  - [ ] `duplicateEvent(userId, eventId)` — create standalone copy
-  - [ ] `exportIcs(userId, eventId)` — generate .ics file content
-- [ ] Implement input sanitization for event description (DOMPurify, allowlisted tags)
-- [ ] Implement `events.routes.ts` — all endpoints with validation and auth middleware
-- [ ] Write unit tests for event service (CRUD, ownership, date range queries)
-- [ ] Write API integration tests for event endpoints
+- [x] Implement `event.service.ts`:
+  - [x] `listEvents(userId, start, end, categoryIds?)` — date range query, include expanded recurring instances
+  - [x] `getEvent(userId, eventId)` — single event with ownership check
+  - [x] `createEvent(userId, data)` — validate, create, emit SSE event
+  - [x] `updateEvent(userId, eventId, data, scope)` — handle non-recurring + 3 recurrence scopes
+  - [x] `deleteEvent(userId, eventId, scope)` — soft delete, handle recurrence scopes
+  - [x] `duplicateEvent(userId, eventId)` — create standalone copy
+  - [x] `exportIcs(userId, eventId)` — generate .ics file content
+- [x] Implement input sanitization for event description (DOMPurify, allowlisted tags)
+- [x] Implement `events.routes.ts` — all endpoints with validation and auth middleware
+- [x] Write unit tests for event service (CRUD, ownership, date range queries)
+- [x] Write API integration tests for event endpoints
 
 ### 2.2 Recurrence Service (Backend)
 
-- [ ] Implement `recurrence.service.ts`:
-  - [ ] `expandRecurringEvents(events, start, end)` — use rrule.js to generate instances within range
-  - [ ] `handleEditScope('instance', parentEvent, instanceDate, updates)` — create exception record, add to exDates
-  - [ ] `handleEditScope('following', parentEvent, instanceDate, updates)` — split series
-  - [ ] `handleEditScope('all', parentEvent, updates)` — update parent directly
-  - [ ] Validate RRULE strings before storage
-  - [ ] Cap expansion at 1000 instances per series per query
-- [ ] Write comprehensive unit tests:
-  - [ ] Daily recurrence expansion
-  - [ ] Weekly with specific days
-  - [ ] Monthly by day-of-month and by weekday position
-  - [ ] Yearly recurrence
-  - [ ] Custom interval (every 3 weeks, etc.)
-  - [ ] End conditions (count, until date)
-  - [ ] Exception handling (exDates skipped)
-  - [ ] Timezone edge cases (DST transitions)
+- [x] Implement `recurrence.service.ts`:
+  - [x] `expandRecurringEvents(events, start, end)` — use rrule.js to generate instances within range
+  - [x] `handleEditScope('instance', parentEvent, instanceDate, updates)` — create exception record, add to exDates (in EventService)
+  - [x] `handleEditScope('following', parentEvent, instanceDate, updates)` — split series (in EventService)
+  - [x] `handleEditScope('all', parentEvent, updates)` — update parent directly (in EventService)
+  - [x] Validate RRULE strings before storage (rrule.js-powered validation)
+  - [x] Cap expansion at 1000 instances per series per query
+- [x] Write comprehensive unit tests:
+  - [x] Daily recurrence expansion
+  - [x] Weekly with specific days
+  - [x] Monthly by day-of-month and by weekday position
+  - [x] Yearly recurrence
+  - [x] Custom interval (every 3 weeks, etc.)
+  - [x] End conditions (count, until date)
+  - [x] Exception handling (exDates skipped)
+  - [x] Timezone edge cases (DST transitions)
 
 ### 2.3 Frontend Setup & Auth Pages
 

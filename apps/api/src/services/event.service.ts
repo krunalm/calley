@@ -5,6 +5,7 @@ import { calendarCategories, eventExceptions, events, reminders } from '../db/sc
 import { AppError } from '../lib/errors';
 import { logger } from '../lib/logger';
 import { sanitizeHtml } from '../lib/sanitize';
+import { recurrenceService } from './recurrence.service';
 
 import type { CreateEventInput, EditScope, UpdateEventInput } from '@calley/shared';
 
@@ -152,9 +153,8 @@ function foldIcsLine(line: string): string {
 export class EventService {
   /**
    * List events within a date range for a user.
-   * Includes both regular events and recurring event parents
-   * that overlap the query range. Recurring instance expansion
-   * is handled separately in recurrence.service.ts (Phase 2.2).
+   * Includes regular events in range and expands recurring event
+   * parents into individual instances using the recurrence service.
    */
   async listEvents(
     userId: string,
@@ -216,7 +216,16 @@ export class EventService {
       return true;
     });
 
-    return deduped.map((e) => toEventResponse(e as EventRow));
+    const serialized = deduped.map((e) => toEventResponse(e as EventRow));
+
+    // Fetch exception overrides for recurring parents
+    const recurringParentIds = recurringParents.map((e) => e.id);
+    const exceptions = await this.getExceptionOverrides(userId, recurringParentIds);
+
+    // Expand recurring events into instances within the date range
+    const expanded = recurrenceService.expandRecurringEvents(serialized, start, end, exceptions);
+
+    return expanded as EventResponse[];
   }
 
   /**
@@ -493,19 +502,10 @@ export class EventService {
   }
 
   /**
-   * Basic RRULE validation: checks the string starts with valid RRULE components.
+   * RRULE validation using the recurrence service (rrule.js-powered).
    */
   private validateRrule(rrule: string): void {
-    // Basic validation: must contain FREQ=
-    if (!rrule.includes('FREQ=')) {
-      throw new AppError(422, 'INVALID_RRULE', 'Invalid recurrence rule: missing FREQ');
-    }
-
-    const validFreqs = ['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY'];
-    const freqMatch = rrule.match(/FREQ=(\w+)/);
-    if (!freqMatch || !validFreqs.includes(freqMatch[1])) {
-      throw new AppError(422, 'INVALID_RRULE', 'Invalid recurrence rule: invalid FREQ value');
-    }
+    recurrenceService.validateRrule(rrule);
   }
 
   /**

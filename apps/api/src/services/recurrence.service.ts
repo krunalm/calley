@@ -129,9 +129,10 @@ export class RecurrenceService {
   }
 
   private exceptionKey(parentId: string, originalDate: string): string {
-    // Normalize to date-only comparison for matching instances
-    const dateOnly = new Date(originalDate).toISOString().slice(0, 10);
-    return `${parentId}::${dateOnly}`;
+    // Use full ISO timestamp for unique keying (avoids collisions when
+    // multiple occurrences fall on the same calendar date)
+    const isoTimestamp = new Date(originalDate).toISOString();
+    return `${parentId}::${isoTimestamp}`;
   }
 
   /**
@@ -173,13 +174,13 @@ export class RecurrenceService {
     for (const exDateStr of parent.exDates) {
       const exDate = new Date(exDateStr);
       rruleSet.exdate(exDate);
-      exDateSet.add(exDate.toISOString().slice(0, 10));
+      exDateSet.add(exDate.toISOString());
     }
 
-    // Expand occurrences within the range
-    // We expand slightly beyond the range to catch events that start before
-    // the range but whose duration extends into it
-    const occurrences = rruleSet.between(start, end, true);
+    // Shift the between window back by event duration so we catch occurrences
+    // that start before the query range but whose duration extends into it.
+    const windowStart = new Date(start.getTime() - duration);
+    const occurrences = rruleSet.between(windowStart, end, true);
 
     // Cap at MAX_INSTANCES_PER_SERIES
     const cappedOccurrences = occurrences.slice(0, MAX_INSTANCES_PER_SERIES);
@@ -195,20 +196,30 @@ export class RecurrenceService {
       );
     }
 
+    const startMs = start.getTime();
+    const endMs = end.getTime();
     const instances: ExpandedInstance[] = [];
 
     for (const occurrence of cappedOccurrences) {
-      const instanceDate = occurrence.toISOString();
-      const instanceDateOnly = occurrence.toISOString().slice(0, 10);
+      const occurrenceMs = occurrence.getTime();
+      const instanceEndMs = occurrenceMs + duration;
 
-      // Skip if this date is in exDates (double check in case rruleSet missed it)
-      if (exDateSet.has(instanceDateOnly)) {
+      // Filter to only occurrences that actually overlap the requested range:
+      // occurrence starts before range end AND occurrence+duration ends after range start
+      if (occurrenceMs >= endMs || instanceEndMs <= startMs) {
+        continue;
+      }
+
+      const instanceDate = occurrence.toISOString();
+
+      // Skip if this occurrence is in exDates (double check in case rruleSet missed it)
+      if (exDateSet.has(instanceDate)) {
         continue;
       }
 
       // Calculate instance start and end based on occurrence date
       const instanceStart = occurrence;
-      const instanceEnd = new Date(occurrence.getTime() + duration);
+      const instanceEnd = new Date(instanceEndMs);
 
       // Build the base instance
       let instance: ExpandedInstance = {
@@ -223,7 +234,7 @@ export class RecurrenceService {
       const exceptionKey = this.exceptionKey(parent.id, instanceDate);
       const exception = exceptionMap.get(exceptionKey);
       if (exception) {
-        instance = this.applyOverrides(instance, exception);
+        instance = this.applyOverrides(instance, exception, duration);
       }
 
       instances.push(instance);
@@ -234,10 +245,15 @@ export class RecurrenceService {
 
   /**
    * Apply exception overrides to an expanded instance.
+   *
+   * When only startAt is overridden (no endAt), the original duration is
+   * preserved by shifting endAt accordingly. After all overrides are applied,
+   * endAt is validated to be >= startAt.
    */
   private applyOverrides(
     instance: ExpandedInstance,
     exception: ExceptionOverride,
+    originalDuration: number,
   ): ExpandedInstance {
     const overrides = exception.overrides;
     const result = { ...instance };
@@ -246,12 +262,35 @@ export class RecurrenceService {
     if (overrides.description !== undefined)
       result.description = overrides.description as string | null;
     if (overrides.location !== undefined) result.location = overrides.location as string | null;
-    if (overrides.startAt !== undefined) result.startAt = overrides.startAt as string;
-    if (overrides.endAt !== undefined) result.endAt = overrides.endAt as string;
-    if (overrides.isAllDay !== undefined) result.isAllDay = overrides.isAllDay as boolean;
     if (overrides.categoryId !== undefined) result.categoryId = overrides.categoryId as string;
     if (overrides.color !== undefined) result.color = overrides.color as string | null;
     if (overrides.visibility !== undefined) result.visibility = overrides.visibility as string;
+    if (overrides.isAllDay !== undefined) result.isAllDay = overrides.isAllDay as boolean;
+
+    // Handle time overrides with duration preservation
+    const hasStartOverride = overrides.startAt !== undefined;
+    const hasEndOverride = overrides.endAt !== undefined;
+
+    if (hasStartOverride) {
+      result.startAt = overrides.startAt as string;
+    }
+    if (hasEndOverride) {
+      result.endAt = overrides.endAt as string;
+    }
+
+    // When only startAt is overridden, preserve the original event duration
+    if (hasStartOverride && !hasEndOverride) {
+      const newStart = new Date(result.startAt).getTime();
+      result.endAt = new Date(newStart + originalDuration).toISOString();
+    }
+
+    // Validate that endAt >= startAt after overrides
+    const finalStart = new Date(result.startAt).getTime();
+    const finalEnd = new Date(result.endAt).getTime();
+    if (finalEnd < finalStart) {
+      // Clamp endAt to startAt to prevent invalid state
+      result.endAt = result.startAt;
+    }
 
     return result;
   }

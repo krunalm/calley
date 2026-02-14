@@ -238,27 +238,27 @@
 
 ### 2.3 Frontend Setup & Auth Pages
 
-- [ ] Configure Vite with path aliases (`@/` → `src/`)
-- [ ] Install and configure Tailwind CSS v4 with design tokens (per spec §8.1)
-- [ ] Set up shadcn/ui (init, add base components: Button, Input, Dialog, Popover, DropdownMenu, Tooltip, Toast, Skeleton, Label, Checkbox, Select, Separator, Sheet, Command)
-- [ ] Load Google Fonts (DM Serif Display, Outfit, DM Mono) with `font-display: swap`
-- [ ] Configure TanStack Router (file-based routing)
-- [ ] Configure TanStack Query (QueryClient with defaults: staleTime, retry, refetchOnWindowFocus)
-- [ ] Create `lib/api-client.ts` — fetch wrapper with:
-  - [ ] Base URL from env
-  - [ ] Credentials: include (for cookies)
-  - [ ] Auto-attach CSRF token header
-  - [ ] Auto-parse JSON responses
-  - [ ] Error handling (throw on non-2xx, extract error body)
-  - [ ] 401 handling → redirect to login
-- [ ] Create `lib/query-keys.ts` — query key factory (per spec §10.2)
-- [ ] Build Login page (`/login`) — email, password, OAuth buttons, "Forgot password" link
-- [ ] Build Signup page (`/signup`) — name, email, password (with zxcvbn strength meter), OAuth buttons
-- [ ] Build Forgot Password page (`/forgot-password`) — email input, success message
-- [ ] Build Reset Password page (`/reset-password`) — new password + confirm, token from URL
-- [ ] Build OAuthButtons component — Google + GitHub buttons with correct redirect URLs
-- [ ] Implement auth route guard (`_app/__layout.tsx`) — redirect to `/login` on 401
-- [ ] Implement guest route guard (`_auth/__layout.tsx`) — redirect to `/calendar` if authenticated
+- [x] Configure Vite with path aliases (`@/` → `src/`)
+- [x] Install and configure Tailwind CSS v4 with design tokens (per spec §8.1)
+- [x] Set up shadcn/ui (init, add base components: Button, Input, Dialog, Popover, DropdownMenu, Tooltip, Toast, Skeleton, Label, Checkbox, Select, Separator, Sheet, Command)
+- [x] Load Google Fonts (DM Serif Display, Outfit, DM Mono) with `font-display: swap`
+- [x] Configure TanStack Router (file-based routing)
+- [x] Configure TanStack Query (QueryClient with defaults: staleTime, retry, refetchOnWindowFocus)
+- [x] Create `lib/api-client.ts` — fetch wrapper with:
+  - [x] Base URL from env
+  - [x] Credentials: include (for cookies)
+  - [x] Auto-attach CSRF token header
+  - [x] Auto-parse JSON responses
+  - [x] Error handling (throw on non-2xx, extract error body)
+  - [x] 401 handling → redirect to login
+- [x] Create `lib/query-keys.ts` — query key factory (per spec §10.2)
+- [x] Build Login page (`/login`) — email, password, OAuth buttons, "Forgot password" link
+- [x] Build Signup page (`/signup`) — name, email, password (with zxcvbn strength meter), OAuth buttons
+- [x] Build Forgot Password page (`/forgot-password`) — email input, success message
+- [x] Build Reset Password page (`/reset-password`) — new password + confirm, token from URL
+- [x] Build OAuthButtons component — Google + GitHub buttons with correct redirect URLs
+- [x] Implement auth route guard (`_app/__layout.tsx`) — redirect to `/login` on 401
+- [x] Implement guest route guard (`_auth/__layout.tsx`) — redirect to `/calendar` if authenticated
 - [ ] Test all auth flows in browser
 
 ### 2.4 App Shell & Layout

@@ -1,12 +1,16 @@
-import { greetingSchema } from '@calley/shared';
+import { loginSchema, TASK_PRIORITIES } from '@calley/shared';
 
 export function App() {
-  const result = greetingSchema.safeParse({ message: 'Hello from Calley!' });
+  // Verify @calley/shared schemas and constants import correctly
+  const schemaFields = Object.keys(loginSchema.shape).length;
+  const priorities = TASK_PRIORITIES.length;
 
   return (
     <div>
       <h1>Calley</h1>
-      {result.success && <p>{result.data.message}</p>}
+      <p>
+        Shared package loaded: {schemaFields} auth fields, {priorities} priority levels
+      </p>
     </div>
   );
 }

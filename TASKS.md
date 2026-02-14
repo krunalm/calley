@@ -151,27 +151,27 @@
 
 ### 1.5 Authentication — Password Reset
 
-- [ ] Install Resend SDK
-- [ ] Create `lib/email.ts` — Resend client, fallback to console.log in development
-- [ ] Create email template for password reset (HTML + plain text)
-- [ ] Implement `forgotPassword()` in auth service — generate token, hash with SHA-256, store, send email
-- [ ] Implement `resetPassword()` in auth service — verify hashed token, check expiry, update password, invalidate sessions
-- [ ] Ensure same response for existing and non-existing emails (prevent enumeration)
+- [x] Install Resend SDK
+- [x] Create `lib/email.ts` — Resend client, fallback to console.log in development
+- [x] Create email template for password reset (HTML + plain text)
+- [x] Implement `forgotPassword()` in auth service — generate token, hash with SHA-256, store, send email
+- [x] Implement `resetPassword()` in auth service — verify hashed token, check expiry, update password, invalidate sessions
+- [x] Ensure same response for existing and non-existing emails (prevent enumeration)
 - [ ] Test password reset flow end-to-end
 
 ### 1.6 Authentication — OAuth (Google + GitHub)
 
-- [ ] Install Arctic.js
-- [ ] Implement Google OAuth:
-  - [ ] `GET /auth/oauth/google` — generate state, store in cookie, redirect to Google
-  - [ ] `GET /auth/oauth/google/callback` — verify state, exchange code, fetch profile
-  - [ ] Link to existing user (by email) or create new user
-  - [ ] Create session, redirect to frontend
-- [ ] Implement GitHub OAuth:
-  - [ ] `GET /auth/oauth/github` — same flow
-  - [ ] `GET /auth/oauth/github/callback` — same flow
-- [ ] Handle edge case: OAuth email matches existing email/password user → link accounts
-- [ ] Handle edge case: OAuth provider doesn't return email → error with user-friendly message
+- [x] Install Arctic.js
+- [x] Implement Google OAuth:
+  - [x] `GET /auth/oauth/google` — generate state, store in cookie, redirect to Google
+  - [x] `GET /auth/oauth/google/callback` — verify state, exchange code, fetch profile
+  - [x] Link to existing user (by email) or create new user
+  - [x] Create session, redirect to frontend
+- [x] Implement GitHub OAuth:
+  - [x] `GET /auth/oauth/github` — same flow
+  - [x] `GET /auth/oauth/github/callback` — same flow
+- [x] Handle edge case: OAuth email matches existing email/password user → link accounts
+- [x] Handle edge case: OAuth provider doesn't return email → error with user-friendly message
 - [ ] Test both OAuth flows (requires provider app setup)
 
 ### 1.7 CSRF Protection

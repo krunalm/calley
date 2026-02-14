@@ -6,7 +6,13 @@ import { and, eq, gte, isNull, ne, sql } from 'drizzle-orm';
 import { DEFAULT_CATEGORY_COLOR } from '@calley/shared';
 
 import { db } from '../db';
-import { calendarCategories, passwordResetTokens, sessions, users } from '../db/schema';
+import {
+  calendarCategories,
+  oauthAccounts,
+  passwordResetTokens,
+  sessions,
+  users,
+} from '../db/schema';
 import { passwordResetEmail } from '../emails/password-reset';
 import { sendEmail } from '../lib/email';
 import { AppError } from '../lib/errors';
@@ -424,6 +430,129 @@ export class AuthService {
     await db.delete(users).where(eq(users.id, userId));
 
     logger.info({ userId }, 'Account deleted');
+  }
+
+  /**
+   * Handle OAuth callback for both Google and GitHub.
+   *
+   * Implements the account lookup/linking/creation logic from spec §13.3:
+   * 1. If an OAuthAccount exists for this provider + providerAccountId → load that user.
+   * 2. Else if the OAuth email matches an existing user → link the OAuth account to them.
+   * 3. Else → create a new user + OAuthAccount + default category.
+   *
+   * Edge case: if the OAuth provider doesn't return an email, we return an error
+   * since we need email for account management.
+   */
+  async handleOAuthCallback(
+    provider: 'google' | 'github',
+    profile: {
+      providerAccountId: string;
+      email: string | null;
+      name: string;
+      avatarUrl: string | null;
+    },
+    meta: { userAgent: string | null; ipAddress: string | null },
+  ): Promise<{ cookie: Cookie }> {
+    // Edge case: OAuth provider doesn't return email
+    if (!profile.email) {
+      throw new AppError(
+        422,
+        'VALIDATION_ERROR',
+        'Your OAuth account does not have a public email address. Please set a public email on your account and try again.',
+      );
+    }
+
+    const email = profile.email.toLowerCase();
+
+    // Step 1: Check if this OAuth account is already linked
+    const existingOAuth = await db.query.oauthAccounts.findFirst({
+      where: and(
+        eq(oauthAccounts.provider, provider),
+        eq(oauthAccounts.providerAccountId, profile.providerAccountId),
+      ),
+    });
+
+    let userId: string;
+
+    if (existingOAuth) {
+      // OAuth account already linked — just create a session
+      userId = existingOAuth.userId;
+
+      // Update avatar if the provider has a newer one
+      if (profile.avatarUrl) {
+        await db.update(users).set({ avatarUrl: profile.avatarUrl }).where(eq(users.id, userId));
+      }
+
+      logger.info({ userId, provider }, 'OAuth login — existing account');
+    } else {
+      // Step 2: Check if email matches an existing user
+      const existingUser = await db.query.users.findFirst({
+        where: eq(users.email, email),
+      });
+
+      if (existingUser) {
+        // Link OAuth account to the existing user
+        await db.insert(oauthAccounts).values({
+          userId: existingUser.id,
+          provider,
+          providerAccountId: profile.providerAccountId,
+        });
+
+        userId = existingUser.id;
+
+        // Update avatar if user doesn't have one yet
+        if (!existingUser.avatarUrl && profile.avatarUrl) {
+          await db.update(users).set({ avatarUrl: profile.avatarUrl }).where(eq(users.id, userId));
+        }
+
+        logger.info({ userId, provider }, 'OAuth login — linked to existing email account');
+      } else {
+        // Step 3: Create a brand new user + OAuth account + default category
+        const [newUser] = await db
+          .insert(users)
+          .values({
+            email,
+            passwordHash: null, // OAuth-only user, no password
+            name: profile.name || email.split('@')[0],
+            avatarUrl: profile.avatarUrl,
+            timezone: 'UTC',
+            weekStart: 0,
+            timeFormat: '12h',
+          })
+          .returning();
+
+        await db.insert(oauthAccounts).values({
+          userId: newUser.id,
+          provider,
+          providerAccountId: profile.providerAccountId,
+        });
+
+        // Create default "Personal" category
+        await db.insert(calendarCategories).values({
+          userId: newUser.id,
+          name: 'Personal',
+          color: DEFAULT_CATEGORY_COLOR,
+          isDefault: true,
+          sortOrder: 0,
+        });
+
+        userId = newUser.id;
+
+        logger.info({ userId, provider }, 'OAuth signup — new account created');
+      }
+    }
+
+    // Create session
+    await enforceMaxSessions(userId);
+    const session = await lucia.createSession(userId, {
+      userAgent: meta.userAgent,
+      ipAddress: meta.ipAddress ? hashIpAddress(meta.ipAddress) : null,
+      lastActiveAt: new Date(),
+    });
+
+    const cookie = lucia.createSessionCookie(session.id);
+
+    return { cookie };
   }
 }
 

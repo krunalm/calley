@@ -13,6 +13,10 @@ vi.mock('../../db', () => {
       calendarCategories: {
         findFirst: vi.fn(),
       },
+      eventExceptions: {
+        findFirst: vi.fn(),
+        findMany: vi.fn(),
+      },
     },
     select: vi.fn(),
     insert: vi.fn(),
@@ -333,7 +337,7 @@ describe('EventService', () => {
         title: 'Updated Title',
       });
 
-      expect(result.title).toBe('Updated Title');
+      expect((result as { title: string }).title).toBe('Updated Title');
       expect(db.update).toHaveBeenCalled();
     });
 
@@ -393,7 +397,7 @@ describe('EventService', () => {
         'all',
       );
 
-      expect(result.title).toBe('Updated');
+      expect((result as { title: string }).title).toBe('Updated');
       expect(db.update).toHaveBeenCalled();
     });
 
@@ -415,14 +419,18 @@ describe('EventService', () => {
       });
     });
 
-    it('should create exception record for scope "instance"', async () => {
+    it('should create exception override for scope "instance"', async () => {
       const recurringEvent = makeEventRow({ rrule: 'FREQ=DAILY' });
-      const exceptionRow = makeEventRow({
+      const exceptionOverrideRow = {
         id: 'exception1234567890123456',
-        title: 'Exception Title',
         recurringEventId: TEST_EVENT_ID,
+        userId: TEST_USER_ID,
         originalDate: new Date('2026-03-20T10:00:00Z'),
-      });
+        overrides: { title: 'Exception Title' },
+        createdAt: new Date('2026-03-01T00:00:00Z'),
+        updatedAt: new Date('2026-03-01T00:00:00Z'),
+        deletedAt: null,
+      };
       (db.query.events.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(recurringEvent);
 
       // Mock transaction
@@ -433,7 +441,7 @@ describe('EventService', () => {
         };
         const txInsertChain = {
           values: vi.fn().mockReturnThis(),
-          returning: vi.fn().mockResolvedValue([exceptionRow]),
+          returning: vi.fn().mockResolvedValue([exceptionOverrideRow]),
         };
         const tx = {
           update: vi.fn().mockReturnValue(txUpdateChain),
@@ -452,6 +460,9 @@ describe('EventService', () => {
 
       expect(result.id).toBe('exception1234567890123456');
       expect(result.recurringEventId).toBe(TEST_EVENT_ID);
+      expect((result as { overrides: Record<string, unknown> }).overrides).toEqual({
+        title: 'Exception Title',
+      });
     });
 
     it('should require instanceDate when scope is "following"', async () => {
@@ -741,11 +752,10 @@ describe('EventService', () => {
   describe('listEvents', () => {
     it('should query events within date range', async () => {
       const eventRows = [makeEventRow()];
-      const selectChain = {
-        from: vi.fn().mockReturnThis(),
-        where: vi.fn().mockResolvedValue(eventRows),
-      };
-      (db.select as ReturnType<typeof vi.fn>).mockReturnValue(selectChain);
+      // findMany is called twice: regular events, recurring parents
+      (db.query.events.findMany as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce(eventRows) // regular events
+        .mockResolvedValueOnce([]); // recurring parents
 
       const result = await service.listEvents(
         TEST_USER_ID,
@@ -755,18 +765,16 @@ describe('EventService', () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].id).toBe(TEST_EVENT_ID);
-      // db.select should be called 3 times: regular, recurring parents, exceptions
-      expect(db.select).toHaveBeenCalledTimes(3);
+      // db.query.events.findMany called 2 times: regular + recurring parents
+      expect(db.query.events.findMany).toHaveBeenCalledTimes(2);
     });
 
     it('should deduplicate events that appear in multiple queries', async () => {
       const eventRow = makeEventRow();
-      const selectChain = {
-        from: vi.fn().mockReturnThis(),
-        where: vi.fn().mockResolvedValue([eventRow]),
-      };
-      // All three queries return the same event
-      (db.select as ReturnType<typeof vi.fn>).mockReturnValue(selectChain);
+      // Both queries return the same event
+      (db.query.events.findMany as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce([eventRow])
+        .mockResolvedValueOnce([eventRow]);
 
       const result = await service.listEvents(
         TEST_USER_ID,
@@ -779,11 +787,9 @@ describe('EventService', () => {
     });
 
     it('should return an empty array when no events match', async () => {
-      const selectChain = {
-        from: vi.fn().mockReturnThis(),
-        where: vi.fn().mockResolvedValue([]),
-      };
-      (db.select as ReturnType<typeof vi.fn>).mockReturnValue(selectChain);
+      (db.query.events.findMany as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]);
 
       const result = await service.listEvents(
         TEST_USER_ID,

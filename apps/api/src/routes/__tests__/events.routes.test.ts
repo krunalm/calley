@@ -19,7 +19,7 @@ vi.mock('../../services/event.service', () => {
 // Mock auth middleware to always set a userId
 vi.mock('../../middleware/auth.middleware', () => ({
   authMiddleware: vi.fn(
-    async (c: { set: (k: string, v: string) => void }, next: () => Promise<void>) => {
+    async (c: { set: (k: string, v: unknown) => void }, next: () => Promise<void>) => {
       c.set('userId', 'testuser12345678901234567');
       c.set('session', { id: 'session123', userId: 'testuser12345678901234567' });
       await next();
@@ -182,7 +182,7 @@ describe('Event Routes', () => {
       const res = await app.request('/events?start=2026-03-01T00:00:00Z&end=2026-03-31T23:59:59Z');
 
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = (await res.json()) as Record<string, unknown>[];
       expect(body).toHaveLength(1);
       expect(body[0].id).toBe(TEST_EVENT_ID);
       expect(eventService.listEvents).toHaveBeenCalledWith(
@@ -212,7 +212,7 @@ describe('Event Routes', () => {
       const res = await app.request('/events');
 
       expect(res.status).toBe(400);
-      const body = await res.json();
+      const body = (await res.json()) as { error: { code: string } };
       expect(body.error.code).toBe('VALIDATION_ERROR');
     });
 
@@ -220,7 +220,7 @@ describe('Event Routes', () => {
       const res = await app.request('/events?start=not-a-date&end=2026-03-31T23:59:59Z');
 
       expect(res.status).toBe(400);
-      const body = await res.json();
+      const body = (await res.json()) as { error: { code: string } };
       expect(body.error.code).toBe('VALIDATION_ERROR');
     });
   });
@@ -245,7 +245,7 @@ describe('Event Routes', () => {
       });
 
       expect(res.status).toBe(201);
-      const body = await res.json();
+      const body = (await res.json()) as Record<string, unknown>;
       expect(body.title).toBe('New Event');
       expect(eventService.createEvent).toHaveBeenCalledWith(
         TEST_USER_ID,
@@ -311,7 +311,7 @@ describe('Event Routes', () => {
       const res = await app.request(`/events/${TEST_EVENT_ID}`);
 
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = (await res.json()) as Record<string, unknown>;
       expect(body.id).toBe(TEST_EVENT_ID);
       expect(eventService.getEvent).toHaveBeenCalledWith(TEST_USER_ID, TEST_EVENT_ID);
     });
@@ -324,7 +324,7 @@ describe('Event Routes', () => {
       const res = await app.request(`/events/${TEST_EVENT_ID}`);
 
       expect(res.status).toBe(404);
-      const body = await res.json();
+      const body = (await res.json()) as { error: { code: string } };
       expect(body.error.code).toBe('NOT_FOUND');
     });
   });
@@ -343,7 +343,7 @@ describe('Event Routes', () => {
       });
 
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = (await res.json()) as Record<string, unknown>;
       expect(body.title).toBe('Updated');
     });
 
@@ -440,7 +440,7 @@ describe('Event Routes', () => {
       });
 
       expect(res.status).toBe(201);
-      const body = await res.json();
+      const body = (await res.json()) as Record<string, unknown>;
       expect(body.id).toBe('duplicate12345678901234567');
       expect(eventService.duplicateEvent).toHaveBeenCalledWith(TEST_USER_ID, TEST_EVENT_ID);
     });

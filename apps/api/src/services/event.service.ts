@@ -1,7 +1,7 @@
-import { and, eq, gte, inArray, isNull, lte, sql } from 'drizzle-orm';
+import { and, eq, gte, inArray, isNotNull, isNull, lte } from 'drizzle-orm';
 
 import { db } from '../db';
-import { calendarCategories, events, reminders } from '../db/schema';
+import { calendarCategories, eventExceptions, events, reminders } from '../db/schema';
 import { AppError } from '../lib/errors';
 import { logger } from '../lib/logger';
 import { sanitizeHtml } from '../lib/sanitize';
@@ -52,6 +52,27 @@ interface EventResponse {
   deletedAt: string | null;
 }
 
+interface EventExceptionRow {
+  id: string;
+  recurringEventId: string;
+  userId: string;
+  originalDate: Date;
+  overrides: Record<string, unknown>;
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt: Date | null;
+}
+
+interface EventExceptionResponse {
+  id: string;
+  recurringEventId: string;
+  userId: string;
+  originalDate: string;
+  overrides: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // ─── Helpers ────────────────────────────────────────────────────────
 
 function toEventResponse(row: EventRow): EventResponse {
@@ -74,6 +95,18 @@ function toEventResponse(row: EventRow): EventResponse {
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
     deletedAt: row.deletedAt ? row.deletedAt.toISOString() : null,
+  };
+}
+
+function toExceptionResponse(row: EventExceptionRow): EventExceptionResponse {
+  return {
+    id: row.id,
+    recurringEventId: row.recurringEventId,
+    userId: row.userId,
+    originalDate: row.originalDate.toISOString(),
+    overrides: row.overrides,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
   };
 }
 
@@ -153,7 +186,7 @@ export class EventService {
     const recurringConditions = [
       eq(events.userId, userId),
       isNull(events.deletedAt),
-      sql`${events.rrule} IS NOT NULL`,
+      isNotNull(events.rrule),
       isNull(events.recurringEventId), // Only parent events
     ];
 
@@ -161,38 +194,19 @@ export class EventService {
       recurringConditions.push(inArray(events.categoryId, categoryIds));
     }
 
-    const [regularEvents, recurringParents, exceptionEvents] = await Promise.all([
+    const [regularEvents, recurringParents] = await Promise.all([
       // Regular (non-recurring) events in range
-      db
-        .select()
-        .from(events)
-        .where(and(...nonRecurringConditions, isNull(events.recurringEventId))),
+      db.query.events.findMany({
+        where: and(...nonRecurringConditions, isNull(events.recurringEventId)),
+      }),
 
       // Recurring parent events (fetched regardless of date range for expansion)
-      db
-        .select()
-        .from(events)
-        .where(and(...recurringConditions)),
-
-      // Exception events (overrides of recurring instances) in range
-      db
-        .select()
-        .from(events)
-        .where(
-          and(
-            eq(events.userId, userId),
-            isNull(events.deletedAt),
-            sql`${events.recurringEventId} IS NOT NULL`,
-            lte(events.startAt, endDate),
-            gte(events.endAt, startDate),
-            ...(categoryIds && categoryIds.length > 0
-              ? [inArray(events.categoryId, categoryIds)]
-              : []),
-          ),
-        ),
+      db.query.events.findMany({
+        where: and(...recurringConditions),
+      }),
     ]);
 
-    const allEvents = [...regularEvents, ...recurringParents, ...exceptionEvents];
+    const allEvents = [...regularEvents, ...recurringParents];
 
     // Deduplicate by id (recurring parents may overlap with range-based queries)
     const seen = new Set<string>();
@@ -203,6 +217,27 @@ export class EventService {
     });
 
     return deduped.map((e) => toEventResponse(e as EventRow));
+  }
+
+  /**
+   * Get exception overrides for recurring events within the given parent IDs.
+   * Used by the recurrence expansion logic to apply per-instance overrides.
+   */
+  async getExceptionOverrides(
+    userId: string,
+    recurringEventIds: string[],
+  ): Promise<EventExceptionResponse[]> {
+    if (recurringEventIds.length === 0) return [];
+
+    const exceptions = await db.query.eventExceptions.findMany({
+      where: and(
+        eq(eventExceptions.userId, userId),
+        inArray(eventExceptions.recurringEventId, recurringEventIds),
+        isNull(eventExceptions.deletedAt),
+      ),
+    });
+
+    return exceptions.map((e) => toExceptionResponse(e as EventExceptionRow));
   }
 
   /**
@@ -290,7 +325,7 @@ export class EventService {
     data: UpdateEventInput,
     scope?: EditScope,
     instanceDate?: string,
-  ): Promise<EventResponse> {
+  ): Promise<EventResponse | EventExceptionResponse> {
     const event = await db.query.events.findFirst({
       where: and(eq(events.id, eventId), eq(events.userId, userId), isNull(events.deletedAt)),
     });
@@ -506,14 +541,16 @@ export class EventService {
 
   /**
    * Edit a single instance of a recurring event.
-   * Creates an exception record and adds the original date to exDates.
+   * Stores only the delta (changed fields) in the event_exceptions table
+   * rather than materializing a full event row. The expansion logic applies
+   * these overrides when generating instances for the UI.
    */
   private async updateInstance(
     userId: string,
     parentEvent: EventRow,
     data: UpdateEventInput,
     instanceDate?: string,
-  ): Promise<EventResponse> {
+  ): Promise<EventExceptionResponse> {
     if (!instanceDate) {
       throw new AppError(
         400,
@@ -524,34 +561,41 @@ export class EventService {
 
     const origDate = new Date(instanceDate);
 
-    // Run in a transaction: add exDate to parent + create exception
+    // Build overrides object containing only the fields that were changed
+    const overrides: Record<string, unknown> = {};
+    if (data.title !== undefined) overrides.title = data.title;
+    if (data.description !== undefined) overrides.description = data.description;
+    if (data.location !== undefined) overrides.location = data.location;
+    if (data.startAt !== undefined) overrides.startAt = data.startAt;
+    if (data.endAt !== undefined) overrides.endAt = data.endAt;
+    if (data.isAllDay !== undefined) overrides.isAllDay = data.isAllDay;
+    if (data.categoryId !== undefined) overrides.categoryId = data.categoryId;
+    if (data.color !== undefined) overrides.color = data.color;
+    if (data.visibility !== undefined) overrides.visibility = data.visibility;
+
+    // Run in a transaction: create exception override (no exDate added;
+    // the expansion logic checks event_exceptions to apply overrides)
     const result = await db.transaction(async (tx) => {
-      // Add the instance date to exDates on the parent
-      const currentExDates = parentEvent.exDates ?? [];
-      const newExDates = [...currentExDates, origDate];
-
+      // Upsert: soft-delete any existing exception for this instance date, then insert new
       await tx
-        .update(events)
-        .set({ exDates: newExDates, updatedAt: new Date() })
-        .where(eq(events.id, parentEvent.id));
+        .update(eventExceptions)
+        .set({ deletedAt: new Date() })
+        .where(
+          and(
+            eq(eventExceptions.recurringEventId, parentEvent.id),
+            eq(eventExceptions.userId, userId),
+            eq(eventExceptions.originalDate, origDate),
+            isNull(eventExceptions.deletedAt),
+          ),
+        );
 
-      // Create exception record with the updated fields
       const [exception] = await tx
-        .insert(events)
+        .insert(eventExceptions)
         .values({
-          userId,
-          categoryId: data.categoryId ?? parentEvent.categoryId,
-          title: data.title ?? parentEvent.title,
-          description: data.description !== undefined ? data.description : parentEvent.description,
-          location: data.location !== undefined ? data.location : parentEvent.location,
-          startAt: data.startAt ? new Date(data.startAt) : parentEvent.startAt,
-          endAt: data.endAt ? new Date(data.endAt) : parentEvent.endAt,
-          isAllDay: data.isAllDay !== undefined ? data.isAllDay : parentEvent.isAllDay,
-          color: data.color !== undefined ? data.color : parentEvent.color,
-          visibility: data.visibility ?? parentEvent.visibility,
           recurringEventId: parentEvent.id,
+          userId,
           originalDate: origDate,
-          rrule: null,
+          overrides,
         })
         .returning();
 
@@ -560,10 +604,10 @@ export class EventService {
 
     logger.info(
       { userId, parentEventId: parentEvent.id, exceptionId: result.id, instanceDate },
-      'Recurring event instance updated',
+      'Recurring event instance updated (exception override)',
     );
 
-    return toEventResponse(result as EventRow);
+    return toExceptionResponse(result as EventExceptionRow);
   }
 
   /**
@@ -607,7 +651,13 @@ export class EventService {
       await tx
         .update(events)
         .set({ rrule: updatedRrule, updatedAt: new Date() })
-        .where(eq(events.id, parentEvent.id));
+        .where(
+          and(
+            eq(events.id, parentEvent.id),
+            eq(events.userId, parentEvent.userId),
+            isNull(events.deletedAt),
+          ),
+        );
 
       // Create new series with updated fields
       const [newSeries] = await tx
@@ -654,8 +704,8 @@ export class EventService {
 
   /**
    * Delete a single instance of a recurring event.
-   * Adds the instance date to the parent's exDates.
-   * Also soft deletes any exception record for that instance.
+   * Adds the instance date to the parent's exDates and soft-deletes
+   * any exception override for that instance from event_exceptions.
    */
   private async deleteInstance(
     userId: string,
@@ -671,19 +721,25 @@ export class EventService {
     }
 
     const origDate = new Date(instanceDate);
-
-    // If this is an exception record, find the parent
     const parentId = event.recurringEventId ?? event.id;
 
     await db.transaction(async (tx) => {
-      if (event.recurringEventId) {
-        // This is an exception record — soft delete it
-        await tx.update(events).set({ deletedAt: new Date() }).where(eq(events.id, event.id));
-      }
+      // Soft-delete any exception override for this instance
+      await tx
+        .update(eventExceptions)
+        .set({ deletedAt: new Date() })
+        .where(
+          and(
+            eq(eventExceptions.recurringEventId, parentId),
+            eq(eventExceptions.userId, userId),
+            eq(eventExceptions.originalDate, origDate),
+            isNull(eventExceptions.deletedAt),
+          ),
+        );
 
-      // Add to parent's exDates
+      // Add to parent's exDates so the instance is excluded from expansion
       const parent = await tx.query.events.findFirst({
-        where: and(eq(events.id, parentId), eq(events.userId, userId)),
+        where: and(eq(events.id, parentId), eq(events.userId, userId), isNull(events.deletedAt)),
       });
 
       if (parent) {
@@ -693,7 +749,7 @@ export class EventService {
         await tx
           .update(events)
           .set({ exDates: newExDates, updatedAt: new Date() })
-          .where(eq(events.id, parentId));
+          .where(and(eq(events.id, parentId), eq(events.userId, userId), isNull(events.deletedAt)));
       }
     });
   }
@@ -721,7 +777,7 @@ export class EventService {
 
     await db.transaction(async (tx) => {
       const parent = await tx.query.events.findFirst({
-        where: and(eq(events.id, parentId), eq(events.userId, userId)),
+        where: and(eq(events.id, parentId), eq(events.userId, userId), isNull(events.deletedAt)),
       });
 
       if (!parent || !parent.rrule) return;
@@ -739,18 +795,18 @@ export class EventService {
       await tx
         .update(events)
         .set({ rrule: updatedRrule, updatedAt: new Date() })
-        .where(eq(events.id, parentId));
+        .where(and(eq(events.id, parentId), eq(events.userId, userId), isNull(events.deletedAt)));
 
-      // Soft delete exception records for dates >= instanceDate
+      // Soft delete exception overrides for dates >= instanceDate
       await tx
-        .update(events)
+        .update(eventExceptions)
         .set({ deletedAt: new Date() })
         .where(
           and(
-            eq(events.recurringEventId, parentId),
-            eq(events.userId, userId),
-            isNull(events.deletedAt),
-            gte(events.originalDate, splitDate),
+            eq(eventExceptions.recurringEventId, parentId),
+            eq(eventExceptions.userId, userId),
+            isNull(eventExceptions.deletedAt),
+            gte(eventExceptions.originalDate, splitDate),
           ),
         );
     });
@@ -758,25 +814,25 @@ export class EventService {
 
   /**
    * Delete all instances of a recurring event.
-   * Soft deletes the parent and all exception records.
+   * Soft deletes the parent and all exception overrides.
    */
   private async deleteAll(userId: string, eventId: string): Promise<void> {
     const now = new Date();
 
     await db.transaction(async (tx) => {
-      // Soft delete all exceptions
+      // Soft delete all exception overrides from event_exceptions
       await tx
-        .update(events)
+        .update(eventExceptions)
         .set({ deletedAt: now })
         .where(
           and(
-            eq(events.recurringEventId, eventId),
-            eq(events.userId, userId),
-            isNull(events.deletedAt),
+            eq(eventExceptions.recurringEventId, eventId),
+            eq(eventExceptions.userId, userId),
+            isNull(eventExceptions.deletedAt),
           ),
         );
 
-      // Soft delete the parent
+      // Soft delete the parent event
       await tx
         .update(events)
         .set({ deletedAt: now })

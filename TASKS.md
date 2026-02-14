@@ -114,21 +114,21 @@
 
 ### 1.3 API Skeleton & Middleware
 
-- [ ] Set up Hono app factory (`app.ts`) with base configuration
-- [ ] Create `index.ts` entry point with graceful shutdown handler (SIGTERM, SIGINT)
-- [ ] Implement `request-id.middleware.ts` — generate CUID2, attach to context, set response header
-- [ ] Implement `logger.middleware.ts` — Pino structured logging per request (method, path, status, duration)
-- [ ] Create `lib/logger.ts` — Pino instance with environment-based log level
-- [ ] Implement `security-headers.middleware.ts` — CSP, X-Frame-Options, HSTS, etc. (per spec §4.2)
-- [ ] Implement `cors.middleware.ts` — restrict to `CORS_ORIGIN` env var (per spec §4.6)
-- [ ] Implement `error-handler.middleware.ts` — catch AppError + unhandled, format response, log
-- [ ] Create `AppError` class with statusCode, code, message, details
-- [ ] Implement `validate.middleware.ts` — accept Zod schema, validate body/query/params
-- [ ] Implement `rate-limit.middleware.ts` — Redis sliding window, configurable per route group (per spec §4.3)
-- [ ] Create `lib/redis.ts` — Redis client singleton with connection error handling
-- [ ] Create `health.routes.ts` — `/health` and `/health/ready` endpoints
-- [ ] Wire all middleware in correct order in `app.ts`
-- [ ] Test health endpoint manually
+- [x] Set up Hono app factory (`app.ts`) with base configuration
+- [x] Create `index.ts` entry point with graceful shutdown handler (SIGTERM, SIGINT)
+- [x] Implement `request-id.middleware.ts` — generate CUID2, attach to context, set response header
+- [x] Implement `logger.middleware.ts` — Pino structured logging per request (method, path, status, duration)
+- [x] Create `lib/logger.ts` — Pino instance with environment-based log level
+- [x] Implement `security-headers.middleware.ts` — CSP, X-Frame-Options, HSTS, etc. (per spec §4.2)
+- [x] Implement `cors.middleware.ts` — restrict to `CORS_ORIGIN` env var (per spec §4.6)
+- [x] Implement `error-handler.middleware.ts` — catch AppError + unhandled, format response, log
+- [x] Create `AppError` class with statusCode, code, message, details
+- [x] Implement `validate.middleware.ts` — accept Zod schema, validate body/query/params
+- [x] Implement `rate-limit.middleware.ts` — Redis sliding window, configurable per route group (per spec §4.3)
+- [x] Create `lib/redis.ts` — Redis client singleton with connection error handling
+- [x] Create `health.routes.ts` — `/health` and `/health/ready` endpoints
+- [x] Wire all middleware in correct order in `app.ts`
+- [x] Test health endpoint manually
 
 ### 1.4 Authentication — Email/Password
 

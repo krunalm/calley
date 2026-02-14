@@ -1,15 +1,24 @@
 import { Hono } from 'hono';
 
-import { loginSchema } from '@calley/shared';
+import { createCorsMiddleware } from './middleware/cors.middleware';
+import { errorHandler } from './middleware/error-handler.middleware';
+import { requestLogger } from './middleware/logger.middleware';
+import { requestId } from './middleware/request-id.middleware';
+import { securityHeaders } from './middleware/security-headers.middleware';
+import health from './routes/health.routes';
 
-export const app = new Hono();
+import type { AppVariables } from './types/hono';
 
-app.get('/', (c) => {
-  // Quick schema verification — confirms @calley/shared imports work
-  const schemaKeys = Object.keys(loginSchema.shape);
-  return c.json({ message: 'Calley API is running', schemaFields: schemaKeys.length });
-});
+export const app = new Hono<{ Variables: AppVariables }>();
 
-app.get('/health', (c) => {
-  return c.json({ status: 'ok' });
-});
+// Global middleware — order matters
+app.use('*', requestId);
+app.use('*', requestLogger);
+app.use('*', securityHeaders);
+app.use('*', createCorsMiddleware());
+
+// Global error handler
+app.onError(errorHandler);
+
+// Health check routes (no auth required)
+app.route('/', health);

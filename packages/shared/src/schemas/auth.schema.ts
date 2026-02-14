@@ -54,7 +54,7 @@ export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 // ─── Reset Password ─────────────────────────────────────────────────
 
 export const resetPasswordSchema = z.object({
-  token: z.string().min(1, 'Token is required'),
+  token: z.string().min(1, 'Token is required').max(256, 'Token must be at most 256 characters'),
   password: z
     .string()
     .min(8, 'Password must be at least 8 characters')

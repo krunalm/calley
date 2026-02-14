@@ -11,6 +11,7 @@ vi.mock('../../lib/logger', () => ({
 }));
 
 import { AppError } from '../../lib/errors';
+import { logger } from '../../lib/logger';
 import { RecurrenceService } from '../recurrence.service';
 
 import type { ExceptionOverride, RecurrableEvent } from '../recurrence.service';
@@ -855,6 +856,161 @@ describe('RecurrenceService', () => {
       // The Friday Mar 13 instance runs Fri 10:00 to Mon 10:00 — overlaps Sunday
       expect(result).toHaveLength(1);
       expect(new Date(result[0].startAt).getUTCDay()).toBe(5); // Friday
+    });
+
+    // ─── Negative duration guard ─────────────────────────────────
+
+    it('should clamp negative duration to 0 and warn when endAt < startAt on parent', () => {
+      const event = makeRecurrableEvent({
+        rrule: 'FREQ=DAILY;COUNT=3',
+        startAt: '2026-03-15T12:00:00.000Z',
+        endAt: '2026-03-15T10:00:00.000Z', // endAt before startAt
+      });
+
+      const result = service.expandRecurringEvents(
+        [event],
+        '2026-03-15T00:00:00Z',
+        '2026-03-18T23:59:59Z',
+      );
+
+      // Should still produce instances (with 0 duration)
+      expect(result).toHaveLength(3);
+
+      // Duration should be clamped to 0 (startAt === endAt)
+      for (const instance of result) {
+        expect(instance.startAt).toBe(instance.endAt);
+      }
+
+      // Should have logged a warning
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventId: TEST_EVENT_ID,
+          startAt: '2026-03-15T12:00:00.000Z',
+          endAt: '2026-03-15T10:00:00.000Z',
+        }),
+        'Recurring event has endAt before startAt, clamping duration to 0',
+      );
+    });
+
+    it('should not shift query window forward when duration is clamped to 0', () => {
+      // With negative duration, windowStart = start - negativeDuration would shift forward,
+      // potentially missing occurrences. Clamping to 0 prevents this.
+      const event = makeRecurrableEvent({
+        rrule: 'FREQ=DAILY;COUNT=3',
+        startAt: '2026-03-15T12:00:00.000Z',
+        endAt: '2026-03-15T10:00:00.000Z', // -2h duration
+      });
+
+      const result = service.expandRecurringEvents(
+        [event],
+        '2026-03-15T11:00:00Z', // starts at 11:00
+        '2026-03-18T23:59:59Z',
+      );
+
+      // Instance at 12:00 on Mar 15 with 0 duration should be included
+      // (starts after range start, within range)
+      expect(result).toHaveLength(3);
+    });
+
+    // ─── Post-override overlap re-check ───────────────────────────
+
+    it('should exclude instance when override moves it outside the query range', () => {
+      const event = makeRecurrableEvent({
+        rrule: 'FREQ=DAILY',
+        startAt: '2026-03-15T10:00:00.000Z',
+        endAt: '2026-03-15T11:00:00.000Z',
+      });
+
+      // Override moves Mar 16 instance to Mar 25 — well outside the query range
+      const exception = makeException({
+        originalDate: '2026-03-16T10:00:00.000Z',
+        overrides: {
+          startAt: '2026-03-25T10:00:00.000Z',
+          endAt: '2026-03-25T11:00:00.000Z',
+        },
+      });
+
+      const result = service.expandRecurringEvents(
+        [event],
+        '2026-03-15T00:00:00Z',
+        '2026-03-17T23:59:59Z',
+        [exception],
+      );
+
+      // Mar 15, 16, 17 = 3 instances, but Mar 16 was moved to Mar 25 (outside range)
+      // So only Mar 15 and Mar 17 remain = 2 instances
+      expect(result).toHaveLength(2);
+
+      const dates = result.map((r) => new Date(r.startAt).getUTCDate());
+      expect(dates).toContain(15);
+      expect(dates).toContain(17);
+      expect(dates).not.toContain(16);
+      expect(dates).not.toContain(25);
+    });
+
+    it('should exclude instance when override moves it before the query range', () => {
+      const event = makeRecurrableEvent({
+        rrule: 'FREQ=DAILY',
+        startAt: '2026-03-15T10:00:00.000Z',
+        endAt: '2026-03-15T11:00:00.000Z',
+      });
+
+      // Override moves Mar 16 instance to Mar 1 — before the query range
+      const exception = makeException({
+        originalDate: '2026-03-16T10:00:00.000Z',
+        overrides: {
+          startAt: '2026-03-01T10:00:00.000Z',
+          endAt: '2026-03-01T11:00:00.000Z',
+        },
+      });
+
+      const result = service.expandRecurringEvents(
+        [event],
+        '2026-03-15T00:00:00Z',
+        '2026-03-17T23:59:59Z',
+        [exception],
+      );
+
+      // Mar 16 moved to Mar 1 (before range) — excluded
+      expect(result).toHaveLength(2);
+
+      const dates = result.map((r) => new Date(r.startAt).getUTCDate());
+      expect(dates).toContain(15);
+      expect(dates).toContain(17);
+    });
+
+    it('should keep instance when override keeps it within the query range', () => {
+      const event = makeRecurrableEvent({
+        rrule: 'FREQ=DAILY',
+        startAt: '2026-03-15T10:00:00.000Z',
+        endAt: '2026-03-15T11:00:00.000Z',
+      });
+
+      // Override moves Mar 16 instance later in the day but still within range
+      const exception = makeException({
+        originalDate: '2026-03-16T10:00:00.000Z',
+        overrides: {
+          startAt: '2026-03-16T18:00:00.000Z',
+          endAt: '2026-03-16T19:00:00.000Z',
+        },
+      });
+
+      const result = service.expandRecurringEvents(
+        [event],
+        '2026-03-15T00:00:00Z',
+        '2026-03-17T23:59:59Z',
+        [exception],
+      );
+
+      // All 3 instances remain
+      expect(result).toHaveLength(3);
+
+      const mar16 = result.find((r) => {
+        const d = new Date(r.startAt);
+        return d.getUTCDate() === 16 && d.getUTCHours() === 18;
+      });
+      expect(mar16).toBeDefined();
+      expect(mar16!.startAt).toBe('2026-03-16T18:00:00.000Z');
     });
 
     // ─── Weekend recurrence ──────────────────────────────────────

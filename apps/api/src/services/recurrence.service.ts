@@ -146,7 +146,16 @@ export class RecurrenceService {
   ): ExpandedInstance[] {
     const eventStartAt = new Date(parent.startAt);
     const eventEndAt = new Date(parent.endAt);
-    const duration = eventEndAt.getTime() - eventStartAt.getTime();
+    const rawDuration = eventEndAt.getTime() - eventStartAt.getTime();
+
+    // Guard against negative duration (endAt < startAt on parent)
+    if (rawDuration < 0) {
+      logger.warn(
+        { eventId: parent.id, startAt: parent.startAt, endAt: parent.endAt },
+        'Recurring event has endAt before startAt, clamping duration to 0',
+      );
+    }
+    const duration = Math.max(0, rawDuration);
 
     let rrule: RRule;
     try {
@@ -235,6 +244,14 @@ export class RecurrenceService {
       const exception = exceptionMap.get(exceptionKey);
       if (exception) {
         instance = this.applyOverrides(instance, exception, duration);
+
+        // Re-check overlap after overrides — overrides can move the instance
+        // outside (or inside) the query window
+        const overriddenStartMs = new Date(instance.startAt).getTime();
+        const overriddenEndMs = new Date(instance.endAt).getTime();
+        if (overriddenStartMs >= endMs || overriddenEndMs <= startMs) {
+          continue;
+        }
       }
 
       instances.push(instance);

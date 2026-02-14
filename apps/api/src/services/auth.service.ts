@@ -464,85 +464,99 @@ export class AuthService {
 
     const email = profile.email.toLowerCase();
 
-    // Step 1: Check if this OAuth account is already linked
-    const existingOAuth = await db.query.oauthAccounts.findFirst({
-      where: and(
-        eq(oauthAccounts.provider, provider),
-        eq(oauthAccounts.providerAccountId, profile.providerAccountId),
-      ),
-    });
+    // All user/oauthAccount/category writes are wrapped in a single transaction
+    // to ensure atomicity. The unique index on (provider, providerAccountId) and
+    // the unique index on users.email guard against races where two concurrent
+    // OAuth callbacks attempt to create the same account.
+    const userId = await db.transaction(async (tx) => {
+      // Step 1: Check if this OAuth account is already linked
+      const existingOAuth = await tx.query.oauthAccounts.findFirst({
+        where: and(
+          eq(oauthAccounts.provider, provider),
+          eq(oauthAccounts.providerAccountId, profile.providerAccountId),
+        ),
+      });
 
-    let userId: string;
+      if (existingOAuth) {
+        // OAuth account already linked — just update avatar and return
+        if (profile.avatarUrl) {
+          await tx
+            .update(users)
+            .set({ avatarUrl: profile.avatarUrl })
+            .where(eq(users.id, existingOAuth.userId));
+        }
 
-    if (existingOAuth) {
-      // OAuth account already linked — just create a session
-      userId = existingOAuth.userId;
-
-      // Update avatar if the provider has a newer one
-      if (profile.avatarUrl) {
-        await db.update(users).set({ avatarUrl: profile.avatarUrl }).where(eq(users.id, userId));
+        logger.info({ userId: existingOAuth.userId, provider }, 'OAuth login — existing account');
+        return existingOAuth.userId;
       }
 
-      logger.info({ userId, provider }, 'OAuth login — existing account');
-    } else {
       // Step 2: Check if email matches an existing user
-      const existingUser = await db.query.users.findFirst({
+      const existingUser = await tx.query.users.findFirst({
         where: eq(users.email, email),
       });
 
       if (existingUser) {
         // Link OAuth account to the existing user
-        await db.insert(oauthAccounts).values({
+        await tx.insert(oauthAccounts).values({
           userId: existingUser.id,
           provider,
           providerAccountId: profile.providerAccountId,
         });
 
-        userId = existingUser.id;
-
         // Update avatar if user doesn't have one yet
         if (!existingUser.avatarUrl && profile.avatarUrl) {
-          await db.update(users).set({ avatarUrl: profile.avatarUrl }).where(eq(users.id, userId));
+          await tx
+            .update(users)
+            .set({ avatarUrl: profile.avatarUrl })
+            .where(eq(users.id, existingUser.id));
         }
 
-        logger.info({ userId, provider }, 'OAuth login — linked to existing email account');
-      } else {
-        // Step 3: Create a brand new user + OAuth account + default category
-        const [newUser] = await db
-          .insert(users)
-          .values({
-            email,
-            passwordHash: null, // OAuth-only user, no password
-            name: profile.name || email.split('@')[0],
-            avatarUrl: profile.avatarUrl,
-            timezone: 'UTC',
-            weekStart: 0,
-            timeFormat: '12h',
-          })
-          .returning();
-
-        await db.insert(oauthAccounts).values({
-          userId: newUser.id,
-          provider,
-          providerAccountId: profile.providerAccountId,
-        });
-
-        // Create default "Personal" category
-        await db.insert(calendarCategories).values({
-          userId: newUser.id,
-          name: 'Personal',
-          color: DEFAULT_CATEGORY_COLOR,
-          isDefault: true,
-          sortOrder: 0,
-        });
-
-        userId = newUser.id;
-
-        logger.info({ userId, provider }, 'OAuth signup — new account created');
+        logger.info(
+          { userId: existingUser.id, provider },
+          'OAuth login — linked to existing email account',
+        );
+        return existingUser.id;
       }
-    }
 
-    // Create session
+      // Step 3: Create a brand new user + OAuth account + default category.
+      // The unique index on users.email will cause this insert to fail if a
+      // concurrent request already created a user with the same email — the
+      // entire transaction rolls back, surfacing as an error to the caller.
+      const [newUser] = await tx
+        .insert(users)
+        .values({
+          email,
+          passwordHash: null, // OAuth-only user, no password
+          name: profile.name || email.split('@')[0],
+          avatarUrl: profile.avatarUrl,
+          timezone: 'UTC',
+          weekStart: 0,
+          timeFormat: '12h',
+        })
+        .returning();
+
+      await tx.insert(oauthAccounts).values({
+        userId: newUser.id,
+        provider,
+        providerAccountId: profile.providerAccountId,
+      });
+
+      // Create default "Personal" category
+      await tx.insert(calendarCategories).values({
+        userId: newUser.id,
+        name: 'Personal',
+        color: DEFAULT_CATEGORY_COLOR,
+        isDefault: true,
+        sortOrder: 0,
+      });
+
+      logger.info({ userId: newUser.id, provider }, 'OAuth signup — new account created');
+      return newUser.id;
+    });
+
+    // Session creation happens after a successful transaction commit so no
+    // partial state remains if the DB writes fail. Lucia manages sessions in
+    // its own table operations which are independent of the user-creation tx.
     await enforceMaxSessions(userId);
     const session = await lucia.createSession(userId, {
       userAgent: meta.userAgent,

@@ -1,5 +1,8 @@
 import { createFileRoute, Outlet, redirect } from '@tanstack/react-router';
 
+import { Sidebar } from '@/components/layout/Sidebar';
+import { Topbar } from '@/components/layout/Topbar';
+import { useCategories } from '@/hooks/use-categories';
 import { queryKeys } from '@/lib/query-keys';
 
 import type { QueryClient } from '@tanstack/react-query';
@@ -33,12 +36,27 @@ export const Route = createFileRoute('/_app')({
 });
 
 export default function AppLayout() {
+  const { data: categories = [] } = useCategories();
+
   return (
     <div className="flex h-screen flex-col">
-      {/* Topbar, Sidebar, etc. will be built in section 2.4 */}
-      <main className="flex-1 overflow-auto">
-        <Outlet />
-      </main>
+      {/* Skip navigation link for accessibility */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-2 focus:top-2 focus:z-[var(--z-toast)] focus:rounded-[var(--radius)] focus:bg-[var(--surface)] focus:px-4 focus:py-2 focus:shadow-[var(--shadow-md)]"
+      >
+        Skip to main content
+      </a>
+
+      <Topbar />
+
+      <div className="flex flex-1 overflow-hidden">
+        <Sidebar categories={categories} />
+
+        <main id="main-content" className="flex-1 overflow-auto">
+          <Outlet />
+        </main>
+      </div>
     </div>
   );
 }

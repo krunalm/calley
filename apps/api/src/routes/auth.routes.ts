@@ -4,7 +4,9 @@ import { z } from 'zod';
 import {
   changePasswordSchema,
   deleteAccountSchema,
+  forgotPasswordSchema,
   loginSchema,
+  resetPasswordSchema,
   signupSchema,
   updateProfileSchema,
 } from '@calley/shared';
@@ -19,7 +21,9 @@ import type { AppVariables } from '../types/hono';
 import type {
   ChangePasswordInput,
   DeleteAccountInput,
+  ForgotPasswordInput,
   LoginInput,
+  ResetPasswordInput,
   SignupInput,
   UpdateProfileInput,
 } from '@calley/shared';
@@ -63,6 +67,32 @@ auth.post(
 
     c.header('Set-Cookie', cookie.serialize(), { append: true });
     return c.json(user);
+  },
+);
+
+auth.post(
+  '/auth/forgot-password',
+  rateLimit({ limit: 3, windowSeconds: 3600, keyPrefix: 'auth:forgot-password' }),
+  doubleSubmitCsrf,
+  validate('json', forgotPasswordSchema),
+  async (c) => {
+    const data = c.get('validatedBody') as ForgotPasswordInput;
+    await authService.forgotPassword(data);
+
+    // Always return the same response to prevent email enumeration
+    return c.json({ message: 'If that email is registered, we sent a password reset link.' });
+  },
+);
+
+auth.post(
+  '/auth/reset-password',
+  rateLimit({ limit: 5, windowSeconds: 3600, keyPrefix: 'auth:reset-password' }),
+  doubleSubmitCsrf,
+  validate('json', resetPasswordSchema),
+  async (c) => {
+    const data = c.get('validatedBody') as ResetPasswordInput;
+    await authService.resetPassword(data);
+    return c.json({ message: 'Password has been reset. Please log in with your new password.' });
   },
 );
 

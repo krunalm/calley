@@ -249,14 +249,21 @@ export class AuthService {
       expiresInMinutes: PASSWORD_RESET_TOKEN_EXPIRY_MINUTES,
     });
 
-    await sendEmail({
-      to: user.email,
-      subject: 'Reset Your Password — Calley',
-      html,
-      text,
-    });
+    try {
+      await sendEmail({
+        to: user.email,
+        subject: 'Reset Your Password — Calley',
+        html,
+        text,
+      });
 
-    logger.info({ userId: user.id }, 'Password reset email sent');
+      logger.info({ userId: user.id }, 'Password reset email sent');
+    } catch (err) {
+      logger.error(
+        { err, email: user.email, userId: user.id },
+        'Failed to send password reset email',
+      );
+    }
   }
 
   /**

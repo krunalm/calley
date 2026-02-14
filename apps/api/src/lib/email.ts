@@ -27,7 +27,6 @@ export async function sendEmail(options: SendEmailOptions): Promise<void> {
       {
         to: options.to,
         subject: options.subject,
-        text: options.text,
       },
       'Email (dev mode — no RESEND_API_KEY): would send email',
     );

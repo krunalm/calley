@@ -1,9 +1,10 @@
+import { useDroppable } from '@dnd-kit/core';
 import { format, isSameDay } from 'date-fns';
-import { memo, useCallback, useMemo } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 
+import { QuickCreatePopover } from '@/components/events/QuickCreatePopover';
 import { cn } from '@/lib/utils';
 import { getNowInUserTimezone, useCalendarStore } from '@/stores/calendar-store';
-import { useUIStore } from '@/stores/ui-store';
 
 import { EventPill } from './EventPill';
 import { MoreIndicator } from './MoreIndicator';
@@ -30,12 +31,17 @@ export const DayCell = memo(function DayCell({
   events,
   tasks,
   categories,
-  onEventClick,
   onTaskToggle,
   onTaskClick,
 }: DayCellProps) {
   const { setDate, setView } = useCalendarStore();
-  const { openEventDrawer } = useUIStore();
+  const [quickCreateOpen, setQuickCreateOpen] = useState(false);
+
+  const dateKey = format(date, 'yyyy-MM-dd');
+  const { setNodeRef, isOver } = useDroppable({
+    id: `day-cell-${dateKey}`,
+    data: { type: 'day-cell', date },
+  });
 
   const today = isSameDay(date, getNowInUserTimezone());
   const allItems = useMemo(() => [...events, ...tasks], [events, tasks]);
@@ -50,10 +56,6 @@ export const DayCell = memo(function DayCell({
     setView('day');
   }, [date, setDate, setView]);
 
-  const handleEmptyClick = useCallback(() => {
-    openEventDrawer({ defaultDate: date });
-  }, [date, openEventDrawer]);
-
   const getCategoryColor = useCallback(
     (categoryId: string) => categories.get(categoryId)?.color,
     [categories],
@@ -61,9 +63,11 @@ export const DayCell = memo(function DayCell({
 
   return (
     <div
+      ref={setNodeRef}
       className={cn(
         'flex min-h-[100px] flex-col border-b border-r border-[var(--border)] p-1 sm:min-h-[120px]',
         !isCurrentMonth && 'bg-[var(--muted)]/30',
+        isOver && 'bg-[var(--primary)]/10',
       )}
       role="gridcell"
       aria-label={format(date, 'EEEE, MMMM d, yyyy')}
@@ -90,7 +94,6 @@ export const DayCell = memo(function DayCell({
             key={event.id + (event.instanceDate ?? '')}
             event={event}
             categoryColor={getCategoryColor(event.categoryId)}
-            onClick={onEventClick}
           />
         ))}
 
@@ -109,12 +112,18 @@ export const DayCell = memo(function DayCell({
 
       {/* Click empty area to quick-create */}
       {allItems.length === 0 && (
-        <button
-          type="button"
-          className="flex-1"
-          onClick={handleEmptyClick}
-          aria-label={`Create event on ${format(date, 'MMMM d')}`}
-        />
+        <QuickCreatePopover
+          open={quickCreateOpen}
+          onOpenChange={setQuickCreateOpen}
+          defaultDate={date}
+        >
+          <button
+            type="button"
+            className="flex-1"
+            onClick={() => setQuickCreateOpen(true)}
+            aria-label={`Create event on ${format(date, 'MMMM d')}`}
+          />
+        </QuickCreatePopover>
       )}
     </div>
   );

@@ -358,31 +358,31 @@
 
 ### 2.10 Event Detail Popover
 
-- [ ] Build EventDetailPopover — click an event pill/block to show details
-- [ ] Display: title, date/time, location, description preview, category, recurrence indicator
-- [ ] Action buttons: Edit (opens EventDrawer), Duplicate, Delete
-- [ ] Delete button: if recurring, show scope selection dialog
-- [ ] Close on click outside or Escape
+- [x] Build EventDetailPopover — click an event pill/block to show details
+- [x] Display: title, date/time, location, description preview, category, recurrence indicator
+- [x] Action buttons: Edit (opens EventDrawer), Duplicate, Delete
+- [x] Delete button: if recurring, show scope selection dialog
+- [x] Close on click outside or Escape
 
 ### 2.11 Quick Create Popover
 
-- [ ] Build QuickCreatePopover — appears on empty slot click
-- [ ] Fields: Title (auto-focused), type toggle (Event/Task), start/end time (pre-populated)
-- [ ] Submit on Enter
-- [ ] "More options" link: closes popover, opens EventDrawer/TaskDrawer with fields populated
-- [ ] Optimistic mutation on submit
+- [x] Build QuickCreatePopover — appears on empty slot click
+- [x] Fields: Title (auto-focused), type toggle (Event/Task), start/end time (pre-populated)
+- [x] Submit on Enter
+- [x] "More options" link: closes popover, opens EventDrawer/TaskDrawer with fields populated
+- [x] Optimistic mutation on submit
 
 ### 2.12 Drag and Drop — Events
 
-- [ ] Install and configure `@dnd-kit/core` + `@dnd-kit/sortable`
-- [ ] Implement drag to reschedule in Week view (move event to different time/day)
-- [ ] Implement drag to reschedule in Day view
-- [ ] Implement drag edge to resize duration (top/bottom handles on EventBlock)
-- [ ] Snap to 15-minute increments during drag
-- [ ] Show ghost overlay (opacity 0.5) at original position during drag
-- [ ] Optimistic UI: update position immediately, rollback on error
-- [ ] Handle recurring events: show scope dialog after drop (for recurring)
-- [ ] Implement drag in Month view (move event to different day)
+- [x] Install and configure `@dnd-kit/core` + `@dnd-kit/modifiers`
+- [x] Implement drag to reschedule in Week view (move event to different time/day)
+- [x] Implement drag to reschedule in Day view
+- [x] Implement drag edge to resize duration (bottom handle on EventBlock)
+- [x] Snap to 30-minute increments during drag (slot-based snapping)
+- [x] Show ghost overlay (opacity 0.5) at original position during drag
+- [x] Optimistic UI: update position immediately, rollback on error
+- [x] Handle recurring events: show scope dialog after drop (for recurring)
+- [x] Implement drag in Month view (move event to different day)
 - [ ] Add keyboard alternatives for all DnD actions (per spec §16, accessibility)
 
 ### 2.13 Recurrence Builder UI

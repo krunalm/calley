@@ -67,6 +67,9 @@ export {
   reminderMethodSchema,
 } from './schemas/reminder.schema';
 
+// Search
+export { searchQuerySchema } from './schemas/search.schema';
+
 // ─── Types ──────────────────────────────────────────────────────────
 
 export type {
@@ -94,6 +97,7 @@ export type {
   Reminder,
   ReorderTasksInput,
   ResetPasswordInput,
+  SearchQuery,
   SearchResults,
   Session,
   SignupInput,

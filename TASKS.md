@@ -524,47 +524,47 @@
 
 ### 5.1 Search Service (Backend)
 
-- [ ] Implement `search.service.ts`:
-  - [ ] `search(userId, query, limit)` — PostgreSQL full-text search using `tsvector`/`tsquery`
-  - [ ] Search across event titles + descriptions, task titles + descriptions
-  - [ ] Rank by relevance (ts_rank) then by date proximity
-  - [ ] Return grouped results: `{ events: [...], tasks: [...] }`
-  - [ ] Minimum query length: 2 characters
-  - [ ] Exclude soft-deleted items
-- [ ] Implement `search.routes.ts` with rate limiting (30/min)
+- [x] Implement `search.service.ts`:
+  - [x] `search(userId, query, limit)` — PostgreSQL full-text search using `tsvector`/`tsquery`
+  - [x] Search across event titles + descriptions, task titles + descriptions
+  - [x] Rank by relevance (ts_rank) then by date proximity
+  - [x] Return grouped results: `{ events: [...], tasks: [...] }`
+  - [x] Minimum query length: 2 characters
+  - [x] Exclude soft-deleted items
+- [x] Implement `search.routes.ts` with rate limiting (30/min)
 - [ ] Write tests for search accuracy and ranking
 
 ### 5.2 Search Modal (Frontend)
 
-- [ ] Build SearchModal — full-screen overlay triggered by Cmd/Ctrl+K
-- [ ] Use shadcn/ui Command component (cmdk-based)
-- [ ] Debounced search input (300ms)
-- [ ] Loading state with skeleton results
-- [ ] Results grouped: Events section + Tasks section
-- [ ] Each result: icon, title, date, category color
-- [ ] Arrow keys to navigate results, Enter to select
-- [ ] On select: navigate to calendar date + open detail popover
-- [ ] Recent searches (last 5, stored in localStorage)
-- [ ] Empty state: "Type to search events and tasks"
-- [ ] No results state: "No results found for '{query}'"
+- [x] Build SearchModal — full-screen overlay triggered by Cmd/Ctrl+K
+- [x] Use shadcn/ui Command component (cmdk-based)
+- [x] Debounced search input (300ms)
+- [x] Loading state with skeleton results
+- [x] Results grouped: Events section + Tasks section
+- [x] Each result: icon, title, date, category color
+- [x] Arrow keys to navigate results, Enter to select
+- [x] On select: navigate to calendar date + open detail popover
+- [x] Recent searches (last 5, stored in localStorage)
+- [x] Empty state: "Type to search events and tasks"
+- [x] No results state: "No results found for '{query}'"
 
 ### 5.3 Keyboard Shortcuts
 
-- [ ] Implement `useKeyboardShortcuts` hook:
-  - [ ] `Cmd/Ctrl + K` → open search
-  - [ ] `C` → quick create event on current date
-  - [ ] `T` → toggle task panel
-  - [ ] `M` → month view
-  - [ ] `W` → week view
-  - [ ] `D` → day view
-  - [ ] `A` → agenda view
-  - [ ] `←` / `→` → navigate prev/next
-  - [ ] `.` or `Home` → go to today
-  - [ ] `Escape` → close any open modal/drawer/popover
+- [x] Implement `useKeyboardShortcuts` hook:
+  - [x] `Cmd/Ctrl + K` → open search
+  - [x] `C` → quick create event on current date
+  - [x] `T` → toggle task panel
+  - [x] `M` → month view
+  - [x] `W` → week view
+  - [x] `D` → day view
+  - [x] `A` → agenda view
+  - [x] `←` / `→` → navigate prev/next
+  - [x] `.` or `Home` → go to today
+  - [x] `Escape` → close any open modal/drawer/popover
   - [ ] `Delete` / `Backspace` → delete selected item (with confirmation)
-  - [ ] `?` → show keyboard shortcuts help modal
-- [ ] Disable shortcuts when text input/textarea is focused
-- [ ] Build KeyboardShortcutsHelp modal — list all shortcuts in a clean grid
+  - [x] `?` → show keyboard shortcuts help modal
+- [x] Disable shortcuts when text input/textarea is focused
+- [x] Build KeyboardShortcutsHelp modal — list all shortcuts in a clean grid
 - [ ] Test all shortcuts in different views and states
 
 ---

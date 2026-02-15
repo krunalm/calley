@@ -51,6 +51,10 @@ export type { CreateCategoryInput, UpdateCategoryInput } from '../schemas/catego
 
 export type { CreateReminderInput, ListRemindersQuery } from '../schemas/reminder.schema';
 
+// ─── Search ─────────────────────────────────────────────────────────
+
+export type { SearchQuery } from '../schemas/search.schema';
+
 // ─── Domain Entity Types (API response shapes) ──────────────────────
 // These represent the full entity shapes returned from the API.
 // They are NOT inferred from create/update schemas but defined to match

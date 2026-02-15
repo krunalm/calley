@@ -7,8 +7,16 @@ import {
   useSensors,
 } from '@dnd-kit/core';
 import { restrictToWindowEdges } from '@dnd-kit/modifiers';
-import { addMinutes, differenceInMinutes, parseISO } from 'date-fns';
-import { fromZonedTime } from 'date-fns-tz';
+import {
+  addMinutes,
+  differenceInMinutes,
+  getDate,
+  getMonth,
+  getYear,
+  parseISO,
+  set,
+} from 'date-fns';
+import { fromZonedTime, toZonedTime } from 'date-fns-tz';
 import { useCallback, useState } from 'react';
 
 import { RecurrenceScopeDialog } from '@/components/calendar/RecurrenceScopeDialog';
@@ -92,10 +100,15 @@ export function DndCalendarProvider({ children }: DndCalendarProviderProps) {
         newStart = fromZonedTime(dropTime, userTimezone);
         newEnd = addMinutes(newStart, durationMinutes);
       } else if (overData.type === 'day-cell') {
-        // Move to a day cell (month view): change date, keep time
+        // Move to a day cell (month view): change date, keep time (timezone-aware)
         const dropDate = overData.date;
-        newStart = new Date(eventStart);
-        newStart.setFullYear(dropDate.getFullYear(), dropDate.getMonth(), dropDate.getDate());
+        const zonedStart = toZonedTime(eventStart, userTimezone);
+        const updatedZoned = set(zonedStart, {
+          year: getYear(dropDate),
+          month: getMonth(dropDate),
+          date: getDate(dropDate),
+        });
+        newStart = fromZonedTime(updatedZoned, userTimezone);
         newEnd = addMinutes(newStart, durationMinutes);
       } else {
         return;

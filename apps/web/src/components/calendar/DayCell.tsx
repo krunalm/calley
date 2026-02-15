@@ -45,6 +45,11 @@ export const DayCell = memo(function DayCell({
 
   const today = isSameDay(date, getNowInUserTimezone());
   const allItems = useMemo(() => [...events, ...tasks], [events, tasks]);
+  const isEmpty = allItems.length === 0;
+
+  // Derive effective open state: auto-close popover when cell becomes non-empty
+  const effectiveQuickCreateOpen = isEmpty && quickCreateOpen;
+
   const visibleEvents = events.slice(0, MAX_VISIBLE_ITEMS);
   const remainingSlots = MAX_VISIBLE_ITEMS - visibleEvents.length;
   const visibleTasks = tasks.slice(0, Math.max(0, remainingSlots));
@@ -111,9 +116,9 @@ export const DayCell = memo(function DayCell({
       </div>
 
       {/* Click empty area to quick-create */}
-      {allItems.length === 0 && (
+      {isEmpty && (
         <QuickCreatePopover
-          open={quickCreateOpen}
+          open={effectiveQuickCreateOpen}
           onOpenChange={setQuickCreateOpen}
           defaultDate={date}
         >

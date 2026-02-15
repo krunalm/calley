@@ -8,7 +8,9 @@ export type CalendarView = 'month' | 'week' | 'day' | 'agenda';
  * Returns "now" in the user's timezone. Uses the browser's detected timezone
  * as a default; callers can pass an explicit IANA timezone from the user profile.
  */
-function getNowInUserTimezone(tz: string = Intl.DateTimeFormat().resolvedOptions().timeZone): Date {
+export function getNowInUserTimezone(
+  tz: string = Intl.DateTimeFormat().resolvedOptions().timeZone,
+): Date {
   return toZonedTime(new Date(), tz);
 }
 

@@ -263,40 +263,40 @@
 
 ### 2.4 App Shell & Layout
 
-- [ ] Build Layout component (Topbar + Sidebar + main content area + TaskPanel slot)
-- [ ] Build Topbar:
-  - [ ] SidebarToggle (hamburger, visible on mobile/tablet)
-  - [ ] Logo
-  - [ ] DateNavigator (◀ title ▶ + Today button) — displays month/year or week range based on view
-  - [ ] ViewSwitcher (Month | Week | Day | Agenda) — responsive (hide on mobile, show Day + Agenda only)
-  - [ ] SearchButton (Cmd+K icon) — opens SearchModal
-  - [ ] CreateButton (+ dropdown: New Event | New Task)
-  - [ ] TaskPanelToggle
-  - [ ] UserMenu (avatar → dropdown: Settings, Sign Out)
-- [ ] Build Sidebar:
-  - [ ] MiniCalendar (month grid, clickable dates, dot indicators for events)
-  - [ ] CalendarList (category toggles with color dots, edit on right-click/hover)
-  - [ ] AddCalendarButton
-  - [ ] Collapsible to icon rail (240px → 60px transition)
-  - [ ] Hidden on mobile (hamburger toggle)
-- [ ] Set up Zustand stores: `useCalendarStore`, `useUIStore`
-- [ ] Implement responsive behavior per spec §8.4 breakpoints
-- [ ] Add skip navigation link ("Skip to main content")
+- [x] Build Layout component (Topbar + Sidebar + main content area + TaskPanel slot)
+- [x] Build Topbar:
+  - [x] SidebarToggle (hamburger, visible on mobile/tablet)
+  - [x] Logo
+  - [x] DateNavigator (◀ title ▶ + Today button) — displays month/year or week range based on view
+  - [x] ViewSwitcher (Month | Week | Day | Agenda) — responsive (hide on mobile, show Day + Agenda only)
+  - [x] SearchButton (Cmd+K icon) — opens SearchModal
+  - [x] CreateButton (+ dropdown: New Event | New Task)
+  - [x] TaskPanelToggle
+  - [x] UserMenu (avatar → dropdown: Settings, Sign Out)
+- [x] Build Sidebar:
+  - [x] MiniCalendar (month grid, clickable dates, dot indicators for events)
+  - [x] CalendarList (category toggles with color dots, edit on right-click/hover)
+  - [x] AddCalendarButton
+  - [x] Collapsible to icon rail (240px → 60px transition)
+  - [x] Hidden on mobile (hamburger toggle)
+- [x] Set up Zustand stores: `useCalendarStore`, `useUIStore`
+- [x] Implement responsive behavior per spec §8.4 breakpoints
+- [x] Add skip navigation link ("Skip to main content")
 
 ### 2.5 Month View
 
-- [ ] Build MonthGrid component — 6-row × 7-column CSS grid
-- [ ] Build DayCell component:
-  - [ ] Display date number (highlight today, dim out-of-month days)
-  - [ ] Render EventPill components (max 3 visible, "+N more" overflow)
-  - [ ] Render TaskPill components
-  - [ ] Click empty area → QuickCreate popover
-  - [ ] Click date number → navigate to Day view for that date
-- [ ] Build EventPill component — colored bar with title, click → EventDetailPopover
-- [ ] Build TaskPill component — checkbox + title, click checkbox → toggle complete
-- [ ] Build MoreIndicator — "+N more" button → overflow popover listing all items
-- [ ] Connect to TanStack Query — fetch events for visible month range + 1 month buffer
-- [ ] Implement `useEvents` hook (fetch events by date range, memoize transformed data)
+- [x] Build MonthGrid component — 6-row × 7-column CSS grid
+- [x] Build DayCell component:
+  - [x] Display date number (highlight today, dim out-of-month days)
+  - [x] Render EventPill components (max 3 visible, "+N more" overflow)
+  - [x] Render TaskPill components
+  - [x] Click empty area → QuickCreate popover
+  - [x] Click date number → navigate to Day view for that date
+- [x] Build EventPill component — colored bar with title, click → EventDetailPopover
+- [x] Build TaskPill component — checkbox + title, click checkbox → toggle complete
+- [x] Build MoreIndicator — "+N more" button → overflow popover listing all items
+- [x] Connect to TanStack Query — fetch events for visible month range + 1 month buffer
+- [x] Implement `useEvents` hook (fetch events by date range, memoize transformed data)
 - [ ] Test month navigation (prev/next buttons, today button, keyboard arrows)
 
 ### 2.6 Week View

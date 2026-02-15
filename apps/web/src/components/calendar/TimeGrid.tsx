@@ -1,9 +1,11 @@
+import { useDroppable } from '@dnd-kit/core';
 import { format, getHours, getMinutes } from 'date-fns';
 import { formatInTimeZone } from 'date-fns-tz';
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 
+import { QuickCreatePopover } from '@/components/events/QuickCreatePopover';
 import { useUserTimezone } from '@/hooks/use-user-timezone';
-import { useUIStore } from '@/stores/ui-store';
+import { cn } from '@/lib/utils';
 
 import { EventBlock } from './EventBlock';
 import { TaskMarker } from './TaskMarker';
@@ -43,7 +45,6 @@ export const TimeGrid = memo(function TimeGrid({
 }: TimeGridProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const userTimezone = useUserTimezone();
-  const { openEventDrawer } = useUIStore();
 
   // Auto-scroll to current time on mount
   useEffect(() => {
@@ -56,16 +57,6 @@ export const TimeGrid = memo(function TimeGrid({
     scrollRef.current.scrollTop = Math.max(0, scrollTarget);
   }, []);
 
-  const handleSlotClick = useCallback(
-    (date: Date, hour: number, isHalfHour: boolean) => {
-      const defaultDate = new Date(date);
-      const defaultTime = new Date(date);
-      defaultTime.setHours(hour, isHalfHour ? 30 : 0, 0, 0);
-      openEventDrawer({ defaultDate, defaultTime });
-    },
-    [openEventDrawer],
-  );
-
   return (
     <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden">
       <div className="relative flex" style={{ height: GRID_HEIGHT }}>
@@ -73,17 +64,13 @@ export const TimeGrid = memo(function TimeGrid({
         <TimeGutter userTimezone={userTimezone} />
 
         {/* Columns */}
-        <div
-          className="relative flex flex-1"
-          style={{ minHeight: GRID_HEIGHT }}
-        >
+        <div className="relative flex flex-1" style={{ minHeight: GRID_HEIGHT }}>
           {columns.map((col) => (
             <TimeGridColumnView
               key={col.dateKey}
               column={col}
               categories={categories}
               userTimezone={userTimezone}
-              onSlotClick={handleSlotClick}
               onEventClick={onEventClick}
               onTaskClick={onTaskClick}
               onTaskToggle={onTaskToggle}
@@ -136,7 +123,6 @@ interface TimeGridColumnViewProps {
   column: TimeGridColumn;
   categories: Map<string, CalendarCategory>;
   userTimezone: string;
-  onSlotClick: (date: Date, hour: number, isHalfHour: boolean) => void;
   onEventClick?: (event: Event) => void;
   onTaskClick?: (task: Task) => void;
   onTaskToggle?: (task: Task) => void;
@@ -146,7 +132,6 @@ const TimeGridColumnView = memo(function TimeGridColumnView({
   column,
   categories,
   userTimezone,
-  onSlotClick,
   onEventClick,
   onTaskClick,
   onTaskToggle,
@@ -159,21 +144,11 @@ const TimeGridColumnView = memo(function TimeGridColumnView({
 
   return (
     <div className="relative flex-1 border-r border-[var(--border)]">
-      {/* Slot grid lines */}
+      {/* Slot grid lines with QuickCreatePopover */}
       {HOURS.map((hour) => (
         <div key={hour} style={{ height: SLOT_HEIGHT * 2 }}>
-          <button
-            type="button"
-            className="block h-1/2 w-full border-b border-dashed border-[var(--border)]/50 hover:bg-[var(--accent-ui)]/5"
-            onClick={() => onSlotClick(column.date, hour, false)}
-            aria-label={`Create event at ${hour}:00 on ${format(column.date, 'EEEE, MMMM d')}`}
-          />
-          <button
-            type="button"
-            className="block h-1/2 w-full border-b border-[var(--border)] hover:bg-[var(--accent-ui)]/5"
-            onClick={() => onSlotClick(column.date, hour, true)}
-            aria-label={`Create event at ${hour}:30 on ${format(column.date, 'EEEE, MMMM d')}`}
-          />
+          <TimeSlot date={column.date} hour={hour} isHalfHour={false} />
+          <TimeSlot date={column.date} hour={hour} isHalfHour />
         </div>
       ))}
 
@@ -210,6 +185,48 @@ const TimeGridColumnView = memo(function TimeGridColumnView({
     </div>
   );
 });
+
+// ─── Time Slot (with QuickCreatePopover) ─────────────────────────────
+
+function TimeSlot({ date, hour, isHalfHour }: { date: Date; hour: number; isHalfHour: boolean }) {
+  const [open, setOpen] = useState(false);
+  const minutes = isHalfHour ? 30 : 0;
+
+  const droppableId = `slot-${format(date, 'yyyy-MM-dd')}-${hour}-${minutes}`;
+  const { setNodeRef, isOver } = useDroppable({
+    id: droppableId,
+    data: { type: 'time-slot', date, hour, minutes },
+  });
+
+  const defaultTime = useMemo(() => {
+    const d = new Date(date);
+    d.setHours(hour, minutes, 0, 0);
+    return d;
+  }, [date, hour, minutes]);
+
+  return (
+    <QuickCreatePopover
+      open={open}
+      onOpenChange={setOpen}
+      defaultDate={date}
+      defaultTime={defaultTime}
+    >
+      <button
+        ref={setNodeRef}
+        type="button"
+        className={cn(
+          'block h-1/2 w-full hover:bg-[var(--accent-ui)]/5',
+          isHalfHour
+            ? 'border-b border-[var(--border)]'
+            : 'border-b border-dashed border-[var(--border)]/50',
+          isOver && 'bg-[var(--primary)]/10',
+        )}
+        onClick={() => setOpen(true)}
+        aria-label={`Create event at ${hour}:${isHalfHour ? '30' : '00'} on ${format(date, 'EEEE, MMMM d')}`}
+      />
+    </QuickCreatePopover>
+  );
+}
 
 // ─── Current Time Indicator ───────────────────────────────────────────
 

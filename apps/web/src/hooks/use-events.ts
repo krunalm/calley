@@ -6,6 +6,7 @@ import { useMemo } from 'react';
 import { useUserTimezone } from '@/hooks/use-user-timezone';
 import { apiClient } from '@/lib/api-client';
 import { queryKeys } from '@/lib/query-keys';
+import { useCalendarStore } from '@/stores/calendar-store';
 
 import type { Event } from '@calley/shared';
 
@@ -28,6 +29,7 @@ export function useEvents(start: string, end: string) {
 export function useEventsByDate(start: string, end: string) {
   const query = useEvents(start, end);
   const userTimezone = useUserTimezone();
+  const hiddenCategoryIds = useCalendarStore((s) => s.hiddenCategoryIds);
 
   const eventsByDate = useMemo(() => {
     const map = new Map<string, Event[]>();
@@ -38,6 +40,8 @@ export function useEventsByDate(start: string, end: string) {
     const zonedRequestedEnd = toZonedTime(parseISO(end), userTimezone);
 
     for (const event of query.data) {
+      // Filter out events from hidden categories
+      if (hiddenCategoryIds.has(event.categoryId)) continue;
       // Use instanceDate for recurring instances, otherwise startAt
       const dateStr = event.instanceDate ?? event.startAt;
       const zonedDate = toZonedTime(parseISO(dateStr), userTimezone);
@@ -64,7 +68,7 @@ export function useEventsByDate(start: string, end: string) {
     }
 
     return map;
-  }, [query.data, userTimezone, start, end]);
+  }, [query.data, userTimezone, start, end, hiddenCategoryIds]);
 
   return { ...query, eventsByDate };
 }

@@ -6,6 +6,7 @@ import { useMemo } from 'react';
 import { useUserTimezone } from '@/hooks/use-user-timezone';
 import { apiClient } from '@/lib/api-client';
 import { queryKeys } from '@/lib/query-keys';
+import { useCalendarStore } from '@/stores/calendar-store';
 
 import type { TaskFilter } from '@/types/filters';
 import type { Task } from '@calley/shared';
@@ -50,6 +51,7 @@ export interface GroupedTasks {
 export function useGroupedTasks(filters: TaskFilter = {}) {
   const query = useTasks(filters);
   const userTimezone = useUserTimezone();
+  const hiddenCategoryIds = useCalendarStore((s) => s.hiddenCategoryIds);
 
   const grouped = useMemo<GroupedTasks>(() => {
     const result: GroupedTasks = {
@@ -67,6 +69,8 @@ export function useGroupedTasks(filters: TaskFilter = {}) {
     const todayEnd = endOfDay(now);
 
     for (const task of query.data) {
+      // Filter out tasks from hidden categories
+      if (hiddenCategoryIds.has(task.categoryId)) continue;
       // Completed tasks go to their own group
       if (task.status === 'done') {
         result.completed.push(task);
@@ -109,7 +113,7 @@ export function useGroupedTasks(filters: TaskFilter = {}) {
     });
 
     return result;
-  }, [query.data, userTimezone]);
+  }, [query.data, userTimezone, hiddenCategoryIds]);
 
   return { ...query, grouped };
 }
@@ -121,12 +125,15 @@ export function useGroupedTasks(filters: TaskFilter = {}) {
 export function useTasksByDate(filters: TaskFilter = {}) {
   const query = useTasks(filters);
   const userTimezone = useUserTimezone();
+  const hiddenCategoryIds = useCalendarStore((s) => s.hiddenCategoryIds);
 
   const tasksByDate = useMemo(() => {
     const map = new Map<string, Task[]>();
     if (!query.data) return map;
 
     for (const task of query.data) {
+      // Filter out tasks from hidden categories
+      if (hiddenCategoryIds.has(task.categoryId)) continue;
       if (!task.dueAt) continue;
       const zonedDate = toZonedTime(parseISO(task.dueAt), userTimezone);
       const dateKey = format(zonedDate, 'yyyy-MM-dd');
@@ -136,7 +143,7 @@ export function useTasksByDate(filters: TaskFilter = {}) {
     }
 
     return map;
-  }, [query.data, userTimezone]);
+  }, [query.data, userTimezone, hiddenCategoryIds]);
 
   return { ...query, tasksByDate };
 }

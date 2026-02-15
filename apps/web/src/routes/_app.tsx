@@ -1,9 +1,15 @@
 import { createFileRoute, Outlet, redirect } from '@tanstack/react-router';
+import { useCallback } from 'react';
 
 import { EventDrawer } from '@/components/calendar/EventDrawer';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Topbar } from '@/components/layout/Topbar';
-import { useCategories } from '@/hooks/use-categories';
+import {
+  useCategories,
+  useCreateCategory,
+  useDeleteCategory,
+  useUpdateCategory,
+} from '@/hooks/use-categories';
 import { queryKeys } from '@/lib/query-keys';
 
 import type { QueryClient } from '@tanstack/react-query';
@@ -38,6 +44,30 @@ export const Route = createFileRoute('/_app')({
 
 export default function AppLayout() {
   const { data: categories = [] } = useCategories();
+  const createCategory = useCreateCategory();
+  const updateCategory = useUpdateCategory();
+  const deleteCategory = useDeleteCategory();
+
+  const handleCreateCategory = useCallback(
+    (data: { name: string; color: string }) => {
+      createCategory.mutate(data);
+    },
+    [createCategory],
+  );
+
+  const handleUpdateCategory = useCallback(
+    (categoryId: string, data: { name?: string; color?: string }) => {
+      updateCategory.mutate({ categoryId, data });
+    },
+    [updateCategory],
+  );
+
+  const handleDeleteCategory = useCallback(
+    (categoryId: string) => {
+      deleteCategory.mutate(categoryId);
+    },
+    [deleteCategory],
+  );
 
   return (
     <div className="flex h-screen flex-col">
@@ -52,7 +82,12 @@ export default function AppLayout() {
       <Topbar />
 
       <div className="flex flex-1 overflow-hidden">
-        <Sidebar categories={categories} />
+        <Sidebar
+          categories={categories}
+          onCreateCategory={handleCreateCategory}
+          onUpdateCategory={handleUpdateCategory}
+          onDeleteCategory={handleDeleteCategory}
+        />
 
         <main id="main-content" className="flex-1 overflow-auto">
           <Outlet />

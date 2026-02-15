@@ -7,6 +7,7 @@ import { rateLimit } from './middleware/rate-limit.middleware';
 import { requestId } from './middleware/request-id.middleware';
 import { securityHeaders } from './middleware/security-headers.middleware';
 import auth from './routes/auth.routes';
+import categoriesRouter from './routes/categories.routes';
 import eventsRouter from './routes/events.routes';
 import health from './routes/health.routes';
 import tasksRouter from './routes/tasks.routes';
@@ -43,3 +44,6 @@ app.route('/events', eventsRouter);
 
 // Task routes (auth required, handled per-route in tasks.routes.ts)
 app.route('/tasks', tasksRouter);
+
+// Category routes (auth required, handled per-route in categories.routes.ts)
+app.route('/categories', categoriesRouter);

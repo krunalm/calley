@@ -1,6 +1,12 @@
 import { z } from 'zod';
 
-import { hexColorSchema } from './common.schema';
+import { cuid2Schema, hexColorSchema } from './common.schema';
+
+// ─── Param Schemas ──────────────────────────────────────────────────
+
+export const categoryIdParamSchema = z.object({
+  id: cuid2Schema,
+});
 
 // ─── Create Category ────────────────────────────────────────────────
 

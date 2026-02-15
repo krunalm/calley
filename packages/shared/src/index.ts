@@ -53,7 +53,11 @@ export {
 } from './schemas/task.schema';
 
 // Categories
-export { createCategorySchema, updateCategorySchema } from './schemas/category.schema';
+export {
+  categoryIdParamSchema,
+  createCategorySchema,
+  updateCategorySchema,
+} from './schemas/category.schema';
 
 // Reminders
 export {

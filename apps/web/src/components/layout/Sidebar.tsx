@@ -11,11 +11,19 @@ import type { CalendarCategory } from '@calley/shared';
 
 interface SidebarProps {
   categories: CalendarCategory[];
-  onToggleCategoryVisibility?: (categoryId: string, visible: boolean) => void;
+  onCreateCategory: (data: { name: string; color: string }) => void;
+  onUpdateCategory: (categoryId: string, data: { name?: string; color?: string }) => void;
+  onDeleteCategory: (categoryId: string) => void;
 }
 
-export function Sidebar({ categories, onToggleCategoryVisibility }: SidebarProps) {
-  const { isSidebarOpen, toggleSidebar } = useCalendarStore();
+export function Sidebar({
+  categories,
+  onCreateCategory,
+  onUpdateCategory,
+  onDeleteCategory,
+}: SidebarProps) {
+  const { isSidebarOpen, toggleSidebar, hiddenCategoryIds, toggleCategoryVisibility } =
+    useCalendarStore();
 
   return (
     <>
@@ -42,7 +50,14 @@ export function Sidebar({ categories, onToggleCategoryVisibility }: SidebarProps
         >
           <MiniCalendar />
           <Separator />
-          <CalendarList categories={categories} onToggleVisibility={onToggleCategoryVisibility} />
+          <CalendarList
+            categories={categories}
+            hiddenCategoryIds={hiddenCategoryIds}
+            onToggleVisibility={toggleCategoryVisibility}
+            onCreateCategory={onCreateCategory}
+            onUpdateCategory={onUpdateCategory}
+            onDeleteCategory={onDeleteCategory}
+          />
         </div>
 
         {/* Collapsed icon rail (desktop only) */}

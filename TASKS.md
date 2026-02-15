@@ -486,31 +486,33 @@
 
 ### 4.1 Category Service (Backend)
 
-- [ ] Implement `category.service.ts`:
-  - [ ] `listCategories(userId)` — sorted by sortOrder
-  - [ ] `createCategory(userId, data)` — validate name uniqueness per user, max 20 check
-  - [ ] `updateCategory(userId, categoryId, data)` — validate, emit SSE
-  - [ ] `deleteCategory(userId, categoryId)` — cannot delete default, reassign events/tasks to default, emit SSE
-  - [ ] `createDefaultCategory(userId)` — called during signup
-- [ ] Implement `categories.routes.ts`
+- [x] Implement `category.service.ts`:
+  - [x] `listCategories(userId)` — sorted by sortOrder
+  - [x] `createCategory(userId, data)` — validate name uniqueness per user, max 20 check
+  - [x] `updateCategory(userId, categoryId, data)` — validate ownership + name uniqueness
+  - [x] `deleteCategory(userId, categoryId)` — cannot delete default, reassign events/tasks to default
+  - [x] `createDefaultCategory(userId)` — called during signup
+- [x] Implement `categories.routes.ts` (GET, POST, PATCH, DELETE with auth + CSRF + validation)
+- [x] Add `categoryIdParamSchema` to shared schemas
+- [x] Register category routes in `app.ts`
 - [ ] Write tests
 
 ### 4.2 Category Management UI
 
-- [ ] Build CalendarList in Sidebar:
-  - [ ] Each item: color dot + name + visibility toggle (eye icon)
-  - [ ] Click name or edit icon → opens inline edit (name + color picker)
-  - [ ] Right-click / three-dot menu → Edit, Delete
-- [ ] Build AddCalendarButton → opens create dialog (name + color picker)
-- [ ] Build color picker component (preset palette of 12 colors + custom hex input)
-- [ ] Build delete confirmation dialog — warning about reassignment to default
-- [ ] Implement `useCategories` hook — fetch, create, update, delete mutations
-- [ ] Visibility toggle: client-side only (stored in Zustand or localStorage), filters events/tasks in views
+- [x] Build CalendarList in Sidebar:
+  - [x] Each item: color dot + name + visibility toggle (eye icon)
+  - [x] Click name or edit icon → opens inline edit (name + color picker popover)
+  - [x] Three-dot menu → Edit, Delete (no delete for default)
+- [x] Build AddCalendarButton → opens create dialog (name + color picker)
+- [x] Build color picker component (preset palette of 12 colors + custom hex input)
+- [x] Build delete confirmation dialog — warning about reassignment to default
+- [x] Implement `useCategories` hook — fetch, create, update, delete mutations with optimistic updates
+- [x] Visibility toggle: client-side only (stored in Zustand + localStorage), filters events/tasks in views
 
 ### 4.3 Category Color Integration
 
-- [ ] Event pills/blocks use category color (or event color override if set)
-- [ ] Task items show category color stripe
+- [x] Event pills/blocks use category color (or event color override if set)
+- [x] Task items show category color stripe
 - [ ] Mini calendar date dots use category colors
 - [ ] Ensure all category colors have accessible text contrast (compute dynamically)
 

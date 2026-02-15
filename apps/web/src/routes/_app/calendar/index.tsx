@@ -1,6 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router';
 
+import { DayView } from '@/components/calendar/DayView';
 import { MonthView } from '@/components/calendar/MonthView';
+import { WeekView } from '@/components/calendar/WeekView';
 import { useCalendarStore } from '@/stores/calendar-store';
 
 export const Route = createFileRoute('/_app/calendar/')({
@@ -13,8 +15,8 @@ export default function CalendarPage() {
   return (
     <div className="h-full">
       {view === 'month' && <MonthView />}
-      {view === 'week' && <ViewPlaceholder name="Week" />}
-      {view === 'day' && <ViewPlaceholder name="Day" />}
+      {view === 'week' && <WeekView />}
+      {view === 'day' && <DayView />}
       {view === 'agenda' && <ViewPlaceholder name="Agenda" />}
     </div>
   );

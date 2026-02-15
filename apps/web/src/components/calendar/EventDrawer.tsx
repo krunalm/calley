@@ -2,11 +2,15 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useQuery } from '@tanstack/react-query';
 import { addHours, format, parseISO, set as setDateFields } from 'date-fns';
 import { fromZonedTime, toZonedTime } from 'date-fns-tz';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 
-import { RecurrenceBuilderModal } from '@/components/events/RecurrenceBuilder';
+const LazyRecurrenceBuilderModal = lazy(() =>
+  import('@/components/events/RecurrenceBuilder').then((m) => ({
+    default: m.RecurrenceBuilderModal,
+  })),
+);
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -621,14 +625,18 @@ export function EventDrawer() {
         action={scopeDialog.action}
       />
 
-      {/* Recurrence builder modal */}
-      <RecurrenceBuilderModal
-        open={recurrenceBuilderOpen}
-        onOpenChange={setRecurrenceBuilderOpen}
-        initialRrule={watchedRrule || null}
-        startDate={watchedStartDate}
-        onSave={(rrule) => setValue('rrule', rrule)}
-      />
+      {/* Recurrence builder modal (lazy-loaded) */}
+      {recurrenceBuilderOpen && (
+        <Suspense fallback={null}>
+          <LazyRecurrenceBuilderModal
+            open={recurrenceBuilderOpen}
+            onOpenChange={setRecurrenceBuilderOpen}
+            initialRrule={watchedRrule || null}
+            startDate={watchedStartDate}
+            onSave={(rrule) => setValue('rrule', rrule)}
+          />
+        </Suspense>
+      )}
     </>
   );
 }

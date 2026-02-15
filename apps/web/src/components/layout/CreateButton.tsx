@@ -21,11 +21,11 @@ export function CreateButton() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={() => openEventDrawer()}>
+        <DropdownMenuItem onSelect={() => openEventDrawer()}>
           <CalendarPlus className="mr-2 h-4 w-4" />
           New Event
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => openTaskDrawer()}>
+        <DropdownMenuItem onSelect={() => openTaskDrawer()}>
           <ListPlus className="mr-2 h-4 w-4" />
           New Task
         </DropdownMenuItem>

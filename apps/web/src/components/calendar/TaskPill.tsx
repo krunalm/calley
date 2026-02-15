@@ -27,7 +27,7 @@ export const TaskPill = memo(function TaskPill({
         'flex w-full items-center gap-1 rounded-[var(--radius-sm)] px-1.5 py-0.5 text-[11px] leading-tight',
         isDone && 'opacity-50',
       )}
-      style={{ backgroundColor: `${color}10` }}
+      style={{ backgroundColor: `color-mix(in srgb, ${color} 10%, transparent)` }}
     >
       <Checkbox
         checked={isDone}

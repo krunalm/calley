@@ -15,7 +15,7 @@ export function ViewSwitcher() {
 
   return (
     <div
-      className="hidden items-center rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-0.5 sm:flex"
+      className="flex items-center rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-0.5"
       role="tablist"
       aria-label="Calendar view"
     >

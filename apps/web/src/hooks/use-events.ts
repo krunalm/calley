@@ -1,6 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
+import { addDays, format, isBefore, parseISO } from 'date-fns';
+import { toZonedTime } from 'date-fns-tz';
 import { useMemo } from 'react';
 
+import { useUserTimezone } from '@/hooks/use-user-timezone';
 import { apiClient } from '@/lib/api-client';
 import { queryKeys } from '@/lib/query-keys';
 
@@ -16,11 +19,12 @@ export function useEvents(start: string, end: string) {
 }
 
 /**
- * Groups events by their start date (YYYY-MM-DD) for efficient lookup
- * in calendar grid views.
+ * Groups events by their start date (YYYY-MM-DD in the user's timezone)
+ * for efficient lookup in calendar grid views.
  */
 export function useEventsByDate(start: string, end: string) {
   const query = useEvents(start, end);
+  const userTimezone = useUserTimezone();
 
   const eventsByDate = useMemo(() => {
     const map = new Map<string, Event[]>();
@@ -29,28 +33,28 @@ export function useEventsByDate(start: string, end: string) {
     for (const event of query.data) {
       // Use instanceDate for recurring instances, otherwise startAt
       const dateStr = event.instanceDate ?? event.startAt;
-      const dateKey = dateStr.slice(0, 10); // YYYY-MM-DD
+      const zonedDate = toZonedTime(parseISO(dateStr), userTimezone);
+      const dateKey = format(zonedDate, 'yyyy-MM-dd');
       const existing = map.get(dateKey) ?? [];
       existing.push(event);
       map.set(dateKey, existing);
 
-      // For multi-day events, also add to intermediate dates
+      // For multi-day all-day events, also add to intermediate dates
       if (!event.isAllDay) continue;
-      const startDate = new Date(event.startAt);
-      const endDate = new Date(event.endAt);
-      const current = new Date(startDate);
-      current.setDate(current.getDate() + 1);
-      while (current < endDate) {
-        const key = current.toISOString().slice(0, 10);
+      const zonedStart = toZonedTime(parseISO(event.startAt), userTimezone);
+      const zonedEnd = toZonedTime(parseISO(event.endAt), userTimezone);
+      let current = addDays(zonedStart, 1);
+      while (isBefore(current, zonedEnd)) {
+        const key = format(current, 'yyyy-MM-dd');
         const dayEvents = map.get(key) ?? [];
         dayEvents.push(event);
         map.set(key, dayEvents);
-        current.setDate(current.getDate() + 1);
+        current = addDays(current, 1);
       }
     }
 
     return map;
-  }, [query.data]);
+  }, [query.data, userTimezone]);
 
   return { ...query, eventsByDate };
 }

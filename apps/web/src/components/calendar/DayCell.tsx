@@ -1,8 +1,8 @@
-import { format, isToday } from 'date-fns';
+import { format, isSameDay } from 'date-fns';
 import { memo, useCallback, useMemo } from 'react';
 
 import { cn } from '@/lib/utils';
-import { useCalendarStore } from '@/stores/calendar-store';
+import { getNowInUserTimezone, useCalendarStore } from '@/stores/calendar-store';
 import { useUIStore } from '@/stores/ui-store';
 
 import { EventPill } from './EventPill';
@@ -37,7 +37,7 @@ export const DayCell = memo(function DayCell({
   const { setDate, setView } = useCalendarStore();
   const { openEventDrawer } = useUIStore();
 
-  const today = isToday(date);
+  const today = isSameDay(date, getNowInUserTimezone());
   const allItems = useMemo(() => [...events, ...tasks], [events, tasks]);
   const visibleEvents = events.slice(0, MAX_VISIBLE_ITEMS);
   const remainingSlots = MAX_VISIBLE_ITEMS - visibleEvents.length;
@@ -70,6 +70,7 @@ export const DayCell = memo(function DayCell({
     >
       {/* Date number */}
       <button
+        type="button"
         onClick={handleDateClick}
         className={cn(
           'mb-0.5 flex h-6 w-6 items-center justify-center self-end rounded-full text-xs font-medium transition-colors hover:bg-[var(--accent-ui)]',
@@ -109,6 +110,7 @@ export const DayCell = memo(function DayCell({
       {/* Click empty area to quick-create */}
       {allItems.length === 0 && (
         <button
+          type="button"
           className="flex-1"
           onClick={handleEmptyClick}
           aria-label={`Create event on ${format(date, 'MMMM d')}`}

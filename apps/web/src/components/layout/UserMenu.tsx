@@ -55,7 +55,7 @@ export function UserMenu() {
           Settings
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => logout.mutate()} className="text-[var(--destructive)]">
+        <DropdownMenuItem onSelect={() => logout.mutate()} className="text-[var(--destructive)]">
           <LogOut className="mr-2 h-4 w-4" />
           Sign out
         </DropdownMenuItem>

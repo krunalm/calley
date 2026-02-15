@@ -12,7 +12,7 @@ import {
   subMonths,
 } from 'date-fns';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { memo, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -23,6 +23,10 @@ const DAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 export const MiniCalendar = memo(function MiniCalendar() {
   const { currentDate, setDate, setView } = useCalendarStore();
   const [displayMonth, setDisplayMonth] = useState(() => startOfMonth(currentDate));
+
+  useEffect(() => {
+    setDisplayMonth(startOfMonth(currentDate));
+  }, [currentDate]);
 
   const monthStart = startOfMonth(displayMonth);
   const monthEnd = endOfMonth(displayMonth);

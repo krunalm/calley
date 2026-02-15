@@ -9,6 +9,7 @@ import { securityHeaders } from './middleware/security-headers.middleware';
 import auth from './routes/auth.routes';
 import eventsRouter from './routes/events.routes';
 import health from './routes/health.routes';
+import tasksRouter from './routes/tasks.routes';
 
 import type { AppVariables } from './types/hono';
 
@@ -39,3 +40,6 @@ app.route('/', auth);
 
 // Event routes (auth required, handled per-route in events.routes.ts)
 app.route('/events', eventsRouter);
+
+// Task routes (auth required, handled per-route in tasks.routes.ts)
+app.route('/tasks', tasksRouter);

@@ -2,7 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useQuery } from '@tanstack/react-query';
 import { addHours, format, parseISO, set as setDateFields } from 'date-fns';
 import { fromZonedTime, toZonedTime } from 'date-fns-tz';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -32,38 +32,41 @@ import type { EditScope, Event } from '@calley/shared';
 // ─── Form Schema ────────────────────────────────────────────────────
 // No transforms here — react-hook-form requires input === output types.
 // Transforms are applied in buildApiPayload() before submission.
+// The refine uses fromZonedTime so validation respects the user's timezone.
 
-const eventFormSchema = z
-  .object({
-    title: z
-      .string()
-      .trim()
-      .min(1, 'Title is required')
-      .max(200, 'Title must be at most 200 characters'),
-    description: z.string().max(5000, 'Description must be at most 5000 characters').optional(),
-    location: z.string().max(500, 'Location must be at most 500 characters').optional(),
-    startDate: z.string().min(1, 'Start date is required'),
-    startTime: z.string(),
-    endDate: z.string().min(1, 'End date is required'),
-    endTime: z.string(),
-    isAllDay: z.boolean(),
-    categoryId: z.string().min(1, 'Category is required'),
-    color: z.string().optional(),
-    visibility: z.enum(['public', 'private']),
-    rrule: z.string().optional(),
-    reminderMinutes: z.string().optional(),
-  })
-  .refine(
+const eventFormBaseSchema = z.object({
+  title: z
+    .string()
+    .trim()
+    .min(1, 'Title is required')
+    .max(200, 'Title must be at most 200 characters'),
+  description: z.string().max(5000, 'Description must be at most 5000 characters').optional(),
+  location: z.string().max(500, 'Location must be at most 500 characters').optional(),
+  startDate: z.string().min(1, 'Start date is required'),
+  startTime: z.string(),
+  endDate: z.string().min(1, 'End date is required'),
+  endTime: z.string(),
+  isAllDay: z.boolean(),
+  categoryId: z.string().min(1, 'Category is required'),
+  color: z.string().optional(),
+  visibility: z.enum(['public', 'private']),
+  rrule: z.string().optional(),
+  reminderMinutes: z.string().optional(),
+});
+
+function createEventFormSchema(timezone: string) {
+  return eventFormBaseSchema.refine(
     (data) => {
       if (data.isAllDay) return true;
-      const start = new Date(`${data.startDate}T${data.startTime}`);
-      const end = new Date(`${data.endDate}T${data.endTime}`);
+      const start = fromZonedTime(parseISO(`${data.startDate}T${data.startTime}`), timezone);
+      const end = fromZonedTime(parseISO(`${data.endDate}T${data.endTime}`), timezone);
       return start < end;
     },
     { message: 'End time must be after start time', path: ['endTime'] },
   );
+}
 
-type EventFormValues = z.infer<typeof eventFormSchema>;
+type EventFormValues = z.infer<typeof eventFormBaseSchema>;
 
 // ─── Recurrence Presets ─────────────────────────────────────────────
 
@@ -182,6 +185,9 @@ export function EventDrawer() {
       reminderMinutes: 'none',
     };
   }, [isEditMode, existingEvent, defaultDate, defaultTime, categories, userTimezone]);
+
+  // Build timezone-aware schema so the end > start refine uses the user's timezone
+  const eventFormSchema = useMemo(() => createEventFormSchema(userTimezone), [userTimezone]);
 
   const {
     register,

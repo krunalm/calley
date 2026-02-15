@@ -4,6 +4,7 @@ import { categoryIdParamSchema, createCategorySchema, updateCategorySchema } fro
 
 import { authMiddleware } from '../middleware/auth.middleware';
 import { doubleSubmitCsrf } from '../middleware/csrf.middleware';
+import { rateLimit } from '../middleware/rate-limit.middleware';
 import { validate } from '../middleware/validate.middleware';
 import { categoryService } from '../services/category.service';
 
@@ -12,8 +13,12 @@ import type { CreateCategoryInput, UpdateCategoryInput } from '@calley/shared';
 
 const categoriesRouter = new Hono<{ Variables: AppVariables }>();
 
-// All category routes require authentication
-categoriesRouter.use('/*', authMiddleware);
+// All category routes require authentication and rate limiting
+categoriesRouter.use(
+  '/*',
+  rateLimit({ limit: 100, windowSeconds: 60, keyPrefix: 'categories' }),
+  authMiddleware,
+);
 
 // ─── GET /categories — List all categories ──────────────────────────
 

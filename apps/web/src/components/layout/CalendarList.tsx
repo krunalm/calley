@@ -1,9 +1,11 @@
 import { Eye, EyeOff, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react';
-import { memo, useCallback, useRef, useState } from 'react';
+import { lazy, memo, Suspense, useCallback, useRef, useState } from 'react';
 
 import { DEFAULT_CATEGORY_COLOR } from '@calley/shared';
 
-import { ColorPicker } from '@/components/calendar/ColorPicker';
+const ColorPicker = lazy(() =>
+  import('@/components/calendar/ColorPicker').then((m) => ({ default: m.ColorPicker })),
+);
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -57,6 +59,7 @@ export const CalendarList = memo(function CalendarList({
   const [editName, setEditName] = useState('');
   const [editColor, setEditColor] = useState('');
   const editInputRef = useRef<HTMLInputElement>(null);
+  const editRowRef = useRef<HTMLLIElement>(null);
 
   const handleAddSubmit = useCallback(() => {
     const trimmed = newName.trim();
@@ -133,7 +136,11 @@ export const CalendarList = memo(function CalendarList({
 
           if (isEditing) {
             return (
-              <li key={cat.id} className="rounded-[var(--radius-sm)] bg-[var(--accent-ui)] p-1.5">
+              <li
+                key={cat.id}
+                ref={editRowRef}
+                className="rounded-[var(--radius-sm)] bg-[var(--accent-ui)] p-1.5"
+              >
                 <div className="flex items-center gap-2">
                   <Popover>
                     <PopoverTrigger asChild>
@@ -145,7 +152,13 @@ export const CalendarList = memo(function CalendarList({
                       />
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-3" align="start">
-                      <ColorPicker value={editColor} onChange={setEditColor} />
+                      <Suspense
+                        fallback={
+                          <div className="h-20 w-40 animate-pulse rounded bg-[var(--muted)]" />
+                        }
+                      >
+                        <ColorPicker value={editColor} onChange={setEditColor} />
+                      </Suspense>
                     </PopoverContent>
                   </Popover>
                   <Input
@@ -164,7 +177,16 @@ export const CalendarList = memo(function CalendarList({
                         handleCancelEdit();
                       }
                     }}
-                    onBlur={handleSaveEdit}
+                    onBlurCapture={(e) => {
+                      const related = e.relatedTarget as HTMLElement | null;
+                      if (related) {
+                        // Stay in edit mode if focus moved to the color popover trigger (inside the row)
+                        if (editRowRef.current?.contains(related)) return;
+                        // Stay in edit mode if focus moved into the popover content (rendered in a portal)
+                        if (related.closest('[data-radix-popper-content-wrapper]')) return;
+                      }
+                      handleSaveEdit();
+                    }}
                   />
                 </div>
               </li>
@@ -264,7 +286,11 @@ export const CalendarList = memo(function CalendarList({
             </div>
             <div className="space-y-2">
               <Label>Color</Label>
-              <ColorPicker value={newColor} onChange={setNewColor} />
+              <Suspense
+                fallback={<div className="h-20 w-40 animate-pulse rounded bg-[var(--muted)]" />}
+              >
+                <ColorPicker value={newColor} onChange={setNewColor} />
+              </Suspense>
             </div>
           </div>
           <DialogFooter>

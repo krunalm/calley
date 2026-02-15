@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQuery } from '@tanstack/react-query';
 import { addHours, format, parseISO, set as setDateFields } from 'date-fns';
-import { toZonedTime } from 'date-fns-tz';
+import { fromZonedTime, toZonedTime } from 'date-fns-tz';
 import { useCallback, useEffect, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -208,34 +208,44 @@ export function EventDrawer() {
 
   // ─── Submit Handler ─────────────────────────────────────────────
 
-  const buildApiPayload = useCallback((data: EventFormValues) => {
-    const startLocal = data.isAllDay
-      ? setDateFields(parseISO(data.startDate), { hours: 0, minutes: 0, seconds: 0 })
-      : new Date(`${data.startDate}T${data.startTime}`);
-    const endLocal = data.isAllDay
-      ? setDateFields(parseISO(data.endDate), { hours: 23, minutes: 59, seconds: 59 })
-      : new Date(`${data.endDate}T${data.endTime}`);
+  const buildApiPayload = useCallback(
+    (data: EventFormValues) => {
+      // Parse the user's local date/time and convert to UTC using their timezone
+      const startZoned = data.isAllDay
+        ? setDateFields(parseISO(data.startDate), { hours: 0, minutes: 0, seconds: 0 })
+        : parseISO(`${data.startDate}T${data.startTime}`);
+      const endZoned = data.isAllDay
+        ? setDateFields(parseISO(data.endDate), { hours: 23, minutes: 59, seconds: 59 })
+        : parseISO(`${data.endDate}T${data.endTime}`);
 
-    const reminderValue = data.reminderMinutes;
-    const reminderMinutes =
-      reminderValue && reminderValue !== 'none' ? Number(reminderValue) : null;
+      // Convert from user's timezone to UTC
+      const startUtc = fromZonedTime(startZoned, userTimezone);
+      const endUtc = fromZonedTime(endZoned, userTimezone);
 
-    return {
-      title: data.title,
-      description: data.description || null,
-      location: data.location || null,
-      startAt: startLocal.toISOString(),
-      endAt: endLocal.toISOString(),
-      isAllDay: data.isAllDay,
-      categoryId: data.categoryId,
-      color: data.color || null,
-      visibility: data.visibility,
-      rrule: data.rrule || null,
-      ...(reminderMinutes != null
-        ? { reminder: { minutesBefore: reminderMinutes, method: 'push' as const } }
-        : {}),
-    };
-  }, []);
+      const reminderValue = data.reminderMinutes;
+      const reminderMinutes =
+        reminderValue && reminderValue !== 'none' ? Number(reminderValue) : null;
+
+      const rrule = data.rrule && data.rrule !== '_none' ? data.rrule : null;
+
+      return {
+        title: data.title,
+        description: data.description || null,
+        location: data.location || null,
+        startAt: startUtc.toISOString(),
+        endAt: endUtc.toISOString(),
+        isAllDay: data.isAllDay,
+        categoryId: data.categoryId,
+        color: data.color || null,
+        visibility: data.visibility,
+        rrule,
+        ...(reminderMinutes != null
+          ? { reminder: { minutesBefore: reminderMinutes, method: 'push' as const } }
+          : {}),
+      };
+    },
+    [userTimezone],
+  );
 
   const submitWithScope = useCallback(
     (data: EventFormValues, scope?: EditScope) => {
@@ -503,13 +513,16 @@ export function EventDrawer() {
                 name="rrule"
                 control={control}
                 render={({ field }) => (
-                  <Select value={field.value ?? ''} onValueChange={field.onChange}>
+                  <Select
+                    value={field.value || '_none'}
+                    onValueChange={(v) => field.onChange(v === '_none' ? '' : v)}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Does not repeat" />
                     </SelectTrigger>
                     <SelectContent>
                       {RECURRENCE_PRESETS.map((preset) => (
-                        <SelectItem key={preset.value} value={preset.value || '_none'}>
+                        <SelectItem key={preset.value || '_none'} value={preset.value || '_none'}>
                           {preset.label}
                         </SelectItem>
                       ))}

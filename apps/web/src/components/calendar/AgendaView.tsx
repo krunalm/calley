@@ -64,13 +64,16 @@ export function AgendaView() {
       existing.push(event);
       map.set(dateKey, existing);
     }
-    // Sort events within each day by start time
+    // Sort events within each day by start time (timezone-aware)
     for (const [key, dayEvents] of map) {
       dayEvents.sort((a, b) => {
         // All-day events first
         if (a.isAllDay && !b.isAllDay) return -1;
         if (!a.isAllDay && b.isAllDay) return 1;
-        return new Date(a.startAt).getTime() - new Date(b.startAt).getTime();
+        return (
+          toZonedTime(parseISO(a.startAt), userTimezone).getTime() -
+          toZonedTime(parseISO(b.startAt), userTimezone).getTime()
+        );
       });
       map.set(key, dayEvents);
     }

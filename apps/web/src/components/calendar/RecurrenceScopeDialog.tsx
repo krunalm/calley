@@ -37,12 +37,11 @@ const SCOPE_OPTIONS: { value: EditScope; label: string; description: string }[] 
   },
 ];
 
-export function RecurrenceScopeDialog({
-  open,
-  onClose,
-  onConfirm,
-  action,
-}: RecurrenceScopeDialogProps) {
+/**
+ * Inner content that mounts fresh each time the dialog opens,
+ * ensuring selected scope always resets to 'instance'.
+ */
+function ScopeDialogBody({ onClose, onConfirm, action }: Omit<RecurrenceScopeDialogProps, 'open'>) {
   const [selected, setSelected] = useState<EditScope>('instance');
 
   const handleConfirm = () => {
@@ -51,48 +50,59 @@ export function RecurrenceScopeDialog({
   };
 
   return (
+    <DialogContent className="sm:max-w-md">
+      <DialogHeader>
+        <DialogTitle>
+          {action === 'edit' ? 'Edit recurring event' : 'Delete recurring event'}
+        </DialogTitle>
+        <DialogDescription>
+          This is a recurring event. Which events do you want to {action}?
+        </DialogDescription>
+      </DialogHeader>
+
+      <div className="space-y-2 py-2">
+        {SCOPE_OPTIONS.map((option) => (
+          <label
+            key={option.value}
+            className="flex cursor-pointer items-start gap-3 rounded-[var(--radius)] border border-[var(--border)] p-3 transition-colors hover:bg-[var(--accent-ui)] has-[:checked]:border-[var(--primary)] has-[:checked]:bg-[color-mix(in_srgb,var(--primary)_5%,transparent)]"
+          >
+            <input
+              type="radio"
+              name="recurrence-scope"
+              value={option.value}
+              checked={selected === option.value}
+              onChange={() => setSelected(option.value)}
+              className="mt-0.5 accent-[var(--primary)]"
+            />
+            <div>
+              <div className="text-sm font-medium">{option.label}</div>
+              <div className="text-xs text-[var(--muted-foreground)]">{option.description}</div>
+            </div>
+          </label>
+        ))}
+      </div>
+
+      <DialogFooter>
+        <Button variant="outline" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button variant={action === 'delete' ? 'destructive' : 'default'} onClick={handleConfirm}>
+          {action === 'edit' ? 'Save' : 'Delete'}
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  );
+}
+
+export function RecurrenceScopeDialog({
+  open,
+  onClose,
+  onConfirm,
+  action,
+}: RecurrenceScopeDialogProps) {
+  return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>
-            {action === 'edit' ? 'Edit recurring event' : 'Delete recurring event'}
-          </DialogTitle>
-          <DialogDescription>
-            This is a recurring event. Which events do you want to {action}?
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-2 py-2">
-          {SCOPE_OPTIONS.map((option) => (
-            <label
-              key={option.value}
-              className="flex cursor-pointer items-start gap-3 rounded-[var(--radius)] border border-[var(--border)] p-3 transition-colors hover:bg-[var(--accent-ui)] has-[:checked]:border-[var(--primary)] has-[:checked]:bg-[color-mix(in_srgb,var(--primary)_5%,transparent)]"
-            >
-              <input
-                type="radio"
-                name="recurrence-scope"
-                value={option.value}
-                checked={selected === option.value}
-                onChange={() => setSelected(option.value)}
-                className="mt-0.5 accent-[var(--primary)]"
-              />
-              <div>
-                <div className="text-sm font-medium">{option.label}</div>
-                <div className="text-xs text-[var(--muted-foreground)]">{option.description}</div>
-              </div>
-            </label>
-          ))}
-        </div>
-
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button variant={action === 'delete' ? 'destructive' : 'default'} onClick={handleConfirm}>
-            {action === 'edit' ? 'Save' : 'Delete'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
+      {open && <ScopeDialogBody onClose={onClose} onConfirm={onConfirm} action={action} />}
     </Dialog>
   );
 }

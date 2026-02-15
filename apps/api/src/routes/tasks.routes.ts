@@ -1,6 +1,8 @@
 import { Hono } from 'hono';
 
 import {
+  bulkCompleteTasksSchema,
+  bulkDeleteTasksSchema,
   createTaskSchema,
   listTasksQuerySchema,
   reorderTasksSchema,
@@ -16,6 +18,8 @@ import { taskService } from '../services/task.service';
 
 import type { AppVariables } from '../types/hono';
 import type {
+  BulkCompleteTasksInput,
+  BulkDeleteTasksInput,
   CreateTaskInput,
   ListTasksQuery,
   ReorderTasksInput,
@@ -30,16 +34,41 @@ tasksRouter.use('/*', authMiddleware);
 
 // ─── PATCH /tasks/reorder — Reorder tasks (must be before /:id routes) ──
 
+tasksRouter.patch('/reorder', doubleSubmitCsrf, validate('json', reorderTasksSchema), async (c) => {
+  const userId = c.get('userId')!;
+  const { ids } = c.get('validatedBody') as ReorderTasksInput;
+
+  await taskService.reorderTasks(userId, ids);
+  return c.body(null, 204);
+});
+
+// ─── PATCH /tasks/bulk-complete — Bulk complete tasks (must be before /:id) ──
+
 tasksRouter.patch(
-  '/reorder',
+  '/bulk-complete',
   doubleSubmitCsrf,
-  validate('json', reorderTasksSchema),
+  validate('json', bulkCompleteTasksSchema),
   async (c) => {
     const userId = c.get('userId')!;
-    const { ids } = c.get('validatedBody') as ReorderTasksInput;
+    const { ids } = c.get('validatedBody') as BulkCompleteTasksInput;
 
-    await taskService.reorderTasks(userId, ids);
-    return c.body(null, 204);
+    const count = await taskService.bulkComplete(userId, ids);
+    return c.json({ count });
+  },
+);
+
+// ─── POST /tasks/bulk-delete — Bulk delete tasks (must be before /:id) ──
+
+tasksRouter.post(
+  '/bulk-delete',
+  doubleSubmitCsrf,
+  validate('json', bulkDeleteTasksSchema),
+  async (c) => {
+    const userId = c.get('userId')!;
+    const { ids } = c.get('validatedBody') as BulkDeleteTasksInput;
+
+    const count = await taskService.bulkDelete(userId, ids);
+    return c.json({ count });
   },
 );
 

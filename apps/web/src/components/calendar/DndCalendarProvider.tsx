@@ -21,9 +21,10 @@ import { useCallback, useState } from 'react';
 
 import { RecurrenceScopeDialog } from '@/components/calendar/RecurrenceScopeDialog';
 import { useUpdateEvent } from '@/hooks/use-event-mutations';
+import { useUpdateTask } from '@/hooks/use-task-mutations';
 import { useUserTimezone } from '@/hooks/use-user-timezone';
 
-import type { EditScope, Event } from '@calley/shared';
+import type { EditScope, Event, Task } from '@calley/shared';
 import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core';
 
 interface DndCalendarProviderProps {
@@ -31,14 +32,17 @@ interface DndCalendarProviderProps {
 }
 
 /**
- * Wraps the calendar area in a DndContext for event drag & drop.
+ * Wraps the calendar area in a DndContext for event drag & drop
+ * AND task-to-calendar drag & drop.
  * Handles move (time-based and date-based) operations.
  */
 export function DndCalendarProvider({ children }: DndCalendarProviderProps) {
   const userTimezone = useUserTimezone();
   const updateEvent = useUpdateEvent();
+  const updateTask = useUpdateTask();
 
   const [activeEvent, setActiveEvent] = useState<Event | null>(null);
+  const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [pendingDrop, setPendingDrop] = useState<{
     event: Event;
     newStartAt: string;
@@ -56,8 +60,12 @@ export function DndCalendarProvider({ children }: DndCalendarProviderProps) {
   const sensors = useSensors(mouseSensor, touchSensor);
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
-    const data = event.active.data.current as { event: Event; type: string } | undefined;
-    if (data?.event) {
+    const data = event.active.data.current as
+      | { event?: Event; task?: Task; type: string }
+      | undefined;
+    if (data?.type === 'task-to-calendar' && data.task) {
+      setActiveTask(data.task);
+    } else if (data?.event) {
       setActiveEvent(data.event);
     }
   }, []);
@@ -65,15 +73,51 @@ export function DndCalendarProvider({ children }: DndCalendarProviderProps) {
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
       setActiveEvent(null);
+      setActiveTask(null);
 
       const activeData = event.active.data.current as
-        | { event: Event; type: 'event-move' | 'event-resize' }
+        | { event?: Event; task?: Task; type: string }
         | undefined;
       const overData = event.over?.data.current as
         | { date: Date; hour?: number; minutes?: number; type: 'time-slot' | 'day-cell' }
         | undefined;
 
-      if (!activeData?.event || !overData) return;
+      if (!activeData || !overData) return;
+
+      // ─── Task-to-calendar drop ──────────────────────────────────
+      if (activeData.type === 'task-to-calendar' && activeData.task) {
+        const task = activeData.task;
+        let newDueAt: Date;
+
+        if (overData.type === 'time-slot') {
+          // Drop on a time slot: set due date + time
+          const dropTime = new Date(overData.date);
+          dropTime.setHours(overData.hour ?? 0, overData.minutes ?? 0, 0, 0);
+          newDueAt = fromZonedTime(dropTime, userTimezone);
+        } else if (overData.type === 'day-cell') {
+          // Drop on a day cell (month view): set due date at noon
+          const dropDate = overData.date;
+          const noonZoned = set(dropDate, { hours: 12, minutes: 0, seconds: 0 });
+          newDueAt = fromZonedTime(noonZoned, userTimezone);
+        } else {
+          return;
+        }
+
+        const newDueAtStr = newDueAt.toISOString();
+
+        // Don't update if same
+        if (newDueAtStr === task.dueAt) return;
+
+        updateTask.mutate({
+          taskId: task.id,
+          data: { dueAt: newDueAtStr },
+        });
+
+        return;
+      }
+
+      // ─── Event drag (existing logic) ────────────────────────────
+      if (!activeData.event) return;
 
       const draggedEvent = activeData.event;
       const eventStart = parseISO(draggedEvent.startAt);
@@ -133,7 +177,7 @@ export function DndCalendarProvider({ children }: DndCalendarProviderProps) {
         });
       }
     },
-    [userTimezone, updateEvent],
+    [userTimezone, updateEvent, updateTask],
   );
 
   const handleScopeConfirm = useCallback(
@@ -177,6 +221,14 @@ export function DndCalendarProvider({ children }: DndCalendarProviderProps) {
               style={{ opacity: 0.85, maxWidth: 200 }}
             >
               {activeEvent.title}
+            </div>
+          )}
+          {activeTask && (
+            <div
+              className="rounded-[var(--radius-sm)] border border-[var(--primary)] bg-[var(--surface)] px-2 py-1 text-xs font-medium shadow-[var(--shadow-md)]"
+              style={{ opacity: 0.85, maxWidth: 200 }}
+            >
+              {activeTask.title}
             </div>
           )}
         </DragOverlay>

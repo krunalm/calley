@@ -1,3 +1,4 @@
+import { useDraggable } from '@dnd-kit/core';
 import { format, isPast, isToday, parseISO } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz';
 import { Repeat } from 'lucide-react';
@@ -20,9 +21,20 @@ const PRIORITY_COLORS: Record<string, string> = {
 
 interface TaskItemProps {
   task: Task;
+  isSelecting?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: (taskId: string) => void;
+  /** When true, enables dragging to calendar views */
+  draggableToCalendar?: boolean;
 }
 
-export const TaskItem = memo(function TaskItem({ task }: TaskItemProps) {
+export const TaskItem = memo(function TaskItem({
+  task,
+  isSelecting,
+  isSelected,
+  onToggleSelect,
+  draggableToCalendar = true,
+}: TaskItemProps) {
   const toggleTask = useToggleTask();
   const openTaskDrawer = useUIStore((s) => s.openTaskDrawer);
   const userTimezone = useUserTimezone();
@@ -34,13 +46,28 @@ export const TaskItem = memo(function TaskItem({ task }: TaskItemProps) {
   const category = categories.find((c) => c.id === task.categoryId);
   const categoryColor = category?.color ?? '#94a3b8';
 
+  // Draggable to calendar views (day-cell / time-slot drop targets)
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `task-to-calendar-${task.id}`,
+    data: { task, type: 'task-to-calendar' },
+    disabled: isSelecting || !draggableToCalendar,
+  });
+
   const handleToggle = useCallback(() => {
-    toggleTask.mutate(task.id);
-  }, [toggleTask, task.id]);
+    if (isSelecting && onToggleSelect) {
+      onToggleSelect(task.id);
+    } else {
+      toggleTask.mutate(task.id);
+    }
+  }, [isSelecting, onToggleSelect, toggleTask, task.id]);
 
   const handleClick = useCallback(() => {
-    openTaskDrawer({ taskId: task.id });
-  }, [openTaskDrawer, task.id]);
+    if (isSelecting && onToggleSelect) {
+      onToggleSelect(task.id);
+    } else {
+      openTaskDrawer({ taskId: task.id });
+    }
+  }, [isSelecting, onToggleSelect, openTaskDrawer, task.id]);
 
   // Format due date display
   let dueDateLabel = '';
@@ -59,7 +86,11 @@ export const TaskItem = memo(function TaskItem({ task }: TaskItemProps) {
 
   return (
     <div
-      className="group flex items-start gap-2.5 rounded-[var(--radius)] px-2 py-1.5 transition-colors hover:bg-[var(--accent-ui)]"
+      ref={setNodeRef}
+      className={`group flex items-start gap-2.5 rounded-[var(--radius)] px-2 py-1.5 transition-colors hover:bg-[var(--accent-ui)] ${
+        isSelected ? 'bg-[color-mix(in_srgb,var(--primary)_8%,transparent)]' : ''
+      } ${isDragging ? 'opacity-40' : ''}`}
+      {...(draggableToCalendar && !isSelecting ? { ...attributes, ...listeners } : {})}
       role="listitem"
     >
       {/* Category color stripe */}
@@ -69,11 +100,15 @@ export const TaskItem = memo(function TaskItem({ task }: TaskItemProps) {
         aria-hidden="true"
       />
 
-      {/* Checkbox */}
+      {/* Checkbox: in select mode it toggles selection; otherwise toggles completion */}
       <Checkbox
-        checked={isDone}
+        checked={isSelecting ? (isSelected ?? false) : isDone}
         onCheckedChange={handleToggle}
-        aria-label={`Mark "${task.title}" as ${isDone ? 'incomplete' : 'complete'}`}
+        aria-label={
+          isSelecting
+            ? `Select "${task.title}"`
+            : `Mark "${task.title}" as ${isDone ? 'incomplete' : 'complete'}`
+        }
         className="mt-0.5 shrink-0"
       />
 
@@ -82,7 +117,7 @@ export const TaskItem = memo(function TaskItem({ task }: TaskItemProps) {
         type="button"
         className="min-w-0 flex-1 text-left"
         onClick={handleClick}
-        aria-label={`Edit task: ${task.title}`}
+        aria-label={isSelecting ? `Select task: ${task.title}` : `Edit task: ${task.title}`}
       >
         <div className="flex items-center gap-1.5">
           {/* Priority indicator */}
@@ -98,9 +133,7 @@ export const TaskItem = memo(function TaskItem({ task }: TaskItemProps) {
           {/* Title */}
           <span
             className={`truncate text-sm ${
-              isDone
-                ? 'text-[var(--muted-foreground)] line-through'
-                : 'text-[var(--foreground)]'
+              isDone ? 'text-[var(--muted-foreground)] line-through' : 'text-[var(--foreground)]'
             }`}
           >
             {task.title}

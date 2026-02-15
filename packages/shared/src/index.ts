@@ -40,6 +40,8 @@ export {
 
 // Tasks
 export {
+  bulkCompleteTasksSchema,
+  bulkDeleteTasksSchema,
   createTaskSchema,
   listTasksQuerySchema,
   reorderTasksSchema,
@@ -64,22 +66,16 @@ export {
 // ─── Types ──────────────────────────────────────────────────────────
 
 export type {
-  // API
   ApiErrorResponse,
-  // Domain entities
   AuditLog,
+  BulkCompleteTasksInput,
+  BulkDeleteTasksInput,
   CalendarCategory,
-  // Auth
   ChangePasswordInput,
-  // Categories
   CreateCategoryInput,
-  // Events
   CreateEventInput,
-  // Reminders
   CreateReminderInput,
-  // Tasks
   CreateTaskInput,
-  // Common
   DateRangeInput,
   DeleteAccountInput,
   EditScope,

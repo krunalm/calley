@@ -465,18 +465,18 @@
 
 ### 3.4 Task Drag & Drop
 
-- [ ] Implement drag-to-reorder within TaskPanel groups (using @dnd-kit/sortable)
-- [ ] Persist reorder via `PATCH /tasks/reorder`
-- [ ] Implement drag task to calendar date (Month view) — sets due date
-- [ ] Implement drag task to time slot (Week/Day view) — sets due date + time
-- [ ] Optimistic UI for all drag operations
+- [x] Implement drag-to-reorder within TaskPanel groups (using @dnd-kit/sortable)
+- [x] Persist reorder via `PATCH /tasks/reorder`
+- [x] Implement drag task to calendar date (Month view) — sets due date
+- [x] Implement drag task to time slot (Week/Day view) — sets due date + time
+- [x] Optimistic UI for all drag operations
 
 ### 3.5 Bulk Operations
 
-- [ ] Add multi-select mode to TaskPanel (checkboxes appear on long-press or toolbar toggle)
-- [ ] Bulk complete — complete all selected tasks
-- [ ] Bulk delete — delete all selected tasks (with confirmation dialog)
-- [ ] Show count of selected items in toolbar
+- [x] Add multi-select mode to TaskPanel (checkboxes appear on long-press or toolbar toggle)
+- [x] Bulk complete — complete all selected tasks
+- [x] Bulk delete — delete all selected tasks (with confirmation dialog)
+- [x] Show count of selected items in toolbar
 
 ---
 

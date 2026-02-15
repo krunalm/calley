@@ -387,21 +387,21 @@
 
 ### 2.13 Recurrence Builder UI
 
-- [ ] Build RecurrenceBuilderModal (opened from EventDrawer)
-- [ ] Frequency selector: Daily / Weekly / Monthly / Yearly
-- [ ] Interval input: "Every N [days/weeks/months/years]" (max 99)
-- [ ] Weekly: day-of-week checkboxes (Mon-Sun)
-- [ ] Monthly: radio for "day of month" vs "Nth weekday" (with selectors)
-- [ ] End condition: radio for Never / After N occurrences / On date
-- [ ] Preview: show next 5 occurrences based on current settings
-- [ ] Output: generate RRULE string, pass back to EventDrawer
-- [ ] Validate: ensure at least one day selected for weekly, valid end date
+- [x] Build RecurrenceBuilderModal (opened from EventDrawer)
+- [x] Frequency selector: Daily / Weekly / Monthly / Yearly
+- [x] Interval input: "Every N [days/weeks/months/years]" (max 99)
+- [x] Weekly: day-of-week checkboxes (Mon-Sun)
+- [x] Monthly: radio for "day of month" vs "Nth weekday" (with selectors)
+- [x] End condition: radio for Never / After N occurrences / On date
+- [x] Preview: show next 5 occurrences based on current settings
+- [x] Output: generate RRULE string, pass back to EventDrawer
+- [x] Validate: ensure at least one day selected for weekly, valid end date
 
 ### 2.14 ICS Export
 
-- [ ] Implement `.ics` file generation for single events (backend)
-- [ ] Include VTIMEZONE, VEVENT with DTSTART, DTEND, SUMMARY, DESCRIPTION, LOCATION, RRULE
-- [ ] Frontend: "Export" button in EventDetailPopover triggers download
+- [x] Implement `.ics` file generation for single events (backend)
+- [x] Include VTIMEZONE, VEVENT with DTSTART, DTEND, SUMMARY, DESCRIPTION, LOCATION, RRULE
+- [x] Frontend: "Export" button in EventDetailPopover triggers download
 - [ ] Test with Google Calendar and Apple Calendar import
 
 ---

@@ -2,10 +2,15 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useQuery } from '@tanstack/react-query';
 import { addHours, format, parseISO, set as setDateFields } from 'date-fns';
 import { fromZonedTime, toZonedTime } from 'date-fns-tz';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 
+const LazyRecurrenceBuilderModal = lazy(() =>
+  import('@/components/events/RecurrenceBuilder').then((m) => ({
+    default: m.RecurrenceBuilderModal,
+  })),
+);
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -77,6 +82,7 @@ const RECURRENCE_PRESETS = [
   { value: 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR', label: 'Weekdays' },
   { value: 'FREQ=MONTHLY', label: 'Monthly' },
   { value: 'FREQ=YEARLY', label: 'Yearly' },
+  { value: '_custom', label: 'Custom...' },
 ];
 
 // ─── Reminder Presets ───────────────────────────────────────────────
@@ -136,6 +142,9 @@ export function EventDrawer() {
     action: 'edit' | 'delete';
     pendingData?: EventFormValues;
   }>({ open: false, action: 'edit' });
+
+  // Recurrence builder modal state
+  const [recurrenceBuilderOpen, setRecurrenceBuilderOpen] = useState(false);
 
   // Compute default values
   const getDefaults = useCallback((): EventFormValues => {
@@ -211,6 +220,14 @@ export function EventDrawer() {
 
   const isAllDay = watch('isAllDay');
   const selectedColor = watch('color');
+  const watchedStartDate = watch('startDate');
+  const watchedRrule = watch('rrule');
+
+  // Determine if current rrule is a custom (non-preset) value
+  const isCustomRrule = useMemo(() => {
+    if (!watchedRrule) return false;
+    return !RECURRENCE_PRESETS.some((p) => p.value === watchedRrule);
+  }, [watchedRrule]);
 
   // ─── Submit Handler ─────────────────────────────────────────────
 
@@ -520,8 +537,19 @@ export function EventDrawer() {
                 control={control}
                 render={({ field }) => (
                   <Select
-                    value={field.value || '_none'}
-                    onValueChange={(v) => field.onChange(v === '_none' ? '' : v)}
+                    value={isCustomRrule ? '_custom_set' : field.value || '_none'}
+                    onValueChange={(v) => {
+                      if (v === '_custom') {
+                        setRecurrenceBuilderOpen(true);
+                        return;
+                      }
+                      if (v === '_custom_set') {
+                        // Clicking the current custom rule re-opens the builder
+                        setRecurrenceBuilderOpen(true);
+                        return;
+                      }
+                      field.onChange(v === '_none' ? '' : v);
+                    }}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Does not repeat" />
@@ -532,6 +560,7 @@ export function EventDrawer() {
                           {preset.label}
                         </SelectItem>
                       ))}
+                      {isCustomRrule && <SelectItem value="_custom_set">Custom rule</SelectItem>}
                     </SelectContent>
                   </Select>
                 )}
@@ -595,6 +624,19 @@ export function EventDrawer() {
         onConfirm={handleScopeConfirm}
         action={scopeDialog.action}
       />
+
+      {/* Recurrence builder modal (lazy-loaded) */}
+      {recurrenceBuilderOpen && (
+        <Suspense fallback={null}>
+          <LazyRecurrenceBuilderModal
+            open={recurrenceBuilderOpen}
+            onOpenChange={setRecurrenceBuilderOpen}
+            initialRrule={watchedRrule || null}
+            startDate={watchedStartDate}
+            onSave={(rrule) => setValue('rrule', rrule)}
+          />
+        </Suspense>
+      )}
     </>
   );
 }

@@ -1,12 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import {
-  endOfDay,
-  format,
-  isAfter,
-  isBefore,
-  parseISO,
-  startOfDay,
-} from 'date-fns';
+import { endOfDay, format, isAfter, isBefore, parseISO, startOfDay } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz';
 import { useMemo } from 'react';
 
@@ -14,8 +7,8 @@ import { useUserTimezone } from '@/hooks/use-user-timezone';
 import { apiClient } from '@/lib/api-client';
 import { queryKeys } from '@/lib/query-keys';
 
-import type { Task } from '@calley/shared';
 import type { TaskFilter } from '@/types/filters';
+import type { Task } from '@calley/shared';
 
 export function useTasks(filters: TaskFilter = {}) {
   const params = new URLSearchParams();

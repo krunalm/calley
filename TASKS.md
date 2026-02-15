@@ -412,56 +412,56 @@
 
 ### 3.1 Task Service (Backend)
 
-- [ ] Implement `task.service.ts`:
-  - [ ] `listTasks(userId, filters)` — filter by status, priority, due date range, sorted by sortOrder/dueAt
-  - [ ] `getTask(userId, taskId)` — single task with ownership check
-  - [ ] `createTask(userId, data)` — validate, create, emit SSE
-  - [ ] `updateTask(userId, taskId, data, scope)` — handle non-recurring + recurrence scopes
-  - [ ] `deleteTask(userId, taskId, scope)` — soft delete, recurrence scopes
-  - [ ] `toggleTask(userId, taskId)` — toggle status (todo ↔ done), set/clear completedAt
-  - [ ] `reorderTasks(userId, ids)` — update sortOrder for each task ID in order
-- [ ] Implement `tasks.routes.ts` — all endpoints with validation and auth middleware
+- [x] Implement `task.service.ts`:
+  - [x] `listTasks(userId, filters)` — filter by status, priority, due date range, sorted by sortOrder/dueAt
+  - [x] `getTask(userId, taskId)` — single task with ownership check
+  - [x] `createTask(userId, data)` — validate, create, emit SSE
+  - [x] `updateTask(userId, taskId, data, scope)` — handle non-recurring + recurrence scopes
+  - [x] `deleteTask(userId, taskId, scope)` — soft delete, recurrence scopes
+  - [x] `toggleTask(userId, taskId)` — toggle status (todo ↔ done), set/clear completedAt
+  - [x] `reorderTasks(userId, ids)` — update sortOrder for each task ID in order
+- [x] Implement `tasks.routes.ts` — all endpoints with validation and auth middleware
 - [ ] Write unit tests for task service
 - [ ] Write API integration tests for task endpoints
 
 ### 3.2 Task Panel (Frontend)
 
-- [ ] Build TaskPanel — slide-in drawer from right (300px on desktop, full-screen on mobile)
+- [x] Build TaskPanel — slide-in drawer from right (300px on desktop, full-screen on mobile)
 - [ ] Toggle with toolbar button or `T` keyboard shortcut
-- [ ] Build TaskPanelHeader — title + close button + "New Task" button
-- [ ] Build TaskFilter — dropdown/toggle for: Show completed / Filter by priority / Filter by category
-- [ ] Build TaskGroup component — collapsible group with label and count:
-  - [ ] "Today" — tasks due today
-  - [ ] "Overdue" — tasks past due date and not done (sorted oldest first)
-  - [ ] "Upcoming" — tasks due in the future (sorted by due date)
-  - [ ] "No Date" — tasks without a due date
-  - [ ] "Completed" — done tasks (hidden by default, toggle to show)
-- [ ] Build TaskItem component:
-  - [ ] Checkbox (click → toggle complete with optimistic update)
-  - [ ] Title (click → open TaskDrawer for editing)
-  - [ ] Priority indicator (colored dot or icon: none/low/medium/high)
-  - [ ] Due date badge (highlight overdue in red)
-  - [ ] Category color stripe
-  - [ ] Recurring icon if applicable
-- [ ] Implement `useTasks` hook — fetch tasks with filters, group by section
-- [ ] Connect to TanStack Query with optimistic updates for toggle/reorder
+- [x] Build TaskPanelHeader — title + close button + "New Task" button
+- [x] Build TaskFilter — dropdown/toggle for: Show completed / Filter by priority / Filter by category
+- [x] Build TaskGroup component — collapsible group with label and count:
+  - [x] "Today" — tasks due today
+  - [x] "Overdue" — tasks past due date and not done (sorted oldest first)
+  - [x] "Upcoming" — tasks due in the future (sorted by due date)
+  - [x] "No Date" — tasks without a due date
+  - [x] "Completed" — done tasks (hidden by default, toggle to show)
+- [x] Build TaskItem component:
+  - [x] Checkbox (click → toggle complete with optimistic update)
+  - [x] Title (click → open TaskDrawer for editing)
+  - [x] Priority indicator (colored dot or icon: none/low/medium/high)
+  - [x] Due date badge (highlight overdue in red)
+  - [x] Category color stripe
+  - [x] Recurring icon if applicable
+- [x] Implement `useTasks` hook — fetch tasks with filters, group by section
+- [x] Connect to TanStack Query with optimistic updates for toggle/reorder
 
 ### 3.3 Task Drawer (Create/Edit Form)
 
-- [ ] Build TaskDrawer as a Sheet (slide-in from right)
-- [ ] Form fields (React Hook Form + Zod):
-  - [ ] Title (required, max 200 chars)
-  - [ ] Due date picker (optional)
-  - [ ] Due time picker (optional, only shown if due date is set)
-  - [ ] Description textarea (plain text, max 2000 chars)
-  - [ ] Priority selector (None / Low / Medium / High)
-  - [ ] Status selector (Todo / In Progress / Done) — for edit mode
-  - [ ] Category selector
-  - [ ] Recurrence (same presets + custom builder as events)
-  - [ ] Reminder selector
-- [ ] Mode: Create vs Edit
-- [ ] On edit of recurring task: show scope selection dialog
-- [ ] Optimistic create/update mutation
+- [x] Build TaskDrawer as a Sheet (slide-in from right)
+- [x] Form fields (React Hook Form + Zod):
+  - [x] Title (required, max 200 chars)
+  - [x] Due date picker (optional)
+  - [x] Due time picker (optional, only shown if due date is set)
+  - [x] Description textarea (plain text, max 2000 chars)
+  - [x] Priority selector (None / Low / Medium / High)
+  - [x] Status selector (Todo / In Progress / Done) — for edit mode
+  - [x] Category selector
+  - [x] Recurrence (same presets + custom builder as events)
+  - [x] Reminder selector
+- [x] Mode: Create vs Edit
+- [x] On edit of recurring task: show scope selection dialog
+- [x] Optimistic create/update mutation
 
 ### 3.4 Task Drag & Drop
 

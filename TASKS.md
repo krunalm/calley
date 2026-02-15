@@ -328,32 +328,32 @@
 
 ### 2.8 Agenda View
 
-- [ ] Build AgendaView — chronological list grouped by date
-- [ ] Build AgendaGroup — date header + list of events/tasks for that date
-- [ ] Implement virtual scrolling with `@tanstack/react-virtual` (handle 500+ items efficiently)
-- [ ] Show event time, title, category color, location
-- [ ] Show task priority indicator, checkbox, due time
-- [ ] Click item → EventDetailPopover or TaskDetailPopover
-- [ ] Infinite scroll: load more dates as user scrolls down
+- [x] Build AgendaView — chronological list grouped by date
+- [x] Build AgendaGroup — date header + list of events/tasks for that date
+- [x] Implement virtual scrolling with `@tanstack/react-virtual` (handle 500+ items efficiently)
+- [x] Show event time, title, category color, location
+- [x] Show task priority indicator, checkbox, due time
+- [x] Click item → EventDetailPopover or TaskDetailPopover
+- [x] Infinite scroll: load more dates as user scrolls down
 
 ### 2.9 Event Drawer (Create/Edit Form)
 
-- [ ] Build EventDrawer as a Sheet (slide-in from right)
-- [ ] Implement form with React Hook Form + Zod validation:
-  - [ ] Title input (required, max 200 chars)
-  - [ ] Date + time pickers for start and end (validate end > start)
-  - [ ] All-day toggle (hides time pickers)
-  - [ ] Description (Tiptap editor — bold, italic, links only)
-  - [ ] Location text input
-  - [ ] Category selector (dropdown with color dots)
-  - [ ] Color override picker (optional)
-  - [ ] Visibility toggle (public/private)
-  - [ ] Recurrence dropdown (presets + "Custom" → RecurrenceBuilder modal)
-  - [ ] Reminder selector (preset times + custom)
-- [ ] Mode: Create (empty form or pre-populated from QuickCreate) vs Edit (loaded from API)
-- [ ] On edit of recurring event: show scope selection dialog before saving
-- [ ] Optimistic create/update mutation with toast feedback
-- [ ] Validate all fields client-side before submission
+- [x] Build EventDrawer as a Sheet (slide-in from right)
+- [x] Implement form with React Hook Form + Zod validation:
+  - [x] Title input (required, max 200 chars)
+  - [x] Date + time pickers for start and end (validate end > start)
+  - [x] All-day toggle (hides time pickers)
+  - [~] Description (Tiptap editor — bold, italic, links only)
+  - [x] Location text input
+  - [x] Category selector (dropdown with color dots)
+  - [x] Color override picker (optional)
+  - [x] Visibility toggle (public/private)
+  - [x] Recurrence dropdown (presets + "Custom" → RecurrenceBuilder modal)
+  - [x] Reminder selector (preset times + custom)
+- [x] Mode: Create (empty form or pre-populated from QuickCreate) vs Edit (loaded from API)
+- [x] On edit of recurring event: show scope selection dialog before saving
+- [x] Optimistic create/update mutation with toast feedback
+- [x] Validate all fields client-side before submission
 - [ ] Test form validation edge cases (empty title, invalid dates, long descriptions)
 
 ### 2.10 Event Detail Popover

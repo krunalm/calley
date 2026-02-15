@@ -1,15 +1,18 @@
 import { createFileRoute, Outlet, redirect } from '@tanstack/react-router';
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 
 import { EventDrawer } from '@/components/calendar/EventDrawer';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Topbar } from '@/components/layout/Topbar';
+import { KeyboardShortcutsHelp } from '@/components/search/KeyboardShortcutsHelp';
+import { SearchModal } from '@/components/search/SearchModal';
 import {
   useCategories,
   useCreateCategory,
   useDeleteCategory,
   useUpdateCategory,
 } from '@/hooks/use-categories';
+import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 import { queryKeys } from '@/lib/query-keys';
 
 import type { QueryClient } from '@tanstack/react-query';
@@ -47,6 +50,15 @@ export default function AppLayout() {
   const createCategory = useCreateCategory();
   const updateCategory = useUpdateCategory();
   const deleteCategory = useDeleteCategory();
+
+  const [shortcutsHelpOpen, setShortcutsHelpOpen] = useState(false);
+
+  const handleToggleShortcutsHelp = useCallback(() => {
+    setShortcutsHelpOpen((prev) => !prev);
+  }, []);
+
+  // Register global keyboard shortcuts
+  useKeyboardShortcuts(handleToggleShortcutsHelp);
 
   const handleCreateCategory = useCallback(
     (data: { name: string; color: string }) => {
@@ -95,6 +107,8 @@ export default function AppLayout() {
       </div>
 
       <EventDrawer />
+      <SearchModal />
+      <KeyboardShortcutsHelp open={shortcutsHelpOpen} onOpenChange={setShortcutsHelpOpen} />
     </div>
   );
 }

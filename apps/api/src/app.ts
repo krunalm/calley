@@ -10,6 +10,7 @@ import auth from './routes/auth.routes';
 import categoriesRouter from './routes/categories.routes';
 import eventsRouter from './routes/events.routes';
 import health from './routes/health.routes';
+import searchRouter from './routes/search.routes';
 import tasksRouter from './routes/tasks.routes';
 
 import type { AppVariables } from './types/hono';
@@ -47,3 +48,6 @@ app.route('/tasks', tasksRouter);
 
 // Category routes (auth required, handled per-route in categories.routes.ts)
 app.route('/categories', categoriesRouter);
+
+// Search routes (auth required, rate limited at 30/min per user)
+app.route('/search', searchRouter);

@@ -14,8 +14,8 @@ import { useUserTimezone } from '@/hooks/use-user-timezone';
 import { apiClient } from '@/lib/api-client';
 import { queryKeys } from '@/lib/query-keys';
 
-import type { TaskFilter } from '@/types/filters';
 import type { Task } from '@calley/shared';
+import type { TaskFilter } from '@/types/filters';
 
 export function useTasks(filters: TaskFilter = {}) {
   const params = new URLSearchParams();

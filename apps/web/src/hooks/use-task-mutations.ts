@@ -8,12 +8,14 @@ import type { CreateTaskInput, EditScope, Task, UpdateTaskInput } from '@calley/
 
 type TasksCache = [readonly unknown[], Task[] | undefined][];
 
-/** Snapshot all task query caches for rollback. */
+/** Snapshot task list caches (excludes detail caches) for rollback. */
 function snapshotTaskCaches(queryClient: ReturnType<typeof useQueryClient>): TasksCache {
-  return queryClient.getQueriesData<Task[]>({ queryKey: queryKeys.tasks.all });
+  return queryClient
+    .getQueriesData<Task[]>({ queryKey: queryKeys.tasks.all })
+    .filter(([, data]) => Array.isArray(data));
 }
 
-/** Restore all task query caches from a snapshot. */
+/** Restore task list caches from a snapshot. */
 function restoreTaskCaches(queryClient: ReturnType<typeof useQueryClient>, snapshot: TasksCache) {
   for (const [key, data] of snapshot) {
     queryClient.setQueryData(key, data);

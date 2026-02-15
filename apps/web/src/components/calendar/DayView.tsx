@@ -30,7 +30,7 @@ export function DayView() {
   }, [categories]);
 
   // Single day as an array (for reusing TimeGrid and AllDayRow)
-  const days = useMemo(() => [currentDate], [currentDate.getTime()]);
+  const days = useMemo(() => [currentDate], [currentDate]);
 
   // Build column data
   const { columns, allDayEventsByDate } = useMemo(() => {

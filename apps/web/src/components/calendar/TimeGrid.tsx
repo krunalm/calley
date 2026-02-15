@@ -3,7 +3,6 @@ import { formatInTimeZone } from 'date-fns-tz';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useUserTimezone } from '@/hooks/use-user-timezone';
-import { cn } from '@/lib/utils';
 import { useUIStore } from '@/stores/ui-store';
 
 import { EventBlock } from './EventBlock';
@@ -92,7 +91,7 @@ export const TimeGrid = memo(function TimeGrid({
           ))}
 
           {/* Current time indicator */}
-          <CurrentTimeIndicator columnCount={columns.length} />
+          <CurrentTimeIndicator />
         </div>
       </div>
     </div>
@@ -214,7 +213,7 @@ const TimeGridColumnView = memo(function TimeGridColumnView({
 
 // ─── Current Time Indicator ───────────────────────────────────────────
 
-function CurrentTimeIndicator({ columnCount }: { columnCount: number }) {
+function CurrentTimeIndicator() {
   const [position, setPosition] = useState(() => getCurrentTimePosition());
 
   useEffect(() => {
@@ -288,10 +287,9 @@ function computeEventLayout(events: Event[], timezone: string): LayoutEvent[] {
 
   // Assign columns using a greedy algorithm
   const columns: { topPx: number; heightPx: number; colIndex: number }[][] = [];
-  const eventColMap = new Map<string, { colIndex: number; totalCols: number }>();
+  const eventColMap = new Map<string, { colIndex: number }>();
 
   for (const item of positioned) {
-    const endPx = item.topPx + item.heightPx;
     let placed = false;
 
     for (let col = 0; col < columns.length; col++) {
@@ -300,7 +298,6 @@ function computeEventLayout(events: Event[], timezone: string): LayoutEvent[] {
         columns[col].push({ ...item, colIndex: col });
         eventColMap.set(item.event.id + (item.event.instanceDate ?? ''), {
           colIndex: col,
-          totalCols: columns.length,
         });
         placed = true;
         break;
@@ -312,14 +309,9 @@ function computeEventLayout(events: Event[], timezone: string): LayoutEvent[] {
       columns.push([{ ...item, colIndex }]);
       eventColMap.set(item.event.id + (item.event.instanceDate ?? ''), {
         colIndex,
-        totalCols: columns.length,
       });
     }
   }
-
-  // Now compute the max columns for each overlap cluster
-  // Simple approach: use the total column count for events that overlap
-  const totalCols = columns.length;
 
   return positioned.map((item) => {
     const key = item.event.id + (item.event.instanceDate ?? '');
@@ -344,7 +336,7 @@ function computeEventLayout(events: Event[], timezone: string): LayoutEvent[] {
 function findOverlapColumns(
   target: { event: Event; topPx: number; heightPx: number },
   allItems: { event: Event; topPx: number; heightPx: number }[],
-  colMap: Map<string, { colIndex: number; totalCols: number }>,
+  colMap: Map<string, { colIndex: number }>,
 ): number {
   const targetEnd = target.topPx + target.heightPx;
   let maxCol = 0;

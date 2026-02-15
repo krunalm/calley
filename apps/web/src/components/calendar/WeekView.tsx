@@ -3,7 +3,6 @@ import {
   eachDayOfInterval,
   endOfWeek,
   format,
-  isSameDay,
   isToday,
   startOfWeek,
   subWeeks,
@@ -24,9 +23,12 @@ export function WeekView() {
   const { currentDate } = useCalendarStore();
   const { data: categories = [] } = useCategories();
 
-  // Calculate week boundaries
-  const weekStart = startOfWeek(currentDate, { weekStartsOn: 0 });
-  const weekEnd = endOfWeek(currentDate, { weekStartsOn: 0 });
+  // Calculate week boundaries and generate days
+  const { weekStart, weekEnd, days } = useMemo(() => {
+    const ws = startOfWeek(currentDate, { weekStartsOn: 0 });
+    const we = endOfWeek(currentDate, { weekStartsOn: 0 });
+    return { weekStart: ws, weekEnd: we, days: eachDayOfInterval({ start: ws, end: we }) };
+  }, [currentDate]);
 
   // Fetch events for visible week + 1 week buffer
   const fetchStart = subWeeks(weekStart, 1).toISOString();
@@ -41,12 +43,6 @@ export function WeekView() {
     }
     return map;
   }, [categories]);
-
-  // Generate days of the week
-  const days = useMemo(
-    () => eachDayOfInterval({ start: weekStart, end: weekEnd }),
-    [weekStart.getTime(), weekEnd.getTime()],
-  );
 
   // Build column data and separate all-day events
   const { columns, allDayEventsByDate } = useMemo(() => {

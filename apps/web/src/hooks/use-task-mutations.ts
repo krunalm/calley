@@ -215,11 +215,35 @@ export function useReorderTasks() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (ids: string[]) => apiClient.patch('/tasks/reorder', { ids }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
+    onMutate: async (ids) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.tasks.all });
+      const snapshot = snapshotTaskCaches(queryClient);
+
+      // Optimistically reorder tasks in all matching caches
+      const orderMap = new Map(ids.map((id, i) => [id, i]));
+      for (const [key, cacheData] of snapshot) {
+        if (cacheData) {
+          const reordered = [...cacheData].sort((a, b) => {
+            const ai = orderMap.get(a.id);
+            const bi = orderMap.get(b.id);
+            if (ai !== undefined && bi !== undefined) return ai - bi;
+            if (ai !== undefined) return -1;
+            if (bi !== undefined) return 1;
+            return 0;
+          });
+          queryClient.setQueryData(key, reordered);
+        }
+      }
+
+      return { snapshot };
     },
-    onError: () => {
+    onError: (_err, _vars, context) => {
+      if (context?.snapshot) {
+        restoreTaskCaches(queryClient, context.snapshot);
+      }
       toast.error('Failed to reorder tasks');
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
     },
   });

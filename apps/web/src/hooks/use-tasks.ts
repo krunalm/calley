@@ -4,7 +4,6 @@ import {
   format,
   isAfter,
   isBefore,
-  isToday,
   parseISO,
   startOfDay,
 } from 'date-fns';
@@ -91,7 +90,7 @@ export function useGroupedTasks(filters: TaskFilter = {}) {
 
       if (isBefore(zonedDue, todayStart)) {
         result.overdue.push(task);
-      } else if (isToday(zonedDue) || (isAfter(zonedDue, todayStart) && isBefore(zonedDue, todayEnd))) {
+      } else if (!isBefore(zonedDue, todayStart) && !isAfter(zonedDue, todayEnd)) {
         result.today.push(task);
       } else {
         result.upcoming.push(task);

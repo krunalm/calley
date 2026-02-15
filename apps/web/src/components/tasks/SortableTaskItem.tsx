@@ -32,7 +32,7 @@ export const SortableTaskItem = memo(function SortableTaskItem({
   };
 
   return (
-    <div ref={setNodeRef} style={style} className="relative flex items-center">
+    <div ref={setNodeRef} style={style} className="group/sortable relative flex items-center">
       {/* Drag handle (visible on hover, not in select mode) */}
       {!isSelecting && (
         <button
@@ -46,7 +46,7 @@ export const SortableTaskItem = memo(function SortableTaskItem({
         </button>
       )}
 
-      <div className="group/sortable flex-1">
+      <div className="flex-1">
         <TaskItem
           task={task}
           isSelecting={isSelecting}

@@ -13,6 +13,7 @@ import {
 
 import { authMiddleware } from '../middleware/auth.middleware';
 import { doubleSubmitCsrf } from '../middleware/csrf.middleware';
+import { rateLimit } from '../middleware/rate-limit.middleware';
 import { validate } from '../middleware/validate.middleware';
 import { taskService } from '../services/task.service';
 
@@ -46,6 +47,7 @@ tasksRouter.patch('/reorder', doubleSubmitCsrf, validate('json', reorderTasksSch
 
 tasksRouter.patch(
   '/bulk-complete',
+  rateLimit({ limit: 20, windowSeconds: 3600, keyPrefix: 'tasks:bulk-ops' }),
   doubleSubmitCsrf,
   validate('json', bulkCompleteTasksSchema),
   async (c) => {
@@ -61,6 +63,7 @@ tasksRouter.patch(
 
 tasksRouter.post(
   '/bulk-delete',
+  rateLimit({ limit: 20, windowSeconds: 3600, keyPrefix: 'tasks:bulk-ops' }),
   doubleSubmitCsrf,
   validate('json', bulkDeleteTasksSchema),
   async (c) => {

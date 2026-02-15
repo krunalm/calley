@@ -43,11 +43,11 @@ export function DndCalendarProvider({ children }: DndCalendarProviderProps) {
 
   const [activeEvent, setActiveEvent] = useState<Event | null>(null);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
-  const [pendingDrop, setPendingDrop] = useState<{
-    event: Event;
-    newStartAt: string;
-    newEndAt: string;
-  } | null>(null);
+  const [pendingDrop, setPendingDrop] = useState<
+    | { kind: 'event'; event: Event; newStartAt: string; newEndAt: string }
+    | { kind: 'task'; task: Task; newDueAt: string }
+    | null
+  >(null);
   const [scopeDialogOpen, setScopeDialogOpen] = useState(false);
 
   // Configure sensors with activation constraints to differentiate clicks from drags
@@ -108,10 +108,18 @@ export function DndCalendarProvider({ children }: DndCalendarProviderProps) {
         // Don't update if same
         if (newDueAtStr === task.dueAt) return;
 
-        updateTask.mutate({
-          taskId: task.id,
-          data: { dueAt: newDueAtStr },
-        });
+        const isRecurringTask =
+          !!task.rrule || !!task.recurringTaskId || !!task.isRecurringInstance;
+
+        if (isRecurringTask) {
+          setPendingDrop({ kind: 'task', task, newDueAt: newDueAtStr });
+          setScopeDialogOpen(true);
+        } else {
+          updateTask.mutate({
+            taskId: task.id,
+            data: { dueAt: newDueAtStr },
+          });
+        }
 
         return;
       }
@@ -168,7 +176,7 @@ export function DndCalendarProvider({ children }: DndCalendarProviderProps) {
         !!draggedEvent.rrule || !!draggedEvent.recurringEventId || draggedEvent.isRecurringInstance;
 
       if (isRecurring) {
-        setPendingDrop({ event: draggedEvent, newStartAt, newEndAt });
+        setPendingDrop({ kind: 'event', event: draggedEvent, newStartAt, newEndAt });
         setScopeDialogOpen(true);
       } else {
         updateEvent.mutate({
@@ -183,19 +191,29 @@ export function DndCalendarProvider({ children }: DndCalendarProviderProps) {
   const handleScopeConfirm = useCallback(
     (scope: EditScope) => {
       if (!pendingDrop) return;
-      const { event: evt, newStartAt, newEndAt } = pendingDrop;
 
-      updateEvent.mutate({
-        eventId: evt.recurringEventId ?? evt.id,
-        data: { startAt: newStartAt, endAt: newEndAt },
-        scope,
-        instanceDate: evt.instanceDate ?? evt.startAt,
-      });
+      if (pendingDrop.kind === 'event') {
+        const { event: evt, newStartAt, newEndAt } = pendingDrop;
+        updateEvent.mutate({
+          eventId: evt.recurringEventId ?? evt.id,
+          data: { startAt: newStartAt, endAt: newEndAt },
+          scope,
+          instanceDate: evt.instanceDate ?? evt.startAt,
+        });
+      } else {
+        const { task, newDueAt } = pendingDrop;
+        updateTask.mutate({
+          taskId: task.recurringTaskId ?? task.id,
+          data: { dueAt: newDueAt },
+          scope,
+          instanceDate: task.instanceDate ?? task.dueAt ?? undefined,
+        });
+      }
 
       setPendingDrop(null);
       setScopeDialogOpen(false);
     },
-    [pendingDrop, updateEvent],
+    [pendingDrop, updateEvent, updateTask],
   );
 
   const handleScopeCancel = useCallback(() => {

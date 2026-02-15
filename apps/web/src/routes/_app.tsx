@@ -1,5 +1,6 @@
 import { createFileRoute, Outlet, redirect } from '@tanstack/react-router';
 
+import { EventDrawer } from '@/components/calendar/EventDrawer';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Topbar } from '@/components/layout/Topbar';
 import { useCategories } from '@/hooks/use-categories';
@@ -57,6 +58,8 @@ export default function AppLayout() {
           <Outlet />
         </main>
       </div>
+
+      <EventDrawer />
     </div>
   );
 }

@@ -1,4 +1,5 @@
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, set as setDateFields } from 'date-fns';
+import { formatInTimeZone, fromZonedTime } from 'date-fns-tz';
 import { useCallback, useMemo, useState } from 'react';
 import { RRule, Weekday } from 'rrule';
 
@@ -21,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useUserTimezone } from '@/hooks/use-user-timezone';
 
 // ─── Types ─────────────────────────────────────────────────────────
 
@@ -130,11 +132,20 @@ function getNthWeekdayInfo(dateStr: string): { n: number; weekday: number } {
   const dayOfMonth = date.getDate();
   const weekday = date.getDay(); // 0=Sun..6=Sat
   const n = Math.ceil(dayOfMonth / 7);
-  // If it's the last occurrence, check if there's another one in the month
-  return { n: Math.min(n, 4), weekday };
+
+  // Check if this is the last occurrence of this weekday in the month.
+  // If dayOfMonth + 7 exceeds the number of days in the month, it's the last.
+  const year = date.getFullYear();
+  const month = date.getMonth();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const isLast = dayOfMonth + 7 > daysInMonth;
+
+  // Use -1 for "last" per iCalendar BYDAY semantics (e.g. -1MO = last Monday)
+  return { n: isLast && n >= 4 ? -1 : n, weekday };
 }
 
 function getOrdinalLabel(n: number): string {
+  if (n === -1) return 'last';
   if (n <= 0 || n > 5) return `${n}th`;
   return ORDINAL_LABELS[n - 1];
 }
@@ -148,6 +159,8 @@ export function RecurrenceBuilderModal({
   startDate,
   onSave,
 }: RecurrenceBuilderProps) {
+  const userTimezone = useUserTimezone();
+
   const [state, setState] = useState<RecurrenceState>(() => ({
     frequency: 'WEEKLY',
     interval: 1,
@@ -247,12 +260,19 @@ export function RecurrenceBuilderModal({
     if (state.endType === 'count') {
       parts.push(`COUNT=${state.count}`);
     } else if (state.endType === 'until' && state.until) {
-      const untilDate = state.until.replace(/-/g, '');
-      parts.push(`UNTIL=${untilDate}T235959Z`);
+      // Convert end-of-day in user's timezone to true UTC
+      const localEndOfDay = setDateFields(parseISO(state.until), {
+        hours: 23,
+        minutes: 59,
+        seconds: 59,
+      });
+      const utcEndOfDay = fromZonedTime(localEndOfDay, userTimezone);
+      const untilStr = formatInTimeZone(utcEndOfDay, 'UTC', "yyyyMMdd'T'HHmmss'Z'");
+      parts.push(`UNTIL=${untilStr}`);
     }
 
     return parts.join(';');
-  }, [state, startDate]);
+  }, [state, startDate, userTimezone]);
 
   // ─── Preview (next 5 occurrences) ────────────────────────────────
 
@@ -262,15 +282,15 @@ export function RecurrenceBuilderModal({
 
     try {
       const dtstart = parseISO(startDate);
-      const rule = RRule.fromString(
-        `DTSTART:${format(dtstart, "yyyyMMdd'T'HHmmss'Z'")}\nRRULE:${rruleStr}`,
-      );
+      const utcStart = fromZonedTime(dtstart, userTimezone);
+      const dtstartStr = formatInTimeZone(utcStart, 'UTC', "yyyyMMdd'T'HHmmss'Z'");
+      const rule = RRule.fromString(`DTSTART:${dtstartStr}\nRRULE:${rruleStr}`);
       const dates = rule.all((_, i) => i < 5);
       return dates.map((d) => format(d, 'EEE, MMM d, yyyy'));
     } catch {
       return [];
     }
-  }, [buildRrule, startDate]);
+  }, [buildRrule, startDate, userTimezone]);
 
   // ─── Validation & Submit ─────────────────────────────────────────
 

@@ -301,30 +301,30 @@
 
 ### 2.6 Week View
 
-- [ ] Build WeekView container with WeekHeader + AllDayRow + TimeGrid
-- [ ] Build WeekHeader — 7 day columns showing day name + date, highlight today
-- [ ] Build AllDayRow — render all-day events as spanning bars
-- [ ] Build TimeGrid:
-  - [ ] 24-hour vertical axis with 30-minute slots (48 rows)
-  - [ ] Scrollable; auto-scroll to current time on mount
-  - [ ] Current time indicator (red line, updates every 60 seconds)
-- [ ] Build TimeSlot — click → QuickCreate popover pre-populated with slot time
-- [ ] Build EventBlock component:
-  - [ ] Positioned absolutely based on startAt/endAt
-  - [ ] Color-coded by category
-  - [ ] Shows title, time, location (truncated)
-  - [ ] Recurring icon indicator
-  - [ ] Click → EventDetailPopover
-- [ ] Handle overlapping events (column layout algorithm — stack side-by-side with reduced width)
-- [ ] Build TaskMarker — small indicator for timed tasks in the time grid
-- [ ] Connect to events query (same hook, different date range)
+- [x] Build WeekView container with WeekHeader + AllDayRow + TimeGrid
+- [x] Build WeekHeader — 7 day columns showing day name + date, highlight today
+- [x] Build AllDayRow — render all-day events as spanning bars
+- [x] Build TimeGrid:
+  - [x] 24-hour vertical axis with 30-minute slots (48 rows)
+  - [x] Scrollable; auto-scroll to current time on mount
+  - [x] Current time indicator (red line, updates every 60 seconds)
+- [x] Build TimeSlot — click → QuickCreate popover pre-populated with slot time
+- [x] Build EventBlock component:
+  - [x] Positioned absolutely based on startAt/endAt
+  - [x] Color-coded by category
+  - [x] Shows title, time, location (truncated)
+  - [x] Recurring icon indicator
+  - [x] Click → EventDetailPopover
+- [x] Handle overlapping events (column layout algorithm — stack side-by-side with reduced width)
+- [x] Build TaskMarker — small indicator for timed tasks in the time grid
+- [x] Connect to events query (same hook, different date range)
 
 ### 2.7 Day View
 
-- [ ] Build DayView — single-column variant of WeekView
-- [ ] Reuse TimeGrid, EventBlock, TimeSlot components
-- [ ] Show all-day events at top
-- [ ] Show full event details in wider blocks (more space available)
+- [x] Build DayView — single-column variant of WeekView
+- [x] Reuse TimeGrid, EventBlock, TimeSlot components
+- [x] Show all-day events at top
+- [x] Show full event details in wider blocks (more space available)
 
 ### 2.8 Agenda View
 

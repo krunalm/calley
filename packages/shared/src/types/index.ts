@@ -34,6 +34,8 @@ export type {
 // ─── Tasks ──────────────────────────────────────────────────────────
 
 export type {
+  BulkCompleteTasksInput,
+  BulkDeleteTasksInput,
   CreateTaskInput,
   ListTasksQuery,
   ReorderTasksInput,

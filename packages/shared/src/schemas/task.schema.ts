@@ -98,3 +98,17 @@ export const reorderTasksSchema = z.object({
 });
 
 export type ReorderTasksInput = z.infer<typeof reorderTasksSchema>;
+
+// ─── Bulk Operations ────────────────────────────────────────────────
+
+export const bulkCompleteTasksSchema = z.object({
+  ids: z.array(cuid2Schema).min(1, 'At least one task ID is required').max(100),
+});
+
+export type BulkCompleteTasksInput = z.infer<typeof bulkCompleteTasksSchema>;
+
+export const bulkDeleteTasksSchema = z.object({
+  ids: z.array(cuid2Schema).min(1, 'At least one task ID is required').max(100),
+});
+
+export type BulkDeleteTasksInput = z.infer<typeof bulkDeleteTasksSchema>;

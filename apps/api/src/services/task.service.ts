@@ -380,6 +380,40 @@ export class TaskService {
     logger.info({ userId, count: ids.length }, 'Tasks reordered');
   }
 
+  /**
+   * Bulk complete tasks — marks all specified tasks as done.
+   */
+  async bulkComplete(userId: string, ids: string[]): Promise<number> {
+    const now = new Date();
+    const result = await db
+      .update(tasks)
+      .set({
+        status: 'done',
+        completedAt: now,
+        updatedAt: now,
+      })
+      .where(and(inArray(tasks.id, ids), eq(tasks.userId, userId), isNull(tasks.deletedAt)))
+      .returning({ id: tasks.id });
+
+    logger.info({ userId, count: result.length }, 'Tasks bulk completed');
+    return result.length;
+  }
+
+  /**
+   * Bulk delete tasks — soft deletes all specified tasks.
+   */
+  async bulkDelete(userId: string, ids: string[]): Promise<number> {
+    const now = new Date();
+    const result = await db
+      .update(tasks)
+      .set({ deletedAt: now })
+      .where(and(inArray(tasks.id, ids), eq(tasks.userId, userId), isNull(tasks.deletedAt)))
+      .returning({ id: tasks.id });
+
+    logger.info({ userId, count: result.length }, 'Tasks bulk deleted');
+    return result.length;
+  }
+
   // ─── Private Helpers ────────────────────────────────────────────────
 
   /**
@@ -471,13 +505,7 @@ export class TaskService {
       await tx
         .update(tasks)
         .set({ exDates: newExDates, updatedAt: new Date() })
-        .where(
-          and(
-            eq(tasks.id, parentTask.id),
-            eq(tasks.userId, userId),
-            isNull(tasks.deletedAt),
-          ),
-        );
+        .where(and(eq(tasks.id, parentTask.id), eq(tasks.userId, userId), isNull(tasks.deletedAt)));
 
       // Create exception record as a new task
       const [exception] = await tx
@@ -487,7 +515,12 @@ export class TaskService {
           categoryId: data.categoryId ?? parentTask.categoryId,
           title: data.title ?? parentTask.title,
           description: data.description !== undefined ? data.description : parentTask.description,
-          dueAt: data.dueAt !== undefined ? (data.dueAt ? new Date(data.dueAt) : null) : parentTask.dueAt,
+          dueAt:
+            data.dueAt !== undefined
+              ? data.dueAt
+                ? new Date(data.dueAt)
+                : null
+              : parentTask.dueAt,
           priority: data.priority ?? parentTask.priority,
           status: data.status ?? parentTask.status,
           recurringTaskId: parentTask.id,
@@ -708,11 +741,7 @@ export class TaskService {
         .update(tasks)
         .set({ deletedAt: now })
         .where(
-          and(
-            eq(tasks.recurringTaskId, taskId),
-            eq(tasks.userId, userId),
-            isNull(tasks.deletedAt),
-          ),
+          and(eq(tasks.recurringTaskId, taskId), eq(tasks.userId, userId), isNull(tasks.deletedAt)),
         );
 
       // Soft delete the parent task

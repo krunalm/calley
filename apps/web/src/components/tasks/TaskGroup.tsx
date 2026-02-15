@@ -1,6 +1,8 @@
+import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { ChevronDown, ChevronRight } from 'lucide-react';
-import { memo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 
+import { SortableTaskItem } from './SortableTaskItem';
 import { TaskItem } from './TaskItem';
 
 import type { Task } from '@calley/shared';
@@ -10,6 +12,12 @@ interface TaskGroupProps {
   tasks: Task[];
   defaultExpanded?: boolean;
   variant?: 'default' | 'overdue' | 'completed';
+  /** Enable sortable drag-to-reorder within this group */
+  sortable?: boolean;
+  /** Multi-select mode props */
+  isSelecting?: boolean;
+  selectedIds?: Set<string>;
+  onToggleSelect?: (taskId: string) => void;
 }
 
 export const TaskGroup = memo(function TaskGroup({
@@ -17,8 +25,14 @@ export const TaskGroup = memo(function TaskGroup({
   tasks,
   defaultExpanded = true,
   variant = 'default',
+  sortable = false,
+  isSelecting,
+  selectedIds,
+  onToggleSelect,
 }: TaskGroupProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
+
+  const taskIds = useMemo(() => tasks.map((t) => t.id), [tasks]);
 
   if (tasks.length === 0) return null;
 
@@ -52,9 +66,29 @@ export const TaskGroup = memo(function TaskGroup({
       {/* Task List */}
       {expanded && (
         <div role="list" className="mt-0.5">
-          {tasks.map((task) => (
-            <TaskItem key={task.id} task={task} />
-          ))}
+          {sortable && !isSelecting ? (
+            <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
+              {tasks.map((task) => (
+                <SortableTaskItem
+                  key={task.id}
+                  task={task}
+                  isSelecting={isSelecting}
+                  isSelected={selectedIds?.has(task.id)}
+                  onToggleSelect={onToggleSelect}
+                />
+              ))}
+            </SortableContext>
+          ) : (
+            tasks.map((task) => (
+              <TaskItem
+                key={task.id}
+                task={task}
+                isSelecting={isSelecting}
+                isSelected={selectedIds?.has(task.id)}
+                onToggleSelect={onToggleSelect}
+              />
+            ))
+          )}
         </div>
       )}
     </div>

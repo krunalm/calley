@@ -101,9 +101,7 @@ export function useUpdateTask() {
           queryClient.setQueryData(
             key,
             cacheData.map((task) =>
-              task.id === taskId
-                ? { ...task, ...data, updatedAt: new Date().toISOString() }
-                : task,
+              task.id === taskId ? { ...task, ...data, updatedAt: new Date().toISOString() } : task,
             ),
           );
         }
@@ -244,6 +242,86 @@ export function useReorderTasks() {
         restoreTaskCaches(queryClient, context.snapshot);
       }
       toast.error('Failed to reorder tasks');
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
+    },
+  });
+}
+
+export function useBulkCompleteTasks() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (ids: string[]) =>
+      apiClient.patch<{ count: number }>('/tasks/bulk-complete', { ids }),
+    onMutate: async (ids) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.tasks.all });
+      const snapshot = snapshotTaskCaches(queryClient);
+      const idSet = new Set(ids);
+
+      for (const [key, cacheData] of snapshot) {
+        if (cacheData) {
+          queryClient.setQueryData(
+            key,
+            cacheData.map((task) =>
+              idSet.has(task.id)
+                ? {
+                    ...task,
+                    status: 'done' as const,
+                    completedAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
+                  }
+                : task,
+            ),
+          );
+        }
+      }
+
+      return { snapshot };
+    },
+    onSuccess: (_data, ids) => {
+      toast.success(`${ids.length} task${ids.length > 1 ? 's' : ''} completed`);
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.snapshot) {
+        restoreTaskCaches(queryClient, context.snapshot);
+      }
+      toast.error('Failed to complete tasks');
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
+    },
+  });
+}
+
+export function useBulkDeleteTasks() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (ids: string[]) => apiClient.post<{ count: number }>('/tasks/bulk-delete', { ids }),
+    onMutate: async (ids) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.tasks.all });
+      const snapshot = snapshotTaskCaches(queryClient);
+      const idSet = new Set(ids);
+
+      for (const [key, cacheData] of snapshot) {
+        if (cacheData) {
+          queryClient.setQueryData(
+            key,
+            cacheData.filter((task) => !idSet.has(task.id)),
+          );
+        }
+      }
+
+      return { snapshot };
+    },
+    onSuccess: (_data, ids) => {
+      toast.success(`${ids.length} task${ids.length > 1 ? 's' : ''} deleted`);
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.snapshot) {
+        restoreTaskCaches(queryClient, context.snapshot);
+      }
+      toast.error('Failed to delete tasks');
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });

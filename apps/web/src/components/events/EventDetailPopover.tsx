@@ -1,6 +1,6 @@
 import { parseISO } from 'date-fns';
 import { formatInTimeZone } from 'date-fns-tz';
-import { Calendar, Clock, Copy, MapPin, Pencil, Repeat, Trash2 } from 'lucide-react';
+import { Calendar, Clock, Copy, Download, MapPin, Pencil, Repeat, Trash2 } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
 import { RecurrenceScopeDialog } from '@/components/calendar/RecurrenceScopeDialog';
@@ -61,6 +61,27 @@ export function EventDetailPopover({
       // Error handled by api client
     }
   }, [event.id, onOpenChange]);
+
+  const handleExportIcs = useCallback(async () => {
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      const res = await fetch(`${API_URL}/events/${event.id}/ics`, {
+        credentials: 'include',
+      });
+      if (!res.ok) return;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${event.title.replace(/[^a-zA-Z0-9-_ ]/g, '').trim() || 'event'}.ics`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      // Silently fail — download errors are not critical
+    }
+  }, [event.id, event.title]);
 
   const handleDeleteClick = useCallback(() => {
     if (isRecurring) {
@@ -166,6 +187,14 @@ export function EventDetailPopover({
               >
                 <Copy className="mr-1 h-3.5 w-3.5" />
                 Duplicate
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExportIcs}
+                aria-label="Export as ICS"
+              >
+                <Download className="h-3.5 w-3.5" />
               </Button>
               <Button
                 variant="outline"

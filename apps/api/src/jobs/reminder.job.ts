@@ -8,6 +8,8 @@ import { reminderNotificationEmail } from '../emails/reminder-notification';
 import { sendEmail } from '../lib/email';
 import { logger } from '../lib/logger';
 import { bullmqConnection, QUEUE_NAMES, registerWorker } from '../lib/queue';
+import { pushSubscriptionService } from '../services/push-subscription.service';
+import { sseService } from '../services/sse.service';
 
 // ─── Job Payload Type ──────────────────────────────────────────────
 
@@ -104,16 +106,22 @@ async function sendReminderEmail(
   });
 }
 
-// ─── Helper: Send push notification (stub for Phase 6.4) ──────────
+// ─── Helper: Send push notification via Web Push ────────────────────
 
-async function sendReminderPush(userId: string, itemInfo: ItemInfo): Promise<void> {
-  // TODO: Implement in Phase 6.4 (Web Push Notifications)
-  // Will use the web-push library to send to all user's push subscriptions
-  // from the user_push_subscriptions table.
-  logger.info(
-    { userId, title: itemInfo.title },
-    'Push notification stub — will be implemented in Phase 6.4',
-  );
+async function sendReminderPush(
+  userId: string,
+  itemType: 'event' | 'task',
+  itemInfo: ItemInfo,
+): Promise<void> {
+  const appBaseUrl = process.env.CORS_ORIGIN || 'http://localhost:3000';
+  const dateParam = format(itemInfo.time, 'yyyy-MM-dd');
+  const url = `${appBaseUrl}/calendar?date=${dateParam}&view=day`;
+
+  await pushSubscriptionService.sendPushToUser(userId, {
+    title: `Reminder: ${itemInfo.title}`,
+    body: itemType === 'event' ? 'Upcoming event' : 'Task due soon',
+    url,
+  });
 }
 
 // ─── Worker ────────────────────────────────────────────────────────
@@ -152,13 +160,16 @@ export function startReminderWorker(): Worker {
       }
 
       if (method === 'push' || method === 'both') {
-        await sendReminderPush(userId, itemInfo);
+        await sendReminderPush(userId, itemType, itemInfo);
       }
 
-      // 4. TODO: Emit reminder:fired on SSE (Phase 6.3)
-      // sseService.emit(userId, 'reminder:fired', {
-      //   reminderId, itemType, itemId, title: itemInfo.title
-      // });
+      // 4. Emit reminder:fired on SSE for in-app toast
+      sseService.emit(userId, 'reminder:fired', {
+        reminderId,
+        itemType,
+        itemId,
+        title: itemInfo.title,
+      });
 
       // 5. Mark reminder as sent
       await db.update(reminders).set({ sentAt: new Date() }).where(eq(reminders.id, reminderId));

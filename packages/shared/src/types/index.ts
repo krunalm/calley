@@ -51,6 +51,10 @@ export type { CreateCategoryInput, UpdateCategoryInput } from '../schemas/catego
 
 export type { CreateReminderInput, ListRemindersQuery } from '../schemas/reminder.schema';
 
+// ─── Push Subscriptions ─────────────────────────────────────────────
+
+export type { CreatePushSubscriptionInput } from '../schemas/push-subscription.schema';
+
 // ─── Search ─────────────────────────────────────────────────────────
 
 export type { SearchQuery } from '../schemas/search.schema';
@@ -140,6 +144,14 @@ export interface Reminder {
   method: 'push' | 'email' | 'both';
   triggerAt: string;
   sentAt: string | null;
+  createdAt: string;
+}
+
+export interface PushSubscription {
+  id: string;
+  userId: string;
+  endpoint: string;
+  userAgent: string | null;
   createdAt: string;
 }
 

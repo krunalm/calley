@@ -6,6 +6,7 @@ import { db } from '../db';
 import { calendarCategories, events, tasks } from '../db/schema';
 import { AppError } from '../lib/errors';
 import { logger } from '../lib/logger';
+import { sseService } from './sse.service';
 
 import type { CreateCategoryInput, UpdateCategoryInput } from '@calley/shared';
 
@@ -173,7 +174,16 @@ export class CategoryService {
 
     logger.info({ userId, categoryId }, 'Category updated');
 
-    return toCategoryResponse(updated as CategoryRow);
+    const response = toCategoryResponse(updated as CategoryRow);
+
+    sseService.emit(userId, 'category:updated', {
+      id: response.id,
+      name: response.name,
+      color: response.color,
+      visible: response.visible,
+    });
+
+    return response;
   }
 
   /**
@@ -234,6 +244,8 @@ export class CategoryService {
       { userId, categoryId, reassignedTo: defaultCategory.id },
       'Category deleted, items reassigned to default',
     );
+
+    sseService.emit(userId, 'category:deleted', { id: categoryId });
   }
 
   /**

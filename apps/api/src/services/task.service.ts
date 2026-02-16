@@ -6,6 +6,7 @@ import { AppError } from '../lib/errors';
 import { logger } from '../lib/logger';
 import { reminderQueue } from '../lib/queue';
 import { recurrenceService } from './recurrence.service';
+import { sseService } from './sse.service';
 
 import type { CreateTaskInput, EditScope, ListTasksQuery, UpdateTaskInput } from '@calley/shared';
 
@@ -263,7 +264,16 @@ export class TaskService {
 
     logger.info({ userId, taskId: task.inserted.id }, 'Task created');
 
-    return toTaskResponse(task.inserted as TaskRow);
+    const response = toTaskResponse(task.inserted as TaskRow);
+
+    sseService.emit(userId, 'task:created', {
+      id: response.id,
+      title: response.title,
+      dueAt: response.dueAt,
+      status: response.status,
+    });
+
+    return response;
   }
 
   /**
@@ -339,6 +349,7 @@ export class TaskService {
     if (!isRecurring || !scope) {
       await this.softDelete(userId, taskId);
       logger.info({ userId, taskId }, 'Task deleted');
+      sseService.emit(userId, 'task:deleted', { id: taskId });
       return;
     }
 
@@ -357,6 +368,7 @@ export class TaskService {
     }
 
     logger.info({ userId, taskId, scope }, 'Task deleted');
+    sseService.emit(userId, 'task:deleted', { id: taskId, scope });
   }
 
   /**
@@ -392,7 +404,15 @@ export class TaskService {
 
     logger.info({ userId, taskId, newStatus }, 'Task toggled');
 
-    return toTaskResponse(updated as TaskRow);
+    const response = toTaskResponse(updated as TaskRow);
+
+    sseService.emit(userId, 'task:updated', {
+      id: response.id,
+      status: response.status,
+      completedAt: response.completedAt,
+    });
+
+    return response;
   }
 
   /**
@@ -505,7 +525,11 @@ export class TaskService {
 
     logger.info({ userId, taskId }, 'Task updated');
 
-    return toTaskResponse(updated as TaskRow);
+    const response = toTaskResponse(updated as TaskRow);
+
+    sseService.emit(userId, 'task:updated', { id: response.id, ...data });
+
+    return response;
   }
 
   /**

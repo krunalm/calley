@@ -68,11 +68,11 @@ class ApiClient {
     // Rate limit — show a warning toast with Retry-After info
     if (res.status === 429) {
       const retryAfter = res.headers.get('Retry-After');
-      const seconds = retryAfter ? parseInt(retryAfter, 10) : undefined;
-      const message =
-        seconds && !isNaN(seconds)
-          ? `Too many requests. Please try again in ${seconds} seconds.`
-          : 'Too many requests. Please try again later.';
+      const seconds = retryAfter !== null ? parseInt(retryAfter, 10) : undefined;
+      const hasSeconds = seconds !== undefined && !isNaN(seconds);
+      const message = hasSeconds
+        ? `Too many requests. Please try again in ${seconds} seconds.`
+        : 'Too many requests. Please try again later.';
       toast.warning(message);
       const body = await res.json().catch(() => ({
         error: { code: 'RATE_LIMITED', message },

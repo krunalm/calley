@@ -104,28 +104,52 @@ export function useLogout() {
 }
 
 export function useForgotPassword() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (data: ForgotPasswordInput) => apiClient.post('/auth/forgot-password', data),
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.user.me });
+      const previous = queryClient.getQueryData<User>(queryKeys.user.me);
+      return { previous };
+    },
     onSuccess: () => {
       toast.success('If that email exists, we sent a reset link');
     },
-    onError: (err) => {
+    onError: (err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(queryKeys.user.me, context.previous);
+      }
       if (err instanceof ApiError && err.status === 429) return;
       toast.error('Failed to send reset email. Please try again.');
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.user.me });
     },
   });
 }
 
 export function useResetPassword() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (data: ResetPasswordInput) => apiClient.post('/auth/reset-password', data),
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.user.me });
+      const previous = queryClient.getQueryData<User>(queryKeys.user.me);
+      return { previous };
+    },
     onSuccess: () => {
       toast.success('Password reset successfully. Please log in.');
     },
-    onError: (err) => {
+    onError: (err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(queryKeys.user.me, context.previous);
+      }
       if (err instanceof ApiError && err.status === 429) return;
       const message = err instanceof ApiError ? err.error.message : 'Failed to reset password';
       toast.error(message);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.user.me });
     },
   });
 }

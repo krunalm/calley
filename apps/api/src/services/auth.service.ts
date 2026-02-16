@@ -239,7 +239,13 @@ export class AuthService {
         });
 
         // Send lockout warning email (fire-and-forget — don't block the response)
-        const frontendUrl = process.env.CORS_ORIGIN || 'http://localhost:5173';
+        // Derive frontend URL: prefer FRONTEND_URL, then first origin from CORS_ORIGIN
+        const frontendUrl =
+          process.env.FRONTEND_URL ||
+          process.env.CORS_ORIGIN?.split(',')
+            .map((s) => s.trim())
+            .find((s) => s.length > 0) ||
+          'http://localhost:5173';
         const resetPasswordUrl = `${frontendUrl}/forgot-password`;
         const { html, text } = accountLockoutEmail({
           lockoutDurationMinutes: LOCKOUT_DURATION_MINUTES,

@@ -11,6 +11,7 @@ import { arrayMove } from '@dnd-kit/sortable';
 import { CheckSquare, ListChecks, Plus, Trash2, X } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
+import { TaskPanelSkeleton } from '@/components/skeletons/CalendarSkeletons';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -258,14 +259,7 @@ export function TaskPanel() {
       {/* Task Groups */}
       <div className="flex-1 overflow-y-auto px-1">
         {isLoading ? (
-          <div className="space-y-3 p-3">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <div
-                key={i}
-                className="h-8 animate-pulse rounded-[var(--radius)] bg-[var(--muted)]"
-              />
-            ))}
-          </div>
+          <TaskPanelSkeleton />
         ) : (
           <DndContext
             sensors={sensors}

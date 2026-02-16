@@ -16,6 +16,7 @@ function Toaster({ ...props }: ToasterProps) {
       className="toaster group"
       richColors
       closeButton
+      visibleToasts={4}
       toastOptions={{
         classNames: {
           toast:

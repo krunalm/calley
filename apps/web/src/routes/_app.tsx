@@ -1,8 +1,10 @@
 import { createFileRoute, Outlet, redirect } from '@tanstack/react-router';
 import { lazy, Suspense, useCallback, useState } from 'react';
 
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Topbar } from '@/components/layout/Topbar';
+import { OfflineBanner } from '@/components/OfflineBanner';
 import {
   useCategories,
   useCreateCategory,
@@ -10,6 +12,7 @@ import {
   useUpdateCategory,
 } from '@/hooks/use-categories';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
+import { useTimezoneChange } from '@/hooks/use-timezone-change';
 import { queryKeys } from '@/lib/query-keys';
 
 import type { QueryClient } from '@tanstack/react-query';
@@ -70,6 +73,9 @@ export default function AppLayout() {
   // Register global keyboard shortcuts
   useKeyboardShortcuts(handleToggleShortcutsHelp);
 
+  // Detect timezone changes (travel, DST transitions) and refresh data
+  useTimezoneChange();
+
   const handleCreateCategory = useCallback(
     (data: { name: string; color: string }) => {
       createCategory.mutate(data);
@@ -101,6 +107,9 @@ export default function AppLayout() {
         Skip to main content
       </a>
 
+      {/* Offline banner — shown when browser loses connectivity */}
+      <OfflineBanner />
+
       <Topbar />
 
       <div className="flex flex-1 overflow-hidden">
@@ -112,7 +121,9 @@ export default function AppLayout() {
         />
 
         <main id="main-content" className="flex-1 overflow-auto">
-          <Outlet />
+          <ErrorBoundary>
+            <Outlet />
+          </ErrorBoundary>
         </main>
       </div>
 

@@ -1,4 +1,7 @@
+import { useState } from 'react';
+
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/Spinner';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
@@ -38,28 +41,33 @@ function GitHubIcon() {
 }
 
 export function OAuthButtons() {
+  const [redirectingTo, setRedirectingTo] = useState<'google' | 'github' | null>(null);
+
+  const handleOAuth = (provider: 'google' | 'github') => {
+    setRedirectingTo(provider);
+    window.location.href = `${API_URL}/auth/oauth/${provider}`;
+  };
+
   return (
     <div className="grid grid-cols-2 gap-3">
       <Button
         type="button"
         variant="outline"
         className="w-full"
-        onClick={() => {
-          window.location.href = `${API_URL}/auth/oauth/google`;
-        }}
+        disabled={redirectingTo !== null}
+        onClick={() => handleOAuth('google')}
       >
-        <GoogleIcon />
+        {redirectingTo === 'google' ? <Spinner size="sm" /> : <GoogleIcon />}
         Google
       </Button>
       <Button
         type="button"
         variant="outline"
         className="w-full"
-        onClick={() => {
-          window.location.href = `${API_URL}/auth/oauth/github`;
-        }}
+        disabled={redirectingTo !== null}
+        onClick={() => handleOAuth('github')}
       >
-        <GitHubIcon />
+        {redirectingTo === 'github' ? <Spinner size="sm" /> : <GitHubIcon />}
         GitHub
       </Button>
     </div>

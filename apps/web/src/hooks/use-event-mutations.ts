@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
-import { apiClient } from '@/lib/api-client';
+import { apiClient, ApiError } from '@/lib/api-client';
 import { queryKeys } from '@/lib/query-keys';
 
 import type { CreateEventInput, EditScope, Event, UpdateEventInput } from '@calley/shared';
@@ -61,10 +61,11 @@ export function useCreateEvent() {
     onSuccess: () => {
       toast.success('Event created');
     },
-    onError: (_err, _vars, context) => {
+    onError: (err, _vars, context) => {
       if (context?.snapshot) {
         restoreEventCaches(queryClient, context.snapshot);
       }
+      if (err instanceof ApiError && err.status === 429) return;
       toast.error('Failed to create event');
     },
     onSettled: () => {
@@ -114,10 +115,11 @@ export function useUpdateEvent() {
     onSuccess: () => {
       toast.success('Event updated');
     },
-    onError: (_err, _vars, context) => {
+    onError: (err, _vars, context) => {
       if (context?.snapshot) {
         restoreEventCaches(queryClient, context.snapshot);
       }
+      if (err instanceof ApiError && err.status === 429) return;
       toast.error('Failed to update event');
     },
     onSettled: () => {
@@ -162,10 +164,11 @@ export function useDeleteEvent() {
     onSuccess: () => {
       toast.success('Event deleted');
     },
-    onError: (_err, _vars, context) => {
+    onError: (err, _vars, context) => {
       if (context?.snapshot) {
         restoreEventCaches(queryClient, context.snapshot);
       }
+      if (err instanceof ApiError && err.status === 429) return;
       toast.error('Failed to delete event');
     },
     onSettled: () => {

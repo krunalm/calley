@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
-import { apiClient } from '@/lib/api-client';
+import { apiClient, ApiError } from '@/lib/api-client';
 import { queryKeys } from '@/lib/query-keys';
 
 import type { CalendarCategory, CreateCategoryInput, UpdateCategoryInput } from '@calley/shared';
@@ -44,10 +44,11 @@ export function useCreateCategory() {
     onSuccess: () => {
       toast.success('Calendar created');
     },
-    onError: (_err, _vars, context) => {
+    onError: (err, _vars, context) => {
       if (context?.previous) {
         queryClient.setQueryData(queryKeys.categories.all, context.previous);
       }
+      if (err instanceof ApiError && err.status === 429) return;
       toast.error('Failed to create calendar');
     },
     onSettled: () => {
@@ -81,10 +82,11 @@ export function useUpdateCategory() {
     onSuccess: () => {
       toast.success('Calendar updated');
     },
-    onError: (_err, _vars, context) => {
+    onError: (err, _vars, context) => {
       if (context?.previous) {
         queryClient.setQueryData(queryKeys.categories.all, context.previous);
       }
+      if (err instanceof ApiError && err.status === 429) return;
       toast.error('Failed to update calendar');
     },
     onSettled: () => {
@@ -113,10 +115,11 @@ export function useDeleteCategory() {
     onSuccess: () => {
       toast.success('Calendar deleted');
     },
-    onError: (_err, _vars, context) => {
+    onError: (err, _vars, context) => {
       if (context?.previous) {
         queryClient.setQueryData(queryKeys.categories.all, context.previous);
       }
+      if (err instanceof ApiError && err.status === 429) return;
       toast.error('Failed to delete calendar');
     },
     onSettled: () => {

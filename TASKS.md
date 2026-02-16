@@ -637,21 +637,21 @@
 
 ### 6.5 In-App Toast Notifications
 
-- [ ] Configure toast/sonner component from shadcn/ui
-- [ ] Show toast on:
-  - [ ] Event/task created/updated/deleted (success)
-  - [ ] Reminder fired (via SSE)
-  - [ ] Errors (API failures, validation errors)
-  - [ ] Rate limit hit (warning)
-- [ ] Toast auto-dismiss after 4 seconds (configurable)
-- [ ] Toast accessible via `aria-live` region
+- [x] Configure toast/sonner component from shadcn/ui
+- [x] Show toast on:
+  - [x] Event/task created/updated/deleted (success)
+  - [x] Reminder fired (via SSE)
+  - [x] Errors (API failures, validation errors)
+  - [x] Rate limit hit (warning)
+- [x] Toast auto-dismiss after 4 seconds (configurable)
+- [x] Toast accessible via `aria-live` region
 
 ### 6.6 Email Notifications
 
 - [x] Create email template: reminder notification (event/task title, time, link to app)
 - [x] Create email template: password reset
-- [ ] Create email template: account lockout warning
-- [ ] Test email delivery in development (console fallback) and with Resend in staging
+- [x] Create email template: account lockout warning
+- [x] Test email delivery in development (console fallback) and with Resend in staging
 
 ---
 

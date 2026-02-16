@@ -4,6 +4,7 @@ import { formatInTimeZone } from 'date-fns-tz';
 import { MapPin, Repeat } from 'lucide-react';
 import { memo, useCallback, useState } from 'react';
 
+import { useKeyboardDndContext } from '@/components/calendar/DndCalendarProvider';
 import { EventDetailPopover } from '@/components/events/EventDetailPopover';
 import { useUserTimezone } from '@/hooks/use-user-timezone';
 import { cn } from '@/lib/utils';
@@ -72,6 +73,7 @@ export const EventBlock = memo(function EventBlock({
   });
 
   const isDragging = isMoveDragging || isResizeDragging;
+  const { pickUp } = useKeyboardDndContext();
 
   const handleClick = useCallback(() => {
     if (isDragging) return;
@@ -81,6 +83,16 @@ export const EventBlock = memo(function EventBlock({
       onClick?.(event);
     }
   }, [event, onClick, showPopover, isDragging]);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.shiftKey && (e.key === 'Enter' || e.key === ' ')) {
+        e.preventDefault();
+        pickUp(event);
+      }
+    },
+    [event, pickUp],
+  );
 
   const block = (
     <div
@@ -107,7 +119,9 @@ export const EventBlock = memo(function EventBlock({
         type="button"
         className="flex flex-1 flex-col overflow-hidden px-1.5 text-left"
         onClick={handleClick}
-        tabIndex={-1}
+        onKeyDown={handleKeyDown}
+        tabIndex={0}
+        aria-label={`${event.title}, ${timeLabel}. Shift+Enter to move with keyboard.`}
       >
         {isCompact ? (
           <div className="flex items-center gap-1 overflow-hidden">
@@ -142,9 +156,11 @@ export const EventBlock = memo(function EventBlock({
       {draggable && !isCompact && (
         <div
           ref={setResizeRef}
-          className="absolute bottom-0 left-0 right-0 flex h-3 cursor-s-resize items-center justify-center"
           {...resizeAttrs}
           {...resizeListeners}
+          role="separator"
+          aria-label={`Resize ${event.title}`}
+          className="absolute bottom-0 left-0 right-0 flex h-3 cursor-s-resize items-center justify-center"
         >
           <div className="h-[2px] w-6 rounded-full bg-current opacity-30" />
         </div>

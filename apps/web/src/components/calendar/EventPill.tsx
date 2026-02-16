@@ -4,6 +4,7 @@ import { formatInTimeZone } from 'date-fns-tz';
 import { Repeat } from 'lucide-react';
 import { memo, useCallback, useState } from 'react';
 
+import { useKeyboardDndContext } from '@/components/calendar/DndCalendarProvider';
 import { EventDetailPopover } from '@/components/events/EventDetailPopover';
 import { useUserTimezone } from '@/hooks/use-user-timezone';
 import { cn } from '@/lib/utils';
@@ -29,6 +30,7 @@ export const EventPill = memo(function EventPill({
 }: EventPillProps) {
   const userTimezone = useUserTimezone();
   const [popoverOpen, setPopoverOpen] = useState(false);
+  const { pickUp } = useKeyboardDndContext();
   const color = event.color ?? categoryColor ?? 'var(--primary)';
   const isRecurring = !!event.rrule || !!event.recurringEventId || event.isRecurringInstance;
 
@@ -52,6 +54,17 @@ export const EventPill = memo(function EventPill({
     }
   }, [event, onClick, showPopover, isDragging]);
 
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      // Enter opens the detail; Shift+Enter picks up for keyboard move
+      if (e.shiftKey && (e.key === 'Enter' || e.key === ' ')) {
+        e.preventDefault();
+        pickUp(event);
+      }
+    },
+    [event, pickUp],
+  );
+
   const pill = (
     <div
       ref={setNodeRef}
@@ -71,7 +84,9 @@ export const EventPill = memo(function EventPill({
         type="button"
         className="flex min-w-0 flex-1 items-center gap-1 text-left"
         onClick={handleClick}
-        tabIndex={-1}
+        onKeyDown={handleKeyDown}
+        tabIndex={0}
+        aria-label={`${event.title}, ${timeLabel}. Shift+Enter to move with keyboard.`}
       >
         {!event.isAllDay && (
           <span className="shrink-0 font-mono text-[10px] text-[var(--muted-foreground)]">

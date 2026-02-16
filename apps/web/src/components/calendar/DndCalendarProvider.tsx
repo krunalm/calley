@@ -1,6 +1,7 @@
 import {
   DndContext,
   DragOverlay,
+  KeyboardSensor,
   MouseSensor,
   TouchSensor,
   useSensor,
@@ -17,15 +18,34 @@ import {
   set,
 } from 'date-fns';
 import { fromZonedTime, toZonedTime } from 'date-fns-tz';
-import { useCallback, useState } from 'react';
+import { createContext, useCallback, useContext, useState } from 'react';
 
 import { RecurrenceScopeDialog } from '@/components/calendar/RecurrenceScopeDialog';
 import { useUpdateEvent } from '@/hooks/use-event-mutations';
+import { useKeyboardDnd } from '@/hooks/use-keyboard-dnd';
 import { useUpdateTask } from '@/hooks/use-task-mutations';
 import { useUserTimezone } from '@/hooks/use-user-timezone';
 
 import type { EditScope, Event, Task } from '@calley/shared';
 import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core';
+
+interface KeyboardDndContextValue {
+  pickUp: (event: Event) => void;
+  isMoving: boolean;
+}
+
+const KeyboardDndContext = createContext<KeyboardDndContextValue>({
+  pickUp: () => {},
+  isMoving: false,
+});
+
+/**
+ * Access the keyboard-based DnD context to allow event pills/blocks
+ * to be picked up via Enter/Space keypress.
+ */
+export function useKeyboardDndContext() {
+  return useContext(KeyboardDndContext);
+}
 
 interface DndCalendarProviderProps {
   children: React.ReactNode;
@@ -40,6 +60,7 @@ export function DndCalendarProvider({ children }: DndCalendarProviderProps) {
   const userTimezone = useUserTimezone();
   const updateEvent = useUpdateEvent();
   const updateTask = useUpdateTask();
+  const keyboardDnd = useKeyboardDnd();
 
   const [activeEvent, setActiveEvent] = useState<Event | null>(null);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
@@ -57,7 +78,8 @@ export function DndCalendarProvider({ children }: DndCalendarProviderProps) {
   const touchSensor = useSensor(TouchSensor, {
     activationConstraint: { delay: 200, tolerance: 5 },
   });
-  const sensors = useSensors(mouseSensor, touchSensor);
+  const keyboardSensor = useSensor(KeyboardSensor);
+  const sensors = useSensors(mouseSensor, touchSensor, keyboardSensor);
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
     const data = event.active.data.current as
@@ -221,8 +243,13 @@ export function DndCalendarProvider({ children }: DndCalendarProviderProps) {
     setScopeDialogOpen(false);
   }, []);
 
+  const keyboardDndValue: KeyboardDndContextValue = {
+    pickUp: keyboardDnd.pickUp,
+    isMoving: keyboardDnd.isMoving,
+  };
+
   return (
-    <>
+    <KeyboardDndContext.Provider value={keyboardDndValue}>
       <DndContext
         sensors={sensors}
         onDragStart={handleDragStart}
@@ -258,6 +285,6 @@ export function DndCalendarProvider({ children }: DndCalendarProviderProps) {
         onConfirm={handleScopeConfirm}
         action="edit"
       />
-    </>
+    </KeyboardDndContext.Provider>
   );
 }

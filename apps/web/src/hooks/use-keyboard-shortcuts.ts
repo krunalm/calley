@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 
+import { announce } from '@/components/ui/aria-live-region';
 import { useCalendarStore } from '@/stores/calendar-store';
 import { useUIStore } from '@/stores/ui-store';
 
@@ -98,40 +99,47 @@ export function useKeyboardShortcuts(onToggleShortcutsHelp: () => void) {
         case 'M':
           e.preventDefault();
           setView('month' as CalendarView);
+          announce('Switched to month view');
           break;
 
         case 'w':
         case 'W':
           e.preventDefault();
           setView('week' as CalendarView);
+          announce('Switched to week view');
           break;
 
         case 'd':
         case 'D':
           e.preventDefault();
           setView('day' as CalendarView);
+          announce('Switched to day view');
           break;
 
         case 'a':
         case 'A':
           e.preventDefault();
           setView('agenda' as CalendarView);
+          announce('Switched to agenda view');
           break;
 
         case 'ArrowLeft':
           e.preventDefault();
           navigate('prev');
+          announce('Navigated to previous period');
           break;
 
         case 'ArrowRight':
           e.preventDefault();
           navigate('next');
+          announce('Navigated to next period');
           break;
 
         case '.':
         case 'Home':
           e.preventDefault();
           navigate('today');
+          announce('Navigated to today');
           break;
 
         case '?':

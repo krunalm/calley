@@ -1,11 +1,8 @@
 import { createFileRoute, Outlet, redirect } from '@tanstack/react-router';
-import { useCallback, useState } from 'react';
+import { lazy, Suspense, useCallback, useState } from 'react';
 
-import { EventDrawer } from '@/components/calendar/EventDrawer';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Topbar } from '@/components/layout/Topbar';
-import { KeyboardShortcutsHelp } from '@/components/search/KeyboardShortcutsHelp';
-import { SearchModal } from '@/components/search/SearchModal';
 import {
   useCategories,
   useCreateCategory,
@@ -16,6 +13,19 @@ import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 import { queryKeys } from '@/lib/query-keys';
 
 import type { QueryClient } from '@tanstack/react-query';
+
+// Lazy load global overlays — they aren't needed until user interaction
+const LazyEventDrawer = lazy(() =>
+  import('@/components/calendar/EventDrawer').then((m) => ({ default: m.EventDrawer })),
+);
+const LazySearchModal = lazy(() =>
+  import('@/components/search/SearchModal').then((m) => ({ default: m.SearchModal })),
+);
+const LazyKeyboardShortcutsHelp = lazy(() =>
+  import('@/components/search/KeyboardShortcutsHelp').then((m) => ({
+    default: m.KeyboardShortcutsHelp,
+  })),
+);
 
 export const Route = createFileRoute('/_app')({
   beforeLoad: async ({ context }) => {
@@ -106,9 +116,12 @@ export default function AppLayout() {
         </main>
       </div>
 
-      <EventDrawer />
-      <SearchModal />
-      <KeyboardShortcutsHelp open={shortcutsHelpOpen} onOpenChange={setShortcutsHelpOpen} />
+      {/* Global overlays — lazy loaded, rendered only when needed */}
+      <Suspense fallback={null}>
+        <LazyEventDrawer />
+        <LazySearchModal />
+        <LazyKeyboardShortcutsHelp open={shortcutsHelpOpen} onOpenChange={setShortcutsHelpOpen} />
+      </Suspense>
     </div>
   );
 }

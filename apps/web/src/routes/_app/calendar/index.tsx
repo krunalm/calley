@@ -1,15 +1,34 @@
 import { createFileRoute } from '@tanstack/react-router';
+import { lazy, Suspense } from 'react';
 
-import { AgendaView } from '@/components/calendar/AgendaView';
-import { DayView } from '@/components/calendar/DayView';
 import { DndCalendarProvider } from '@/components/calendar/DndCalendarProvider';
-import { MonthView } from '@/components/calendar/MonthView';
-import { WeekView } from '@/components/calendar/WeekView';
 import { useCalendarStore } from '@/stores/calendar-store';
+
+// Lazy load each calendar view — only the active view is loaded
+const LazyMonthView = lazy(() =>
+  import('@/components/calendar/MonthView').then((m) => ({ default: m.MonthView })),
+);
+const LazyWeekView = lazy(() =>
+  import('@/components/calendar/WeekView').then((m) => ({ default: m.WeekView })),
+);
+const LazyDayView = lazy(() =>
+  import('@/components/calendar/DayView').then((m) => ({ default: m.DayView })),
+);
+const LazyAgendaView = lazy(() =>
+  import('@/components/calendar/AgendaView').then((m) => ({ default: m.AgendaView })),
+);
 
 export const Route = createFileRoute('/_app/calendar/')({
   component: CalendarPage,
 });
+
+function CalendarViewSkeleton() {
+  return (
+    <div className="flex h-full items-center justify-center">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--muted)] border-t-[var(--primary)]" />
+    </div>
+  );
+}
 
 export default function CalendarPage() {
   const { view } = useCalendarStore();
@@ -17,10 +36,12 @@ export default function CalendarPage() {
   return (
     <DndCalendarProvider>
       <div className="h-full">
-        {view === 'month' && <MonthView />}
-        {view === 'week' && <WeekView />}
-        {view === 'day' && <DayView />}
-        {view === 'agenda' && <AgendaView />}
+        <Suspense fallback={<CalendarViewSkeleton />}>
+          {view === 'month' && <LazyMonthView />}
+          {view === 'week' && <LazyWeekView />}
+          {view === 'day' && <LazyDayView />}
+          {view === 'agenda' && <LazyAgendaView />}
+        </Suspense>
       </div>
     </DndCalendarProvider>
   );

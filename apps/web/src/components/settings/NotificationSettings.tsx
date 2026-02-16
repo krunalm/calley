@@ -1,5 +1,5 @@
 import { Bell, BellOff, CheckCircle2, Mail, XCircle } from 'lucide-react';
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,8 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { usePushNotifications } from '@/hooks/use-push-notifications';
 import { useNotificationPreferences } from '@/stores/notification-preferences';
+
+import type { PushSubscription as PushSub } from '@calley/shared';
 
 // ─── Default Reminder Preferences ───────────────────────────────────
 
@@ -34,15 +36,8 @@ const REMINDER_METHOD_OPTIONS = [
 ];
 
 export const NotificationSettings = memo(function NotificationSettings() {
-  const {
-    isSupported,
-    permission,
-    isSubscribed,
-    subscriptions,
-    subscribe,
-    unsubscribe,
-    isSubscribing,
-  } = usePushNotifications();
+  const { isSupported, permission, subscriptions, subscribe, unsubscribe, isSubscribing } =
+    usePushNotifications();
 
   const {
     defaultReminderMinutes,
@@ -53,24 +48,46 @@ export const NotificationSettings = memo(function NotificationSettings() {
     setEmailNotifications,
   } = useNotificationPreferences();
 
-  const handleTogglePush = useCallback(async () => {
-    if (isSubscribed && subscriptions.length > 0) {
-      // Find the subscription matching this device's browser push endpoint
-      try {
-        const registration = await navigator.serviceWorker.ready;
-        const browserSub = await registration.pushManager.getSubscription();
+  // ─── Per-device subscription detection ──────────────────────────
+
+  const [currentDeviceSubscription, setCurrentDeviceSubscription] = useState<PushSub | null>(null);
+
+  useEffect(() => {
+    if (!isSupported) return;
+
+    let cancelled = false;
+
+    navigator.serviceWorker.ready
+      .then((registration) => registration.pushManager.getSubscription())
+      .then((browserSub) => {
+        if (cancelled) return;
         if (browserSub) {
           const matching = subscriptions.find((s) => s.endpoint === browserSub.endpoint);
-          if (matching) {
-            await unsubscribe(matching.id);
-            return;
-          }
+          setCurrentDeviceSubscription(matching ?? null);
+        } else {
+          setCurrentDeviceSubscription(null);
         }
-        // No browser subscription found — can't determine which server subscription to revoke
-        toast.error('Could not identify the push subscription for this device');
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCurrentDeviceSubscription(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isSupported, subscriptions]);
+
+  const isSubscribedForDevice = currentDeviceSubscription != null;
+
+  const handleTogglePush = useCallback(async () => {
+    if (currentDeviceSubscription) {
+      try {
+        await unsubscribe(currentDeviceSubscription.id);
       } catch (err) {
-        toast.error('Failed to toggle push notifications');
-        console.error('handleTogglePush error:', err);
+        toast.error('Failed to disable push notifications');
+        console.error('handleTogglePush unsubscribe error:', err);
       }
     } else {
       try {
@@ -80,7 +97,7 @@ export const NotificationSettings = memo(function NotificationSettings() {
         console.error('handleTogglePush subscribe error:', err);
       }
     }
-  }, [isSubscribed, subscriptions, subscribe, unsubscribe]);
+  }, [currentDeviceSubscription, subscribe, unsubscribe]);
 
   const permissionStatus = () => {
     if (!isSupported) {
@@ -101,7 +118,7 @@ export const NotificationSettings = memo(function NotificationSettings() {
       );
     }
 
-    if (isSubscribed) {
+    if (isSubscribedForDevice) {
       return (
         <div className="flex items-center gap-2 text-sm text-[var(--color-success)]">
           <CheckCircle2 className="h-4 w-4" />
@@ -183,14 +200,14 @@ export const NotificationSettings = memo(function NotificationSettings() {
         {permissionStatus()}
 
         <Button
-          variant={isSubscribed ? 'outline' : 'default'}
+          variant={isSubscribedForDevice ? 'outline' : 'default'}
           size="sm"
           onClick={handleTogglePush}
           disabled={!isSupported || permission === 'denied' || isSubscribing}
         >
           {isSubscribing ? (
             'Enabling...'
-          ) : isSubscribed ? (
+          ) : isSubscribedForDevice ? (
             <>
               <BellOff className="mr-1 h-4 w-4" />
               Disable push notifications

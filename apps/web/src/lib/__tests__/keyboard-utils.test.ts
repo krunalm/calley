@@ -24,18 +24,19 @@ function makeEvent(overrides: Partial<Event> = {}): Event {
     color: null,
     location: null,
     description: null,
-    categoryId: null,
+    categoryId: 'cat_default_001',
+    visibility: 'private',
     rrule: null,
     exDates: [],
     recurringEventId: null,
     originalDate: null,
     isRecurringInstance: false,
-    instanceDate: null,
+    instanceDate: undefined,
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',
     deletedAt: null,
     ...overrides,
-  } as Event;
+  };
 }
 
 /**

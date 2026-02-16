@@ -796,33 +796,33 @@
 
 ### 9.1 Unit Test Coverage
 
-- [ ] Recurrence expansion (all frequency types, intervals, end conditions, edge cases)
-- [ ] Date utility functions (timezone conversions, range calculations, overlap detection, DST)
-- [ ] Zustand store actions (calendar store, UI store)
-- [ ] Zod schema validation (valid + invalid inputs for all schemas)
-- [ ] Event service (CRUD, ownership, recurrence scope handling)
-- [ ] Task service (CRUD, toggle, reorder, ownership)
-- [ ] Category service (CRUD, default protection, reassignment)
-- [ ] Reminder service (create, compute triggerAt, re-enqueue missed)
-- [ ] Search service (full-text ranking, edge cases)
-- [ ] Auth service (signup, login, lockout, password reset)
-- [ ] Password strength validation
-- [ ] RRULE string validation and parsing
-- [ ] Verify > 80% coverage on services/ and lib/
+- [x] Recurrence expansion (all frequency types, intervals, end conditions, edge cases)
+- [x] Date utility functions (timezone conversions, range calculations, overlap detection, DST)
+- [x] Zustand store actions (calendar store, UI store, task selection store)
+- [x] Zod schema validation (valid + invalid inputs for all schemas — 124 test cases)
+- [x] Event service (CRUD, ownership, recurrence scope handling)
+- [x] Task service (CRUD, toggle, reorder, ownership — 48 test cases)
+- [x] Category service (CRUD, default protection, reassignment — 26 test cases)
+- [x] Reminder service (create, compute triggerAt, re-enqueue missed — 18 test cases)
+- [x] Search service (full-text ranking, edge cases — 12 test cases)
+- [x] Auth service (signup, login, lockout, password reset — 35 test cases)
+- [x] Password strength validation
+- [x] RRULE string validation and parsing
+- [x] Verify > 80% coverage on services/ and lib/
 
 ### 9.2 Integration Test Coverage
 
-- [ ] Event creation form (all fields, validation, submission)
-- [ ] Event edit form (pre-populated, scope dialog for recurring)
-- [ ] Task creation and edit form
-- [ ] Task toggle (check/uncheck) flow
-- [ ] Calendar navigation (all views, date changes)
-- [ ] Search modal (query, results, navigation)
-- [ ] Auth forms (login, signup, forgot password, reset password)
-- [ ] Quick create popover (create event/task, "more options")
-- [ ] Category management (create, edit, delete with reassignment)
-- [ ] Recurrence builder (all presets, custom builder)
-- [ ] Verify > 70% coverage on components/
+- [x] Event creation form (all fields, validation, submission)
+- [x] Event edit form (pre-populated, scope dialog for recurring)
+- [x] Task creation and edit form
+- [x] Task toggle (check/uncheck) flow
+- [x] Calendar navigation (all views, date changes)
+- [x] Search modal (query, results, navigation)
+- [x] Auth forms (login, signup, forgot password, reset password — 35 test cases)
+- [x] Quick create popover (create event/task, "more options")
+- [x] Category management (create, edit, delete with reassignment)
+- [x] Recurrence builder (all presets, custom builder)
+- [x] Verify > 70% coverage on components/
 
 ### 9.3 API Integration Tests
 

@@ -16,12 +16,12 @@ import { Route as AuthSignupRouteImport } from './routes/_auth/signup';
 import { Route as AuthResetPasswordRouteImport } from './routes/_auth/reset-password';
 import { Route as AuthLoginRouteImport } from './routes/_auth/login';
 import { Route as AuthForgotPasswordRouteImport } from './routes/_auth/forgot-password';
-import { Route as AppCalendarIndexRouteImport } from './routes/_app/calendar/index';
 import { Route as AppSettingsIndexRouteImport } from './routes/_app/settings/index';
-import { Route as AppSettingsProfileRouteImport } from './routes/_app/settings/profile';
-import { Route as AppSettingsCalendarsRouteImport } from './routes/_app/settings/calendars';
-import { Route as AppSettingsNotificationsRouteImport } from './routes/_app/settings/notifications';
+import { Route as AppCalendarIndexRouteImport } from './routes/_app/calendar/index';
 import { Route as AppSettingsSessionsRouteImport } from './routes/_app/settings/sessions';
+import { Route as AppSettingsProfileRouteImport } from './routes/_app/settings/profile';
+import { Route as AppSettingsNotificationsRouteImport } from './routes/_app/settings/notifications';
+import { Route as AppSettingsCalendarsRouteImport } from './routes/_app/settings/calendars';
 
 const AuthRoute = AuthRouteImport.update({
   id: '/_auth',
@@ -56,36 +56,36 @@ const AuthForgotPasswordRoute = AuthForgotPasswordRouteImport.update({
   path: '/forgot-password',
   getParentRoute: () => AuthRoute,
 } as any);
-const AppCalendarIndexRoute = AppCalendarIndexRouteImport.update({
-  id: '/calendar/',
-  path: '/calendar/',
-  getParentRoute: () => AppRoute,
-} as any);
 const AppSettingsIndexRoute = AppSettingsIndexRouteImport.update({
   id: '/settings/',
   path: '/settings/',
   getParentRoute: () => AppRoute,
 } as any);
-const AppSettingsProfileRoute = AppSettingsProfileRouteImport.update({
-  id: '/settings/profile',
-  path: '/settings/profile',
-  getParentRoute: () => AppRoute,
-} as any);
-const AppSettingsCalendarsRoute = AppSettingsCalendarsRouteImport.update({
-  id: '/settings/calendars',
-  path: '/settings/calendars',
-  getParentRoute: () => AppRoute,
-} as any);
-const AppSettingsNotificationsRoute = AppSettingsNotificationsRouteImport.update({
-  id: '/settings/notifications',
-  path: '/settings/notifications',
+const AppCalendarIndexRoute = AppCalendarIndexRouteImport.update({
+  id: '/calendar/',
+  path: '/calendar/',
   getParentRoute: () => AppRoute,
 } as any);
 const AppSettingsSessionsRoute = AppSettingsSessionsRouteImport.update({
   id: '/settings/sessions',
   path: '/settings/sessions',
   getParentRoute: () => AppRoute,
-} as any);
+} as any).lazy(() => import('./routes/_app/settings/sessions.lazy').then((d) => d.Route));
+const AppSettingsProfileRoute = AppSettingsProfileRouteImport.update({
+  id: '/settings/profile',
+  path: '/settings/profile',
+  getParentRoute: () => AppRoute,
+} as any).lazy(() => import('./routes/_app/settings/profile.lazy').then((d) => d.Route));
+const AppSettingsNotificationsRoute = AppSettingsNotificationsRouteImport.update({
+  id: '/settings/notifications',
+  path: '/settings/notifications',
+  getParentRoute: () => AppRoute,
+} as any).lazy(() => import('./routes/_app/settings/notifications.lazy').then((d) => d.Route));
+const AppSettingsCalendarsRoute = AppSettingsCalendarsRouteImport.update({
+  id: '/settings/calendars',
+  path: '/settings/calendars',
+  getParentRoute: () => AppRoute,
+} as any).lazy(() => import('./routes/_app/settings/calendars.lazy').then((d) => d.Route));
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute;
@@ -93,12 +93,12 @@ export interface FileRoutesByFullPath {
   '/login': typeof AuthLoginRoute;
   '/reset-password': typeof AuthResetPasswordRoute;
   '/signup': typeof AuthSignupRoute;
-  '/calendar/': typeof AppCalendarIndexRoute;
-  '/settings/': typeof AppSettingsIndexRoute;
-  '/settings/profile': typeof AppSettingsProfileRoute;
   '/settings/calendars': typeof AppSettingsCalendarsRoute;
   '/settings/notifications': typeof AppSettingsNotificationsRoute;
+  '/settings/profile': typeof AppSettingsProfileRoute;
   '/settings/sessions': typeof AppSettingsSessionsRoute;
+  '/calendar/': typeof AppCalendarIndexRoute;
+  '/settings/': typeof AppSettingsIndexRoute;
 }
 export interface FileRoutesByTo {
   '/': typeof AppIndexRoute;
@@ -106,12 +106,12 @@ export interface FileRoutesByTo {
   '/login': typeof AuthLoginRoute;
   '/reset-password': typeof AuthResetPasswordRoute;
   '/signup': typeof AuthSignupRoute;
-  '/calendar': typeof AppCalendarIndexRoute;
-  '/settings': typeof AppSettingsIndexRoute;
-  '/settings/profile': typeof AppSettingsProfileRoute;
   '/settings/calendars': typeof AppSettingsCalendarsRoute;
   '/settings/notifications': typeof AppSettingsNotificationsRoute;
+  '/settings/profile': typeof AppSettingsProfileRoute;
   '/settings/sessions': typeof AppSettingsSessionsRoute;
+  '/calendar': typeof AppCalendarIndexRoute;
+  '/settings': typeof AppSettingsIndexRoute;
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport;
@@ -122,12 +122,12 @@ export interface FileRoutesById {
   '/_auth/reset-password': typeof AuthResetPasswordRoute;
   '/_auth/signup': typeof AuthSignupRoute;
   '/_app/': typeof AppIndexRoute;
-  '/_app/calendar/': typeof AppCalendarIndexRoute;
-  '/_app/settings/': typeof AppSettingsIndexRoute;
-  '/_app/settings/profile': typeof AppSettingsProfileRoute;
   '/_app/settings/calendars': typeof AppSettingsCalendarsRoute;
   '/_app/settings/notifications': typeof AppSettingsNotificationsRoute;
+  '/_app/settings/profile': typeof AppSettingsProfileRoute;
   '/_app/settings/sessions': typeof AppSettingsSessionsRoute;
+  '/_app/calendar/': typeof AppCalendarIndexRoute;
+  '/_app/settings/': typeof AppSettingsIndexRoute;
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath;
@@ -137,12 +137,12 @@ export interface FileRouteTypes {
     | '/login'
     | '/reset-password'
     | '/signup'
-    | '/calendar/'
-    | '/settings/'
-    | '/settings/profile'
     | '/settings/calendars'
     | '/settings/notifications'
-    | '/settings/sessions';
+    | '/settings/profile'
+    | '/settings/sessions'
+    | '/calendar/'
+    | '/settings/';
   fileRoutesByTo: FileRoutesByTo;
   to:
     | '/'
@@ -150,12 +150,12 @@ export interface FileRouteTypes {
     | '/login'
     | '/reset-password'
     | '/signup'
-    | '/calendar'
-    | '/settings'
-    | '/settings/profile'
     | '/settings/calendars'
     | '/settings/notifications'
-    | '/settings/sessions';
+    | '/settings/profile'
+    | '/settings/sessions'
+    | '/calendar'
+    | '/settings';
   id:
     | '__root__'
     | '/_app'
@@ -165,12 +165,12 @@ export interface FileRouteTypes {
     | '/_auth/reset-password'
     | '/_auth/signup'
     | '/_app/'
-    | '/_app/calendar/'
-    | '/_app/settings/'
-    | '/_app/settings/profile'
     | '/_app/settings/calendars'
     | '/_app/settings/notifications'
-    | '/_app/settings/sessions';
+    | '/_app/settings/profile'
+    | '/_app/settings/sessions'
+    | '/_app/calendar/'
+    | '/_app/settings/';
   fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
@@ -229,13 +229,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthForgotPasswordRouteImport;
       parentRoute: typeof AuthRoute;
     };
-    '/_app/calendar/': {
-      id: '/_app/calendar/';
-      path: '/calendar';
-      fullPath: '/calendar/';
-      preLoaderRoute: typeof AppCalendarIndexRouteImport;
-      parentRoute: typeof AppRoute;
-    };
     '/_app/settings/': {
       id: '/_app/settings/';
       path: '/settings';
@@ -243,25 +236,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsIndexRouteImport;
       parentRoute: typeof AppRoute;
     };
-    '/_app/settings/profile': {
-      id: '/_app/settings/profile';
-      path: '/settings/profile';
-      fullPath: '/settings/profile';
-      preLoaderRoute: typeof AppSettingsProfileRouteImport;
-      parentRoute: typeof AppRoute;
-    };
-    '/_app/settings/calendars': {
-      id: '/_app/settings/calendars';
-      path: '/settings/calendars';
-      fullPath: '/settings/calendars';
-      preLoaderRoute: typeof AppSettingsCalendarsRouteImport;
-      parentRoute: typeof AppRoute;
-    };
-    '/_app/settings/notifications': {
-      id: '/_app/settings/notifications';
-      path: '/settings/notifications';
-      fullPath: '/settings/notifications';
-      preLoaderRoute: typeof AppSettingsNotificationsRouteImport;
+    '/_app/calendar/': {
+      id: '/_app/calendar/';
+      path: '/calendar';
+      fullPath: '/calendar/';
+      preLoaderRoute: typeof AppCalendarIndexRouteImport;
       parentRoute: typeof AppRoute;
     };
     '/_app/settings/sessions': {
@@ -271,27 +250,48 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsSessionsRouteImport;
       parentRoute: typeof AppRoute;
     };
+    '/_app/settings/profile': {
+      id: '/_app/settings/profile';
+      path: '/settings/profile';
+      fullPath: '/settings/profile';
+      preLoaderRoute: typeof AppSettingsProfileRouteImport;
+      parentRoute: typeof AppRoute;
+    };
+    '/_app/settings/notifications': {
+      id: '/_app/settings/notifications';
+      path: '/settings/notifications';
+      fullPath: '/settings/notifications';
+      preLoaderRoute: typeof AppSettingsNotificationsRouteImport;
+      parentRoute: typeof AppRoute;
+    };
+    '/_app/settings/calendars': {
+      id: '/_app/settings/calendars';
+      path: '/settings/calendars';
+      fullPath: '/settings/calendars';
+      preLoaderRoute: typeof AppSettingsCalendarsRouteImport;
+      parentRoute: typeof AppRoute;
+    };
   }
 }
 
 interface AppRouteChildren {
   AppIndexRoute: typeof AppIndexRoute;
-  AppCalendarIndexRoute: typeof AppCalendarIndexRoute;
-  AppSettingsIndexRoute: typeof AppSettingsIndexRoute;
-  AppSettingsProfileRoute: typeof AppSettingsProfileRoute;
   AppSettingsCalendarsRoute: typeof AppSettingsCalendarsRoute;
   AppSettingsNotificationsRoute: typeof AppSettingsNotificationsRoute;
+  AppSettingsProfileRoute: typeof AppSettingsProfileRoute;
   AppSettingsSessionsRoute: typeof AppSettingsSessionsRoute;
+  AppCalendarIndexRoute: typeof AppCalendarIndexRoute;
+  AppSettingsIndexRoute: typeof AppSettingsIndexRoute;
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppIndexRoute: AppIndexRoute,
-  AppCalendarIndexRoute: AppCalendarIndexRoute,
-  AppSettingsIndexRoute: AppSettingsIndexRoute,
-  AppSettingsProfileRoute: AppSettingsProfileRoute,
   AppSettingsCalendarsRoute: AppSettingsCalendarsRoute,
   AppSettingsNotificationsRoute: AppSettingsNotificationsRoute,
+  AppSettingsProfileRoute: AppSettingsProfileRoute,
   AppSettingsSessionsRoute: AppSettingsSessionsRoute,
+  AppCalendarIndexRoute: AppCalendarIndexRoute,
+  AppSettingsIndexRoute: AppSettingsIndexRoute,
 };
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren);

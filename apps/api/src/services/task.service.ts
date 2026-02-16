@@ -213,61 +213,57 @@ export class TaskService {
         .returning();
 
       // Create reminder if specified
+      let inlineReminder: typeof reminders.$inferSelect | null = null;
       if (data.reminder && data.dueAt) {
         const triggerAt = new Date(
           new Date(data.dueAt).getTime() - data.reminder.minutesBefore * 60 * 1000,
         );
 
-        await tx.insert(reminders).values({
-          userId,
-          itemType: 'task',
-          itemId: inserted.id,
-          minutesBefore: data.reminder.minutesBefore,
-          method: data.reminder.method,
-          triggerAt,
-        });
+        const [created] = await tx
+          .insert(reminders)
+          .values({
+            userId,
+            itemType: 'task',
+            itemId: inserted.id,
+            minutesBefore: data.reminder.minutesBefore,
+            method: data.reminder.method,
+            triggerAt,
+          })
+          .returning();
+        inlineReminder = created;
       }
 
-      return inserted;
+      return { inserted, inlineReminder };
     });
 
     // Enqueue BullMQ job for the inline reminder (outside transaction)
-    if (data.reminder && data.dueAt) {
-      const inlineReminder = await db.query.reminders.findFirst({
-        where: and(
-          eq(reminders.userId, userId),
-          eq(reminders.itemId, task.id),
-          eq(reminders.itemType, 'task'),
-        ),
-      });
-      if (inlineReminder) {
-        try {
-          await reminderQueue.add(
-            'send-reminder',
-            {
-              reminderId: inlineReminder.id,
-              userId,
-              itemType: 'task',
-              itemId: task.id,
-              method: inlineReminder.method,
-            },
-            {
-              jobId: inlineReminder.id,
-              delay: Math.max(0, inlineReminder.triggerAt.getTime() - Date.now()),
-            },
-          );
-        } catch (err) {
-          logger.warn(
-            { err, reminderId: inlineReminder.id },
-            'Failed to enqueue inline reminder job',
-          );
-        }
+    if (task.inlineReminder) {
+      try {
+        await reminderQueue.add(
+          'send-reminder',
+          {
+            reminderId: task.inlineReminder.id,
+            userId,
+            itemType: 'task',
+            itemId: task.inserted.id,
+            method: task.inlineReminder.method,
+          },
+          {
+            jobId: task.inlineReminder.id,
+            delay: Math.max(0, task.inlineReminder.triggerAt.getTime() - Date.now()),
+          },
+        );
+      } catch (err) {
+        logger.warn(
+          { err, reminderId: task.inlineReminder.id },
+          'Failed to enqueue inline reminder job',
+        );
       }
     }
 
-    logger.info({ userId, taskId: task.id }, 'Task created');
+    logger.info({ userId, taskId: task.inserted.id }, 'Task created');
 
-    return toTaskResponse(task as TaskRow);
+    return toTaskResponse(task.inserted as TaskRow);
   }
 
   /**

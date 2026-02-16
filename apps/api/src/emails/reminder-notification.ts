@@ -1,4 +1,16 @@
 /**
+ * Escape a string for safe insertion into HTML content.
+ */
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/**
  * Reminder notification email template.
  * Returns both HTML and plain-text versions.
  */
@@ -26,12 +38,17 @@ export function reminderNotificationEmail(params: {
     timingLabel = `in ${days} day${days > 1 ? 's' : ''}`;
   }
 
+  // Escape user-controlled values for safe HTML insertion
+  const safeTitle = escapeHtml(title);
+  const safeTime = escapeHtml(time);
+  const safeAppUrl = encodeURI(appUrl);
+
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Reminder: ${title}</title>
+  <title>Reminder: ${safeTitle}</title>
 </head>
 <body style="margin:0;padding:0;background-color:#f8f7f4;font-family:'Helvetica Neue',Arial,sans-serif;">
   <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f8f7f4;padding:40px 20px;">
@@ -45,17 +62,17 @@ export function reminderNotificationEmail(params: {
           </tr>
           <tr>
             <td style="font-size:18px;font-weight:600;color:#1a1916;padding-bottom:8px;">
-              ${title}
+              ${safeTitle}
             </td>
           </tr>
           <tr>
             <td style="font-size:15px;line-height:1.6;color:#4a4843;padding-bottom:24px;">
-              ${itemType === 'event' ? 'Starts' : 'Due'} ${timingLabel} &mdash; ${time}
+              ${itemType === 'event' ? 'Starts' : 'Due'} ${timingLabel} &mdash; ${safeTime}
             </td>
           </tr>
           <tr>
             <td style="padding-bottom:24px;">
-              <a href="${appUrl}" style="display:inline-block;padding:12px 28px;background-color:#c8522a;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;border-radius:6px;">
+              <a href="${safeAppUrl}" style="display:inline-block;padding:12px 28px;background-color:#c8522a;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;border-radius:6px;">
                 View ${itemLabel}
               </a>
             </td>

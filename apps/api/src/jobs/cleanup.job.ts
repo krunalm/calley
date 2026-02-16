@@ -182,6 +182,7 @@ export async function scheduleCleanupJob(): Promise<void> {
     {
       repeat: {
         pattern: '0 3 * * *',
+        tz: 'UTC',
       },
     },
   );

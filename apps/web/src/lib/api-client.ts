@@ -109,8 +109,11 @@ class ApiClient {
     });
   }
 
-  delete<T>(path: string): Promise<T> {
-    return this.request<T>(path, { method: 'DELETE' });
+  delete<T>(path: string, body?: unknown): Promise<T> {
+    return this.request<T>(path, {
+      method: 'DELETE',
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
   }
 }
 

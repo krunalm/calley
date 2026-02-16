@@ -725,6 +725,67 @@ export class AuthService {
     return { cookie };
   }
 
+  // ─── OAuth Account Management ────────────────────────────────────────
+
+  /**
+   * List all OAuth accounts linked to a user.
+   */
+  async listOAuthAccounts(
+    userId: string,
+  ): Promise<Array<{ id: string; provider: string; createdAt: Date }>> {
+    const accounts = await db.query.oauthAccounts.findMany({
+      where: eq(oauthAccounts.userId, userId),
+    });
+
+    return accounts.map((a) => ({
+      id: a.id,
+      provider: a.provider,
+      createdAt: a.createdAt,
+    }));
+  }
+
+  /**
+   * Unlink an OAuth account from a user.
+   * The user must have a password set (to avoid locking themselves out).
+   */
+  async unlinkOAuthAccount(userId: string, accountId: string): Promise<void> {
+    const user = await db.query.users.findFirst({
+      where: eq(users.id, userId),
+    });
+
+    if (!user) {
+      throw new AppError(404, 'NOT_FOUND', 'User not found');
+    }
+
+    // Must have a password to unlink OAuth (otherwise they'd be locked out)
+    if (!user.passwordHash) {
+      throw new AppError(
+        400,
+        'VALIDATION_ERROR',
+        'You must set a password before unlinking your OAuth account',
+      );
+    }
+
+    // Verify the OAuth account belongs to this user
+    const account = await db.query.oauthAccounts.findFirst({
+      where: and(eq(oauthAccounts.id, accountId), eq(oauthAccounts.userId, userId)),
+    });
+
+    if (!account) {
+      throw new AppError(404, 'NOT_FOUND', 'OAuth account not found');
+    }
+
+    await db.delete(oauthAccounts).where(eq(oauthAccounts.id, accountId));
+
+    logger.info({ userId, provider: account.provider }, 'OAuth account unlinked');
+
+    auditService.log({
+      action: 'oauth.unlink',
+      userId,
+      metadata: { provider: account.provider },
+    });
+  }
+
   // ─── Session Management (§1.8) ──────────────────────────────────────
 
   /**

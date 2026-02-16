@@ -245,6 +245,28 @@ auth.delete('/auth/sessions', authMiddleware, doubleSubmitCsrf, async (c) => {
   });
 });
 
+// ─── OAuth Account Management ─────────────────────────────────────────
+
+/**
+ * GET /auth/oauth/accounts — List linked OAuth accounts for the current user.
+ */
+auth.get('/auth/oauth/accounts', authMiddleware, async (c) => {
+  const userId = c.get('userId')!;
+  const accounts = await authService.listOAuthAccounts(userId);
+  return c.json(accounts);
+});
+
+/**
+ * DELETE /auth/oauth/accounts/:id — Unlink an OAuth account.
+ * User must have a password set to avoid being locked out.
+ */
+auth.delete('/auth/oauth/accounts/:id', authMiddleware, doubleSubmitCsrf, async (c) => {
+  const userId = c.get('userId')!;
+  const accountId = c.req.param('id');
+  await authService.unlinkOAuthAccount(userId, accountId);
+  return c.body(null, 204);
+});
+
 // ─── OAuth Constants & Schemas ────────────────────────────────────────
 
 const OAUTH_STATE_COOKIE_MAX_AGE = 10 * 60; // 10 minutes

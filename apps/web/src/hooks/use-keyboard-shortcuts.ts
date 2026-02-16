@@ -1,29 +1,11 @@
 import { useEffect } from 'react';
 
+import { announce } from '@/components/ui/aria-live-region';
+import { isTypingInInput, pickUpFocusedEvent } from '@/lib/keyboard-utils';
 import { useCalendarStore } from '@/stores/calendar-store';
 import { useUIStore } from '@/stores/ui-store';
 
 import type { CalendarView } from '@/stores/calendar-store';
-
-/**
- * Returns true if the active element is a text input, textarea, or content-editable,
- * meaning keyboard shortcuts should be disabled.
- */
-function isTypingInInput(): boolean {
-  const el = document.activeElement;
-  if (!el) return false;
-  const tagName = el.tagName.toLowerCase();
-  if (tagName === 'input') {
-    const type = (el as HTMLInputElement).type;
-    // Allow shortcuts for non-text inputs like checkboxes, radios
-    return !['checkbox', 'radio', 'range', 'color', 'file'].includes(type);
-  }
-  if (tagName === 'textarea') return true;
-  if ((el as HTMLElement).isContentEditable) return true;
-  // cmdk input
-  if (el.getAttribute('cmdk-input') !== null) return true;
-  return false;
-}
 
 export interface KeyboardShortcutsState {
   shortcutsHelpOpen: boolean;
@@ -47,6 +29,7 @@ export interface KeyboardShortcutsState {
  * - . or Home → go to today
  * - Escape → close any open modal/drawer/popover
  * - ? → show keyboard shortcuts help
+ * - Shift+Enter/Space → pick up focused event for keyboard move
  */
 export function useKeyboardShortcuts(onToggleShortcutsHelp: () => void) {
   const { setView, navigate, toggleTaskPanel } = useCalendarStore();
@@ -78,6 +61,14 @@ export function useKeyboardShortcuts(onToggleShortcutsHelp: () => void) {
       // Skip all other shortcuts when typing in an input
       if (isTypingInInput()) return;
 
+      // Shift+Enter/Space → pick up the focused event for keyboard DnD
+      if (e.shiftKey && (e.key === 'Enter' || e.key === ' ')) {
+        if (pickUpFocusedEvent()) {
+          e.preventDefault();
+        }
+        return;
+      }
+
       // Skip if any modifier key is held (except for shortcuts that need it)
       if (isMeta || e.altKey) return;
 
@@ -98,40 +89,47 @@ export function useKeyboardShortcuts(onToggleShortcutsHelp: () => void) {
         case 'M':
           e.preventDefault();
           setView('month' as CalendarView);
+          announce('Switched to month view');
           break;
 
         case 'w':
         case 'W':
           e.preventDefault();
           setView('week' as CalendarView);
+          announce('Switched to week view');
           break;
 
         case 'd':
         case 'D':
           e.preventDefault();
           setView('day' as CalendarView);
+          announce('Switched to day view');
           break;
 
         case 'a':
         case 'A':
           e.preventDefault();
           setView('agenda' as CalendarView);
+          announce('Switched to agenda view');
           break;
 
         case 'ArrowLeft':
           e.preventDefault();
           navigate('prev');
+          announce('Navigated to previous period');
           break;
 
         case 'ArrowRight':
           e.preventDefault();
           navigate('next');
+          announce('Navigated to next period');
           break;
 
         case '.':
         case 'Home':
           e.preventDefault();
           navigate('today');
+          announce('Navigated to today');
           break;
 
         case '?':

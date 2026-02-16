@@ -38,10 +38,7 @@ const taskFormSchema = z.object({
     .trim()
     .min(1, 'Title is required')
     .max(200, 'Title must be at most 200 characters'),
-  description: z
-    .string()
-    .max(2000, 'Description must be at most 2000 characters')
-    .optional(),
+  description: z.string().max(2000, 'Description must be at most 2000 characters').optional(),
   dueDate: z.string().optional(),
   dueTime: z.string().optional(),
   priority: z.enum(['none', 'low', 'medium', 'high']),
@@ -254,15 +251,7 @@ export function TaskDrawer() {
         createTask.mutate(payload, { onSuccess: () => closeTaskDrawer() });
       }
     },
-    [
-      isEditMode,
-      taskId,
-      existingTask,
-      buildApiPayload,
-      updateTask,
-      createTask,
-      closeTaskDrawer,
-    ],
+    [isEditMode, taskId, existingTask, buildApiPayload, updateTask, createTask, closeTaskDrawer],
   );
 
   const onSubmit = useCallback(
@@ -315,9 +304,16 @@ export function TaskDrawer() {
             {/* Title */}
             <div className="space-y-1.5">
               <Label htmlFor="task-title">Title</Label>
-              <Input id="task-title" placeholder="Task title" autoFocus {...register('title')} />
+              <Input
+                id="task-title"
+                placeholder="Task title"
+                autoFocus
+                aria-describedby={errors.title ? 'task-title-error' : undefined}
+                aria-invalid={!!errors.title}
+                {...register('title')}
+              />
               {errors.title && (
-                <p className="text-xs text-[var(--destructive)]" role="alert">
+                <p id="task-title-error" className="text-xs text-[var(--destructive)]" role="alert">
                   {errors.title.message}
                 </p>
               )}

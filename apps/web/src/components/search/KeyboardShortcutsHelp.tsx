@@ -44,6 +44,16 @@ const SHORTCUT_GROUPS: { title: string; shortcuts: ShortcutEntry[] }[] = [
     ],
   },
   {
+    title: 'Event interactions',
+    shortcuts: [
+      { keys: ['⇧', 'Enter'], description: 'Pick up focused event (keyboard move)' },
+      { keys: ['↑', '↓'], description: 'Move event ±30 minutes (while picked up)' },
+      { keys: ['←', '→'], description: 'Move event ±1 day (while picked up)' },
+      { keys: ['Enter'], description: 'Drop event at new position' },
+      { keys: ['Esc'], description: 'Cancel move' },
+    ],
+  },
+  {
     title: 'Help',
     shortcuts: [{ keys: ['?'], description: 'Show this help' }],
   },

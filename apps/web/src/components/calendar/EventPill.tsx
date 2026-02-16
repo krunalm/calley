@@ -2,10 +2,11 @@ import { useDraggable } from '@dnd-kit/core';
 import { parseISO } from 'date-fns';
 import { formatInTimeZone } from 'date-fns-tz';
 import { Repeat } from 'lucide-react';
-import { memo, useCallback, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 
 import { EventDetailPopover } from '@/components/events/EventDetailPopover';
 import { useUserTimezone } from '@/hooks/use-user-timezone';
+import { registerEventElement, unregisterEventElement } from '@/lib/keyboard-utils';
 import { cn } from '@/lib/utils';
 
 import type { Event } from '@calley/shared';
@@ -43,6 +44,17 @@ export const EventPill = memo(function EventPill({
     ? 'All day'
     : formatInTimeZone(parseISO(event.startAt), userTimezone, 'h:mm a');
 
+  // Register this element in the event WeakMap so the centralized
+  // Shift+Enter handler in useKeyboardShortcuts can look up the event.
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const el = buttonRef.current;
+    if (el) {
+      registerEventElement(el, event);
+      return () => unregisterEventElement(el);
+    }
+  }, [event]);
+
   const handleClick = useCallback(() => {
     if (isDragging) return;
     if (showPopover) {
@@ -68,10 +80,13 @@ export const EventPill = memo(function EventPill({
       {...listeners}
     >
       <button
+        ref={buttonRef}
         type="button"
         className="flex min-w-0 flex-1 items-center gap-1 text-left"
         onClick={handleClick}
-        tabIndex={-1}
+        tabIndex={0}
+        data-event-id={event.id}
+        aria-label={`${event.title}, ${timeLabel}. Shift+Enter to move with keyboard.`}
       >
         {!event.isAllDay && (
           <span className="shrink-0 font-mono text-[10px] text-[var(--muted-foreground)]">

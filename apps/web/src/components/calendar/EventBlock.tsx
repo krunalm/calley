@@ -2,10 +2,11 @@ import { useDraggable } from '@dnd-kit/core';
 import { parseISO } from 'date-fns';
 import { formatInTimeZone } from 'date-fns-tz';
 import { MapPin, Repeat } from 'lucide-react';
-import { memo, useCallback, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 
 import { EventDetailPopover } from '@/components/events/EventDetailPopover';
 import { useUserTimezone } from '@/hooks/use-user-timezone';
+import { registerEventElement, unregisterEventElement } from '@/lib/keyboard-utils';
 import { cn } from '@/lib/utils';
 
 import type { Event } from '@calley/shared';
@@ -73,6 +74,17 @@ export const EventBlock = memo(function EventBlock({
 
   const isDragging = isMoveDragging || isResizeDragging;
 
+  // Register this element in the event WeakMap so the centralized
+  // Shift+Enter handler in useKeyboardShortcuts can look up the event.
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const el = buttonRef.current;
+    if (el) {
+      registerEventElement(el, event);
+      return () => unregisterEventElement(el);
+    }
+  }, [event]);
+
   const handleClick = useCallback(() => {
     if (isDragging) return;
     if (showPopover) {
@@ -104,10 +116,13 @@ export const EventBlock = memo(function EventBlock({
     >
       {/* Click layer - separate from drag to avoid conflicts */}
       <button
+        ref={buttonRef}
         type="button"
         className="flex flex-1 flex-col overflow-hidden px-1.5 text-left"
         onClick={handleClick}
-        tabIndex={-1}
+        tabIndex={0}
+        data-event-id={event.id}
+        aria-label={`${event.title}, ${timeLabel}. Shift+Enter to move with keyboard.`}
       >
         {isCompact ? (
           <div className="flex items-center gap-1 overflow-hidden">
@@ -142,9 +157,11 @@ export const EventBlock = memo(function EventBlock({
       {draggable && !isCompact && (
         <div
           ref={setResizeRef}
-          className="absolute bottom-0 left-0 right-0 flex h-3 cursor-s-resize items-center justify-center"
           {...resizeAttrs}
           {...resizeListeners}
+          role="separator"
+          aria-label={`Resize ${event.title}`}
+          className="absolute bottom-0 left-0 right-0 flex h-3 cursor-s-resize items-center justify-center"
         >
           <div className="h-[2px] w-6 rounded-full bg-current opacity-30" />
         </div>

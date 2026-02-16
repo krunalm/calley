@@ -707,46 +707,53 @@
 ### 8.1 Accessibility Audit & Fixes
 
 - [ ] Run axe-core automated audit on all pages
-- [ ] Add ARIA labels to all interactive elements:
-  - [ ] Calendar grid: `role="grid"`, `role="gridcell"` with date labels
-  - [ ] Event pills: `role="button"` with event title + time in aria-label
-  - [ ] Form inputs: associated labels
-  - [ ] Buttons: descriptive aria-labels for icon-only buttons
-- [ ] Implement focus management:
-  - [ ] Focus trapped in modals and drawers (Radix handles this)
-  - [ ] Focus restored to trigger element on close
-  - [ ] Skip navigation link ("Skip to main content") as first focusable element
-- [ ] Implement keyboard DnD alternatives:
-  - [ ] Arrow keys to navigate between events/time slots
-  - [ ] Enter to "pick up" selected item
-  - [ ] Arrow keys to move to new position
-  - [ ] Enter to "drop", Escape to cancel
+- [x] Add ARIA labels to all interactive elements:
+  - [x] Calendar grid: `role="grid"`, `role="gridcell"` with date labels
+  - [x] Event pills: `role="button"` with event title + time in aria-label
+  - [x] Form inputs: associated labels + `aria-describedby` for error messages
+  - [x] Buttons: descriptive aria-labels for icon-only buttons
+- [x] Implement focus management:
+  - [x] Focus trapped in modals and drawers (Radix handles this)
+  - [x] Focus restored to trigger element on close
+  - [x] Skip navigation link ("Skip to main content") as first focusable element
+- [x] Implement keyboard DnD alternatives:
+  - [x] Shift+Enter to "pick up" focused event
+  - [x] Arrow keys to move (Up/Down: ±30 min, Left/Right: ±1 day)
+  - [x] Enter to "drop", Escape to cancel
+  - [x] KeyboardSensor added to @dnd-kit DndContext
 - [ ] Test with VoiceOver (macOS) or NVDA (Windows)
-- [ ] Verify `prefers-reduced-motion` disables all animations
+- [x] Verify `prefers-reduced-motion` disables all animations (CSS global rule)
 - [ ] Verify color contrast meets WCAG AA (4.5:1) for all text
-- [ ] Verify all form errors announced via `aria-live="assertive"`
+- [x] Verify all form errors announced via `aria-live="assertive"` + `role="alert"`
+- [x] Add global AriaLiveRegion for screen reader announcements
+- [x] Add screen reader announcements for view changes and navigation
+- [x] Fix tabIndex on event pill/block buttons (0 instead of -1)
 - [ ] Test entire flow with keyboard only (no mouse)
 
 ### 8.2 Performance Optimization
 
-- [ ] Implement route-based code splitting (lazy load all route components)
-- [ ] Lazy load heavy components: Tiptap editor, RecurrenceBuilderModal, color picker
-- [ ] Wrap DayCell, EventPill, EventBlock, TaskItem with `React.memo`
-- [ ] Implement `useMemo` for expensive date calculations in calendar views
-- [ ] Verify Agenda view uses virtual scrolling for 500+ items
-- [ ] Implement prefetching: when viewing March, prefetch Feb + April events
-- [ ] Add `<link rel="preconnect">` for Google Fonts and API domain
-- [ ] Analyze bundle size with `vite-plugin-visualizer`:
+- [x] Implement route-based code splitting (lazy load all route components)
+  - [x] Settings pages split into `.lazy.tsx` files (profile, calendars, notifications, sessions)
+  - [x] Calendar views lazy loaded with React.lazy (MonthView, WeekView, DayView, AgendaView)
+- [x] Lazy load heavy components: Tiptap editor, RecurrenceBuilderModal, color picker
+  - [x] EventDrawer, SearchModal, KeyboardShortcutsHelp lazy loaded in app layout
+  - [x] RecurrenceBuilderModal already lazy loaded in EventDrawer + TaskDrawer
+- [x] Wrap DayCell, EventPill, EventBlock, TaskItem with `React.memo` (already implemented)
+- [x] Implement `useMemo` for expensive date calculations in calendar views (already implemented)
+- [x] Verify Agenda view uses virtual scrolling for 500+ items (@tanstack/react-virtual)
+- [x] Implement prefetching: MonthView prefetches ±1 month, WeekView ±1 week buffer
+- [x] Add `<link rel="preconnect">` for Google Fonts and API domain (dns-prefetch)
+- [x] Analyze bundle size with `rollup-plugin-visualizer`:
   - [ ] Verify initial JS < 150KB gzipped
   - [ ] Identify and tree-shake unused imports
 - [ ] Test Core Web Vitals with Lighthouse:
   - [ ] LCP < 1.5s
   - [ ] INP < 100ms
   - [ ] CLS < 0.05
-- [ ] Optimize database queries:
+- [x] Optimize database queries:
   - [ ] Verify all date range queries use indexes (EXPLAIN ANALYZE)
-  - [ ] Verify connection pool settings (max 20 connections)
-  - [ ] Add query timeout (30 seconds)
+  - [x] Verify connection pool settings (max 20 connections, 30min max lifetime)
+  - [x] Add query timeout configuration (DB_QUERY_TIMEOUT env var, default 30s)
 
 ### 8.3 Animations & Transitions
 

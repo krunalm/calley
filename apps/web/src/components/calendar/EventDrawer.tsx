@@ -349,9 +349,20 @@ export function EventDrawer() {
             {/* Title */}
             <div className="space-y-1.5">
               <Label htmlFor="event-title">Title</Label>
-              <Input id="event-title" placeholder="Event title" autoFocus {...register('title')} />
+              <Input
+                id="event-title"
+                placeholder="Event title"
+                autoFocus
+                aria-describedby={errors.title ? 'event-title-error' : undefined}
+                aria-invalid={!!errors.title}
+                {...register('title')}
+              />
               {errors.title && (
-                <p className="text-xs text-[var(--destructive)]" role="alert">
+                <p
+                  id="event-title-error"
+                  className="text-xs text-[var(--destructive)]"
+                  role="alert"
+                >
                   {errors.title.message}
                 </p>
               )}
@@ -408,9 +419,19 @@ export function EventDrawer() {
               {!isAllDay && (
                 <div className="space-y-1.5">
                   <Label htmlFor="event-end-time">End time</Label>
-                  <Input id="event-end-time" type="time" {...register('endTime')} />
+                  <Input
+                    id="event-end-time"
+                    type="time"
+                    aria-describedby={errors.endTime ? 'event-end-time-error' : undefined}
+                    aria-invalid={!!errors.endTime}
+                    {...register('endTime')}
+                  />
                   {errors.endTime && (
-                    <p className="text-xs text-[var(--destructive)]" role="alert">
+                    <p
+                      id="event-end-time-error"
+                      className="text-xs text-[var(--destructive)]"
+                      role="alert"
+                    >
                       {errors.endTime.message}
                     </p>
                   )}

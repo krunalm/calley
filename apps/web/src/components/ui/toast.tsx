@@ -1,5 +1,10 @@
 // Using sonner for toast notifications as recommended by shadcn/ui
 // This re-exports sonner's Toaster with Calley design tokens
+//
+// Accessibility: Sonner renders toasts in an `<ol>` with role="status"
+// and aria-live="polite" for standard toasts, and role="alert" with
+// aria-live="assertive" for error toasts. The `richColors` prop applies
+// distinct background colors to success/error/warning/info variants.
 
 import { Toaster as Sonner } from 'sonner';
 
@@ -9,6 +14,8 @@ function Toaster({ ...props }: ToasterProps) {
   return (
     <Sonner
       className="toaster group"
+      richColors
+      closeButton
       toastOptions={{
         classNames: {
           toast:

@@ -89,10 +89,14 @@ export function useSSE() {
             title: string;
             itemType: string;
           };
-          const icon = data.itemType === 'task' ? 'Task' : 'Event';
-          toast(`${icon} reminder: ${data.title}`);
+          const label = data.itemType === 'task' ? 'Task' : 'Event';
+          toast.info(`${label} reminder: ${data.title}`, {
+            duration: 8000,
+          });
         } catch {
-          toast('You have a reminder');
+          toast.info('You have a reminder', {
+            duration: 8000,
+          });
         }
       });
 

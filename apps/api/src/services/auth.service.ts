@@ -13,6 +13,7 @@ import {
   sessions,
   users,
 } from '../db/schema';
+import { accountLockoutEmail } from '../emails/account-lockout';
 import { passwordResetEmail } from '../emails/password-reset';
 import { sendEmail } from '../lib/email';
 import { AppError } from '../lib/errors';
@@ -35,6 +36,7 @@ import type { Cookie } from 'lucia';
 
 const LOCKOUT_THRESHOLD = 5;
 const LOCKOUT_DURATION_MS = 30 * 60 * 1000; // 30 minutes
+const LOCKOUT_DURATION_MINUTES = 30;
 const MAX_SESSIONS_PER_USER = 10;
 const PASSWORD_RESET_TOKEN_EXPIRY_MS = 60 * 60 * 1000; // 1 hour
 const PASSWORD_RESET_TOKEN_EXPIRY_MINUTES = 60;
@@ -234,6 +236,22 @@ export class AuthService {
           metadata: { failedAttempts: newFailedLogins },
           ipAddress: meta.ipAddress,
           userAgent: meta.userAgent,
+        });
+
+        // Send lockout warning email (fire-and-forget — don't block the response)
+        const frontendUrl = process.env.CORS_ORIGIN || 'http://localhost:5173';
+        const resetPasswordUrl = `${frontendUrl}/forgot-password`;
+        const { html, text } = accountLockoutEmail({
+          lockoutDurationMinutes: LOCKOUT_DURATION_MINUTES,
+          resetPasswordUrl,
+        });
+        sendEmail({
+          to: user.email,
+          subject: 'Security Alert: Account Temporarily Locked — Calley',
+          html,
+          text,
+        }).catch((err) => {
+          logger.error({ err, userId: user.id }, 'Failed to send account lockout email');
         });
 
         throw new AppError(401, 'UNAUTHORIZED', 'Invalid email or password');

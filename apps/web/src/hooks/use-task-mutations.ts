@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
-import { apiClient } from '@/lib/api-client';
+import { apiClient, ApiError } from '@/lib/api-client';
 import { queryKeys } from '@/lib/query-keys';
 
 import type { CreateTaskInput, EditScope, Task, UpdateTaskInput } from '@calley/shared';
@@ -62,10 +62,11 @@ export function useCreateTask() {
     onSuccess: () => {
       toast.success('Task created');
     },
-    onError: (_err, _vars, context) => {
+    onError: (err, _vars, context) => {
       if (context?.snapshot) {
         restoreTaskCaches(queryClient, context.snapshot);
       }
+      if (err instanceof ApiError && err.status === 429) return;
       toast.error('Failed to create task');
     },
     onSettled: () => {
@@ -112,10 +113,11 @@ export function useUpdateTask() {
     onSuccess: () => {
       toast.success('Task updated');
     },
-    onError: (_err, _vars, context) => {
+    onError: (err, _vars, context) => {
       if (context?.snapshot) {
         restoreTaskCaches(queryClient, context.snapshot);
       }
+      if (err instanceof ApiError && err.status === 429) return;
       toast.error('Failed to update task');
     },
     onSettled: () => {
@@ -159,10 +161,11 @@ export function useDeleteTask() {
     onSuccess: () => {
       toast.success('Task deleted');
     },
-    onError: (_err, _vars, context) => {
+    onError: (err, _vars, context) => {
       if (context?.snapshot) {
         restoreTaskCaches(queryClient, context.snapshot);
       }
+      if (err instanceof ApiError && err.status === 429) return;
       toast.error('Failed to delete task');
     },
     onSettled: () => {
@@ -199,10 +202,11 @@ export function useToggleTask() {
 
       return { snapshot };
     },
-    onError: (_err, _vars, context) => {
+    onError: (err, _vars, context) => {
       if (context?.snapshot) {
         restoreTaskCaches(queryClient, context.snapshot);
       }
+      if (err instanceof ApiError && err.status === 429) return;
       toast.error('Failed to update task');
     },
     onSettled: () => {
@@ -237,10 +241,11 @@ export function useReorderTasks() {
 
       return { snapshot };
     },
-    onError: (_err, _vars, context) => {
+    onError: (err, _vars, context) => {
       if (context?.snapshot) {
         restoreTaskCaches(queryClient, context.snapshot);
       }
+      if (err instanceof ApiError && err.status === 429) return;
       toast.error('Failed to reorder tasks');
     },
     onSettled: () => {
@@ -282,10 +287,11 @@ export function useBulkCompleteTasks() {
     onSuccess: (_data, ids) => {
       toast.success(`${ids.length} task${ids.length > 1 ? 's' : ''} completed`);
     },
-    onError: (_err, _vars, context) => {
+    onError: (err, _vars, context) => {
       if (context?.snapshot) {
         restoreTaskCaches(queryClient, context.snapshot);
       }
+      if (err instanceof ApiError && err.status === 429) return;
       toast.error('Failed to complete tasks');
     },
     onSettled: () => {
@@ -317,10 +323,11 @@ export function useBulkDeleteTasks() {
     onSuccess: (_data, ids) => {
       toast.success(`${ids.length} task${ids.length > 1 ? 's' : ''} deleted`);
     },
-    onError: (_err, _vars, context) => {
+    onError: (err, _vars, context) => {
       if (context?.snapshot) {
         restoreTaskCaches(queryClient, context.snapshot);
       }
+      if (err instanceof ApiError && err.status === 429) return;
       toast.error('Failed to delete tasks');
     },
     onSettled: () => {

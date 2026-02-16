@@ -1,3 +1,5 @@
+import { toast } from 'sonner';
+
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
 /**
@@ -34,6 +36,7 @@ export class ApiError extends Error {
  * - Auto-parse JSON responses
  * - Error handling (throw on non-2xx, extract error body)
  * - 401 handling → redirect to login
+ * - 429 handling → show rate limit warning toast with Retry-After
  */
 class ApiClient {
   private async request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -60,6 +63,21 @@ class ApiClient {
     if (res.status === 401) {
       window.location.href = '/login';
       throw new ApiError(401, { code: 'UNAUTHORIZED', message: 'Unauthorized' });
+    }
+
+    // Rate limit — show a warning toast with Retry-After info
+    if (res.status === 429) {
+      const retryAfter = res.headers.get('Retry-After');
+      const seconds = retryAfter ? parseInt(retryAfter, 10) : undefined;
+      const message =
+        seconds && !isNaN(seconds)
+          ? `Too many requests. Please try again in ${seconds} seconds.`
+          : 'Too many requests. Please try again later.';
+      toast.warning(message);
+      const body = await res.json().catch(() => ({
+        error: { code: 'RATE_LIMITED', message },
+      }));
+      throw new ApiError(429, body.error);
     }
 
     if (!res.ok) {

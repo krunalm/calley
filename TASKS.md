@@ -591,7 +591,7 @@
   - [x] Verify reminder exists and isn't sent (idempotent)
   - [x] Verify parent event/task exists
   - [x] Based on method: send push, email, or both
-  - [ ] Emit `reminder:fired` on SSE (deferred to 6.3)
+  - [x] Emit `reminder:fired` on SSE (implemented in 6.3)
   - [x] Set `sentAt` on reminder record
   - [x] Retry failed jobs 3 times with exponential backoff
 - [x] Implement `email.job.ts` — send reminder email via Resend with formatted template
@@ -605,35 +605,35 @@
 
 ### 6.3 SSE Implementation
 
-- [ ] Implement `sse.service.ts`:
-  - [ ] Manage active connections Map (userId → Set of response streams)
-  - [ ] `addConnection(userId, stream)` / `removeConnection(userId, stream)`
-  - [ ] `emit(userId, eventType, data)` — send to all connections for that user
-  - [ ] Heartbeat: send comment every 30 seconds per connection
-  - [ ] Max 5 connections per user (close oldest on overflow)
-- [ ] Implement `stream.routes.ts`:
-  - [ ] `GET /stream` — require auth, create SSE stream, register connection, cleanup on close
-- [ ] Wire SSE emissions into event, task, category, and reminder services (emit on create/update/delete)
-- [ ] Frontend: implement `useSSE` hook:
-  - [ ] Connect to `/stream` using EventSource
-  - [ ] Parse events and invalidate relevant TanStack Query cache keys
-  - [ ] Reconnect with exponential backoff (EventSource built-in + manual fallback)
+- [x] Implement `sse.service.ts`:
+  - [x] Manage active connections Map (userId → Set of response streams)
+  - [x] `addConnection(userId, stream)` / `removeConnection(userId, stream)`
+  - [x] `emit(userId, eventType, data)` — send to all connections for that user
+  - [x] Heartbeat: send comment every 30 seconds per connection
+  - [x] Max 5 connections per user (close oldest on overflow)
+- [x] Implement `stream.routes.ts`:
+  - [x] `GET /stream` — require auth, create SSE stream, register connection, cleanup on close
+- [x] Wire SSE emissions into event, task, category, and reminder services (emit on create/update/delete)
+- [x] Frontend: implement `useSSE` hook:
+  - [x] Connect to `/stream` using EventSource
+  - [x] Parse events and invalidate relevant TanStack Query cache keys
+  - [x] Reconnect with exponential backoff (EventSource built-in + manual fallback)
   - [ ] Show connection status indicator (optional)
 
 ### 6.4 Web Push Notifications
 
 - [ ] Generate VAPID key pair, store in environment variables
-- [ ] Create minimal Service Worker (`public/sw.js`) for push event handling:
-  - [ ] Listen for `push` event → show notification with title, body, icon
-  - [ ] Listen for `notificationclick` → open URL from data payload
-- [ ] Implement `usePushNotifications` hook:
-  - [ ] Check `Notification.permission`
-  - [ ] Request permission when user enables notifications in settings
-  - [ ] Subscribe via `PushManager.subscribe()` with VAPID public key
-  - [ ] Send subscription to `POST /push-subscriptions` API
-- [ ] Backend: Implement push subscription CRUD endpoints
-- [ ] Backend: Send push notifications in reminder job using `web-push` library
-- [ ] Handle expired subscriptions (delete on push error)
+- [x] Create minimal Service Worker (`public/sw.js`) for push event handling:
+  - [x] Listen for `push` event → show notification with title, body, icon
+  - [x] Listen for `notificationclick` → open URL from data payload
+- [x] Implement `usePushNotifications` hook:
+  - [x] Check `Notification.permission`
+  - [x] Request permission when user enables notifications in settings
+  - [x] Subscribe via `PushManager.subscribe()` with VAPID public key
+  - [x] Send subscription to `POST /push-subscriptions` API
+- [x] Backend: Implement push subscription CRUD endpoints
+- [x] Backend: Send push notifications in reminder job using `web-push` library
+- [x] Handle expired subscriptions (delete on push error)
 
 ### 6.5 In-App Toast Notifications
 

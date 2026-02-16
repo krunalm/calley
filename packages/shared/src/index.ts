@@ -68,6 +68,12 @@ export {
   reminderMethodSchema,
 } from './schemas/reminder.schema';
 
+// Push Subscriptions
+export {
+  createPushSubscriptionSchema,
+  pushSubscriptionIdParamSchema,
+} from './schemas/push-subscription.schema';
+
 // Search
 export { searchQuerySchema } from './schemas/search.schema';
 
@@ -82,6 +88,7 @@ export type {
   ChangePasswordInput,
   CreateCategoryInput,
   CreateEventInput,
+  CreatePushSubscriptionInput,
   CreateReminderInput,
   CreateTaskInput,
   DateRangeInput,
@@ -95,6 +102,7 @@ export type {
   ListTasksQuery,
   LoginInput,
   PaginationInput,
+  PushSubscription,
   Reminder,
   ReorderTasksInput,
   ResetPasswordInput,

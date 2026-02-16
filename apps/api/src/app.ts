@@ -10,8 +10,10 @@ import auth from './routes/auth.routes';
 import categoriesRouter from './routes/categories.routes';
 import eventsRouter from './routes/events.routes';
 import health from './routes/health.routes';
+import pushSubscriptionsRouter from './routes/push-subscriptions.routes';
 import remindersRouter from './routes/reminders.routes';
 import searchRouter from './routes/search.routes';
+import streamRouter from './routes/stream.routes';
 import tasksRouter from './routes/tasks.routes';
 
 import type { AppVariables } from './types/hono';
@@ -55,3 +57,9 @@ app.route('/reminders', remindersRouter);
 
 // Search routes (auth required, rate limited at 30/min per user)
 app.route('/search', searchRouter);
+
+// Push subscription routes (auth required, rate limited)
+app.route('/push-subscriptions', pushSubscriptionsRouter);
+
+// SSE stream route (auth required, rate limited)
+app.route('/stream', streamRouter);

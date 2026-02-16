@@ -5,6 +5,7 @@ import { initializeJobProcessing } from './jobs';
 import { logger } from './lib/logger';
 import { closeQueues } from './lib/queue';
 import { connectRedis, disconnectRedis } from './lib/redis';
+import { sseService } from './services/sse.service';
 
 const port = Number(process.env.PORT) || 4000;
 
@@ -57,6 +58,9 @@ async function shutdown(signal: string) {
   } catch (err) {
     logger.error({ err }, 'Error closing HTTP server');
   }
+
+  // Close all SSE connections
+  sseService.closeAll();
 
   // Close BullMQ workers and queues (before Redis disconnect)
   try {

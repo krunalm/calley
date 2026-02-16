@@ -7,6 +7,7 @@ import { logger } from '../lib/logger';
 import { reminderQueue } from '../lib/queue';
 import { sanitizeHtml } from '../lib/sanitize';
 import { recurrenceService } from './recurrence.service';
+import { sseService } from './sse.service';
 
 import type { CreateEventInput, EditScope, UpdateEventInput } from '@calley/shared';
 
@@ -350,7 +351,17 @@ export class EventService {
 
     logger.info({ userId, eventId: event.inserted.id }, 'Event created');
 
-    return toEventResponse(event.inserted as EventRow);
+    const response = toEventResponse(event.inserted as EventRow);
+
+    sseService.emit(userId, 'event:created', {
+      id: response.id,
+      title: response.title,
+      startAt: response.startAt,
+      endAt: response.endAt,
+      categoryId: response.categoryId,
+    });
+
+    return response;
   }
 
   /**
@@ -443,6 +454,7 @@ export class EventService {
     if (!isRecurring || !scope) {
       await this.softDelete(userId, eventId);
       logger.info({ userId, eventId }, 'Event deleted');
+      sseService.emit(userId, 'event:deleted', { id: eventId });
       return;
     }
 
@@ -461,6 +473,7 @@ export class EventService {
     }
 
     logger.info({ userId, eventId, scope }, 'Event deleted');
+    sseService.emit(userId, 'event:deleted', { id: eventId, scope });
   }
 
   /**
@@ -498,7 +511,17 @@ export class EventService {
 
     logger.info({ userId, eventId: duplicate.id, sourceEventId: eventId }, 'Event duplicated');
 
-    return toEventResponse(duplicate as EventRow);
+    const response = toEventResponse(duplicate as EventRow);
+
+    sseService.emit(userId, 'event:created', {
+      id: response.id,
+      title: response.title,
+      startAt: response.startAt,
+      endAt: response.endAt,
+      categoryId: response.categoryId,
+    });
+
+    return response;
   }
 
   /**
@@ -571,7 +594,11 @@ export class EventService {
 
     logger.info({ userId, eventId }, 'Event updated');
 
-    return toEventResponse(updated as EventRow);
+    const response = toEventResponse(updated as EventRow);
+
+    sseService.emit(userId, 'event:updated', { id: response.id, ...data });
+
+    return response;
   }
 
   /**

@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { formatInTimeZone } from 'date-fns-tz';
 import { toast } from 'sonner';
 
 import { apiClient, ApiError } from '@/lib/api-client';
@@ -31,8 +32,8 @@ export function useCreateCategory() {
         isDefault: false,
         visible: true,
         sortOrder: (previous?.length ?? 0) + 1,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        createdAt: formatInTimeZone(new Date(), 'UTC', "yyyy-MM-dd'T'HH:mm:ssXXX"),
+        updatedAt: formatInTimeZone(new Date(), 'UTC', "yyyy-MM-dd'T'HH:mm:ssXXX"),
       };
 
       queryClient.setQueryData<CalendarCategory[]>(queryKeys.categories.all, (old) =>
@@ -73,7 +74,13 @@ export function useUpdateCategory() {
 
       queryClient.setQueryData<CalendarCategory[]>(queryKeys.categories.all, (old) =>
         old?.map((cat) =>
-          cat.id === categoryId ? { ...cat, ...data, updatedAt: new Date().toISOString() } : cat,
+          cat.id === categoryId
+            ? {
+                ...cat,
+                ...data,
+                updatedAt: formatInTimeZone(new Date(), 'UTC', "yyyy-MM-dd'T'HH:mm:ssXXX"),
+              }
+            : cat,
         ),
       );
 

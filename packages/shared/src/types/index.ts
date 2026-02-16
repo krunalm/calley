@@ -155,6 +155,12 @@ export interface PushSubscription {
   createdAt: string;
 }
 
+export interface OAuthAccount {
+  id: string;
+  provider: string;
+  createdAt: string;
+}
+
 export interface Session {
   id: string;
   userAgent: string | null;

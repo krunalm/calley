@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { formatInTimeZone } from 'date-fns-tz';
 import { toast } from 'sonner';
 
 import { apiClient, ApiError } from '@/lib/api-client';
@@ -45,8 +46,8 @@ export function useCreateEvent() {
         exDates: [],
         recurringEventId: null,
         originalDate: null,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        createdAt: formatInTimeZone(new Date(), 'UTC', "yyyy-MM-dd'T'HH:mm:ssXXX"),
+        updatedAt: formatInTimeZone(new Date(), 'UTC', "yyyy-MM-dd'T'HH:mm:ssXXX"),
         deletedAt: null,
       };
 
@@ -103,7 +104,11 @@ export function useUpdateEvent() {
             key,
             cacheData.map((event) =>
               event.id === eventId
-                ? { ...event, ...data, updatedAt: new Date().toISOString() }
+                ? {
+                    ...event,
+                    ...data,
+                    updatedAt: formatInTimeZone(new Date(), 'UTC', "yyyy-MM-dd'T'HH:mm:ssXXX"),
+                  }
                 : event,
             ),
           );

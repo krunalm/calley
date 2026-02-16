@@ -101,6 +101,7 @@ export type {
   ListRemindersQuery,
   ListTasksQuery,
   LoginInput,
+  OAuthAccount,
   PaginationInput,
   PushSubscription,
   Reminder,

@@ -1,3 +1,4 @@
+import { useNavigate } from '@tanstack/react-router';
 import { LogOut, Settings, User as UserIcon } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -13,6 +14,7 @@ import { useCurrentUser, useLogout } from '@/hooks/use-auth';
 export function UserMenu() {
   const { data: user } = useCurrentUser();
   const logout = useLogout();
+  const navigate = useNavigate();
 
   const initials = user?.name
     ? user.name
@@ -46,11 +48,11 @@ export function UserMenu() {
             <DropdownMenuSeparator />
           </>
         )}
-        <DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => navigate({ to: '/settings/profile' })}>
           <UserIcon className="mr-2 h-4 w-4" />
           Profile
         </DropdownMenuItem>
-        <DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => navigate({ to: '/settings' })}>
           <Settings className="mr-2 h-4 w-4" />
           Settings
         </DropdownMenuItem>

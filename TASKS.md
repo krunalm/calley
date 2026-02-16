@@ -661,42 +661,42 @@
 
 ### 7.1 Profile Settings
 
-- [ ] Build `/settings/profile` page:
-  - [ ] Edit name
-  - [ ] Display email (read-only for OAuth users, editable for email/password users)
-  - [ ] Avatar display (from OAuth provider or Gravatar fallback — no upload in v1)
-  - [ ] Timezone selector (searchable dropdown of IANA timezones)
-  - [ ] Week start preference (Sunday / Monday)
-  - [ ] Time format preference (12h / 24h)
-  - [ ] Change password section (current + new + confirm — hidden for OAuth-only users)
-  - [ ] Connected accounts section (show linked Google/GitHub, allow unlinking if password is set)
-  - [ ] Delete account button (requires password confirmation, shows warning dialog)
+- [x] Build `/settings/profile` page:
+  - [x] Edit name
+  - [x] Display email (read-only for OAuth users, editable for email/password users)
+  - [x] Avatar display (from OAuth provider or Gravatar fallback — no upload in v1)
+  - [x] Timezone selector (searchable dropdown of IANA timezones)
+  - [x] Week start preference (Sunday / Monday)
+  - [x] Time format preference (12h / 24h)
+  - [x] Change password section (current + new + confirm — hidden for OAuth-only users)
+  - [x] Connected accounts section (show linked Google/GitHub, allow unlinking if password is set)
+  - [x] Delete account button (requires password confirmation, shows warning dialog)
 
 ### 7.2 Calendar Settings
 
-- [ ] Build `/settings/calendars` page:
-  - [ ] List all categories with color, name, default indicator
-  - [ ] Create new category
-  - [ ] Edit category (name, color)
-  - [ ] Delete category (with reassignment warning)
+- [x] Build `/settings/calendars` page:
+  - [x] List all categories with color, name, default indicator
+  - [x] Create new category
+  - [x] Edit category (name, color)
+  - [x] Delete category (with reassignment warning)
   - [ ] Reorder categories via drag-and-drop
 
 ### 7.3 Notification Settings
 
-- [ ] Build `/settings/notifications` page:
-  - [ ] Default reminder time for new events (dropdown)
-  - [ ] Default reminder method (push / email / both / none)
-  - [ ] Enable/disable push notifications (triggers permission request)
-  - [ ] Push notification status indicator (granted/denied/not-supported)
-  - [ ] Email notification toggle
+- [x] Build `/settings/notifications` page:
+  - [x] Default reminder time for new events (dropdown)
+  - [x] Default reminder method (push / email / both / none)
+  - [x] Enable/disable push notifications (triggers permission request)
+  - [x] Push notification status indicator (granted/denied/not-supported)
+  - [x] Email notification toggle
 
 ### 7.4 Session Management
 
-- [ ] Build `/settings/sessions` page:
-  - [ ] List all active sessions: device (from userAgent), last active, IP (hashed for display), current session indicator
-  - [ ] "Revoke" button per session (except current)
-  - [ ] "Sign out all other devices" button
-  - [ ] Confirmation dialog for revocation actions
+- [x] Build `/settings/sessions` page:
+  - [x] List all active sessions: device (from userAgent), last active, IP (hashed for display), current session indicator
+  - [x] "Revoke" button per session (except current)
+  - [x] "Sign out all other devices" button
+  - [x] Confirmation dialog for revocation actions
 
 ---
 

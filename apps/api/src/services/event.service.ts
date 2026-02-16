@@ -4,6 +4,7 @@ import { db } from '../db';
 import { calendarCategories, eventExceptions, events, reminders } from '../db/schema';
 import { AppError } from '../lib/errors';
 import { logger } from '../lib/logger';
+import { reminderQueue } from '../lib/queue';
 import { sanitizeHtml } from '../lib/sanitize';
 import { recurrenceService } from './recurrence.service';
 
@@ -299,27 +300,57 @@ export class EventService {
         .returning();
 
       // Create reminder if specified
+      let inlineReminder: typeof reminders.$inferSelect | null = null;
       if (data.reminder) {
         const triggerAt = new Date(
           new Date(data.startAt).getTime() - data.reminder.minutesBefore * 60 * 1000,
         );
 
-        await tx.insert(reminders).values({
-          userId,
-          itemType: 'event',
-          itemId: inserted.id,
-          minutesBefore: data.reminder.minutesBefore,
-          method: data.reminder.method,
-          triggerAt,
-        });
+        const [created] = await tx
+          .insert(reminders)
+          .values({
+            userId,
+            itemType: 'event',
+            itemId: inserted.id,
+            minutesBefore: data.reminder.minutesBefore,
+            method: data.reminder.method,
+            triggerAt,
+          })
+          .returning();
+        inlineReminder = created;
       }
 
-      return inserted;
+      return { inserted, inlineReminder };
     });
 
-    logger.info({ userId, eventId: event.id }, 'Event created');
+    // Enqueue BullMQ job for the inline reminder (outside transaction)
+    if (event.inlineReminder) {
+      try {
+        await reminderQueue.add(
+          'send-reminder',
+          {
+            reminderId: event.inlineReminder.id,
+            userId,
+            itemType: 'event',
+            itemId: event.inserted.id,
+            method: event.inlineReminder.method,
+          },
+          {
+            jobId: event.inlineReminder.id,
+            delay: Math.max(0, event.inlineReminder.triggerAt.getTime() - Date.now()),
+          },
+        );
+      } catch (err) {
+        logger.warn(
+          { err, reminderId: event.inlineReminder.id },
+          'Failed to enqueue inline reminder job',
+        );
+      }
+    }
 
-    return toEventResponse(event as EventRow);
+    logger.info({ userId, eventId: event.inserted.id }, 'Event created');
+
+    return toEventResponse(event.inserted as EventRow);
   }
 
   /**

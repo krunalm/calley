@@ -33,3 +33,9 @@ export const listRemindersQuerySchema = z.object({
 });
 
 export type ListRemindersQuery = z.infer<typeof listRemindersQuerySchema>;
+
+// ─── Reminder ID Param ─────────────────────────────────────────────
+
+export const reminderIdParamSchema = z.object({
+  id: cuid2Schema,
+});

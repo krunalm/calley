@@ -575,33 +575,33 @@
 
 ### 6.1 Reminder Service (Backend)
 
-- [ ] Implement `reminder.service.ts`:
-  - [ ] `createReminder(userId, data)` — compute triggerAt, create record, enqueue BullMQ job
-  - [ ] `deleteReminder(userId, reminderId)` — delete record, cancel BullMQ job
-  - [ ] `listReminders(userId, itemType, itemId)` — reminders for a specific event/task
-  - [ ] `reEnqueueMissedReminders()` — called on startup, re-enqueue unsent reminders
-- [ ] Implement `reminders.routes.ts`
+- [x] Implement `reminder.service.ts`:
+  - [x] `createReminder(userId, data)` — compute triggerAt, create record, enqueue BullMQ job
+  - [x] `deleteReminder(userId, reminderId)` — delete record, cancel BullMQ job
+  - [x] `listReminders(userId, itemType, itemId)` — reminders for a specific event/task
+  - [x] `reEnqueueMissedReminders()` — called on startup, re-enqueue unsent reminders
+- [x] Implement `reminders.routes.ts`
 - [ ] Write tests
 
 ### 6.2 BullMQ Job Processing
 
-- [ ] Configure BullMQ connection to Redis
-- [ ] Implement `reminder.job.ts`:
-  - [ ] Process delayed job at triggerAt
-  - [ ] Verify reminder exists and isn't sent (idempotent)
-  - [ ] Verify parent event/task exists
-  - [ ] Based on method: send push, email, or both
-  - [ ] Emit `reminder:fired` on SSE
-  - [ ] Set `sentAt` on reminder record
-  - [ ] Retry failed jobs 3 times with exponential backoff
-- [ ] Implement `email.job.ts` — send reminder email via Resend with formatted template
-- [ ] Implement `cleanup.job.ts` — scheduled (cron):
-  - [ ] Delete expired sessions daily
-  - [ ] Delete used/expired password reset tokens daily
-  - [ ] Hard delete soft-deleted events/tasks older than 30 days
-  - [ ] Delete sent reminders older than 30 days
-  - [ ] Delete audit logs older than 90 days
-- [ ] Register cleanup job as a BullMQ repeatable job (daily at 3 AM UTC)
+- [x] Configure BullMQ connection to Redis
+- [x] Implement `reminder.job.ts`:
+  - [x] Process delayed job at triggerAt
+  - [x] Verify reminder exists and isn't sent (idempotent)
+  - [x] Verify parent event/task exists
+  - [x] Based on method: send push, email, or both
+  - [ ] Emit `reminder:fired` on SSE (deferred to 6.3)
+  - [x] Set `sentAt` on reminder record
+  - [x] Retry failed jobs 3 times with exponential backoff
+- [x] Implement `email.job.ts` — send reminder email via Resend with formatted template
+- [x] Implement `cleanup.job.ts` — scheduled (cron):
+  - [x] Delete expired sessions daily
+  - [x] Delete used/expired password reset tokens daily
+  - [x] Hard delete soft-deleted events/tasks older than 30 days
+  - [x] Delete sent reminders older than 30 days
+  - [x] Delete audit logs older than 90 days
+- [x] Register cleanup job as a BullMQ repeatable job (daily at 3 AM UTC)
 
 ### 6.3 SSE Implementation
 
@@ -648,8 +648,8 @@
 
 ### 6.6 Email Notifications
 
-- [ ] Create email template: reminder notification (event/task title, time, link to app)
-- [ ] Create email template: password reset
+- [x] Create email template: reminder notification (event/task title, time, link to app)
+- [x] Create email template: password reset
 - [ ] Create email template: account lockout warning
 - [ ] Test email delivery in development (console fallback) and with Resend in staging
 

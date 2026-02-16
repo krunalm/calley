@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { createEvent, signup, TEST_USER } from './helpers';
+import { createEvent, createTestUser, signup, verifyNavigationShortcuts } from './helpers';
 
 /**
  * P2 — Edge case E2E tests.
@@ -13,10 +13,7 @@ test.describe('P2 — Edge Cases', () => {
   test('Category create → assign to event → delete category → verify event reassigned', async ({
     page,
   }) => {
-    const user = {
-      ...TEST_USER,
-      email: `e2e-category-${Date.now()}@example.com`,
-    };
+    const user = createTestUser('p2-category');
     await signup(page, user);
 
     // 1. Navigate to settings to create a category
@@ -42,11 +39,11 @@ test.describe('P2 — Edge Cases', () => {
       await page.waitForTimeout(1000);
     }
 
-    // 2. Go back to calendar and create an event with this category
+    // 2. Go back to calendar and create an event assigned to this category
     await page.goto('/calendar');
     await page.waitForTimeout(1000);
 
-    await createEvent(page, { title: 'Categorized Event' });
+    await createEvent(page, { title: 'Categorized Event', category: 'Temporary Category' });
 
     // 3. Go back to settings and delete the category
     if (await settingsLink.isVisible({ timeout: 3000 }).catch(() => false)) {
@@ -59,7 +56,6 @@ test.describe('P2 — Edge Cases', () => {
     // Find the category and delete it
     const categoryItem = page.getByText('Temporary Category').first();
     if (await categoryItem.isVisible({ timeout: 3000 }).catch(() => false)) {
-      // Look for delete button
       const deleteBtn = page
         .locator('[data-testid="category-item"], li, [role="listitem"]')
         .filter({ hasText: 'Temporary Category' })
@@ -81,20 +77,14 @@ test.describe('P2 — Edge Cases', () => {
     await page.goto('/calendar');
     await page.waitForTimeout(1000);
 
-    const eventPill = page.getByText('Categorized Event').first();
     // Event should still be visible — it was reassigned to the default category
-    if (await eventPill.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await expect(eventPill).toBeVisible();
-    }
+    await expect(page.getByText('Categorized Event').first()).toBeVisible({ timeout: 10_000 });
   });
 
   test('Keyboard-only flow: navigate calendar, create event, complete task (no mouse)', async ({
     page,
   }) => {
-    const user = {
-      ...TEST_USER,
-      email: `e2e-keyboard-${Date.now()}@example.com`,
-    };
+    const user = createTestUser('p2-keyboard');
     await signup(page, user);
     await page.waitForTimeout(1000);
 
@@ -122,15 +112,8 @@ test.describe('P2 — Edge Cases', () => {
       await page.waitForTimeout(500);
     }
 
-    // Navigate with arrow keys
-    await page.keyboard.press('ArrowRight');
-    await page.waitForTimeout(300);
-    await page.keyboard.press('ArrowLeft');
-    await page.waitForTimeout(300);
-
-    // Test 't' shortcut for "today"
-    await page.keyboard.press('t');
-    await page.waitForTimeout(300);
+    // Use shared helper for navigation shortcuts (arrows, today, escape)
+    await verifyNavigationShortcuts(page);
 
     // Test '?' shortcut for keyboard shortcuts help
     await page.keyboard.press('?');
@@ -144,10 +127,7 @@ test.describe('P2 — Edge Cases', () => {
   test('Quick create from time slot click → Enter to save → verify event appears', async ({
     page,
   }) => {
-    const user = {
-      ...TEST_USER,
-      email: `e2e-quickcreate-${Date.now()}@example.com`,
-    };
+    const user = createTestUser('p2-quickcreate');
     await signup(page, user);
 
     // Switch to week view for time slots
@@ -173,17 +153,13 @@ test.describe('P2 — Edge Cases', () => {
         await page.waitForTimeout(1000);
 
         // Verify event appears
-        const eventPill = page.getByText('Quick Event').first();
-        await expect(eventPill).toBeVisible({ timeout: 10_000 });
+        await expect(page.getByText('Quick Event').first()).toBeVisible({ timeout: 10_000 });
       }
     }
   });
 
   test('All keyboard shortcuts work correctly', async ({ page }) => {
-    const user = {
-      ...TEST_USER,
-      email: `e2e-shortcuts-${Date.now()}@example.com`,
-    };
+    const user = createTestUser('p2-shortcuts');
     await signup(page, user);
     await page.waitForTimeout(1000);
 
@@ -204,19 +180,8 @@ test.describe('P2 — Edge Cases', () => {
     await page.keyboard.press('a');
     await page.waitForTimeout(500);
 
-    // 't' for today
-    await page.keyboard.press('t');
-    await page.waitForTimeout(500);
-
-    // Navigation arrows
-    await page.keyboard.press('ArrowRight');
-    await page.waitForTimeout(300);
-    await page.keyboard.press('ArrowLeft');
-    await page.waitForTimeout(300);
-
-    // Escape should close any open dialog
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(300);
+    // Use shared helper for common navigation shortcuts (arrows, today, escape)
+    await verifyNavigationShortcuts(page);
 
     // '?' should open keyboard shortcuts help
     await page.keyboard.press('?');
@@ -229,10 +194,7 @@ test.describe('P2 — Edge Cases', () => {
   });
 
   test('Resize event duration by dragging edge in week view', async ({ page }) => {
-    const user = {
-      ...TEST_USER,
-      email: `e2e-resize-${Date.now()}@example.com`,
-    };
+    const user = createTestUser('p2-resize');
     await signup(page, user);
 
     // Switch to week view
@@ -243,13 +205,7 @@ test.describe('P2 — Edge Cases', () => {
     }
 
     // Create an event
-    const newEventBtn = page.getByRole('button', { name: /new event|create event|\+/i }).first();
-    if (await newEventBtn.isVisible()) {
-      await newEventBtn.click();
-    }
-    await page.getByLabel(/title/i).fill('Resizable Event');
-    await page.getByRole('button', { name: /save|create/i }).click();
-    await page.waitForTimeout(1000);
+    await createEvent(page, { title: 'Resizable Event' });
 
     // Find the event and try to resize by dragging its bottom edge
     const eventPill = page.getByText('Resizable Event').first();
@@ -257,6 +213,9 @@ test.describe('P2 — Edge Cases', () => {
 
     const box = await eventPill.boundingBox();
     if (box) {
+      // Capture original height
+      const originalHeight = box.height;
+
       // Move to the bottom edge of the event
       const bottomEdgeY = box.y + box.height - 2;
       await page.mouse.move(box.x + box.width / 2, bottomEdgeY);
@@ -265,9 +224,15 @@ test.describe('P2 — Edge Cases', () => {
       await page.mouse.move(box.x + box.width / 2, bottomEdgeY + 50, { steps: 10 });
       await page.mouse.up();
       await page.waitForTimeout(1000);
-    }
 
-    // Verify event still exists after resize attempt
-    await expect(page.getByText('Resizable Event')).toBeVisible();
+      // Verify event still exists after resize attempt
+      await expect(page.getByText('Resizable Event')).toBeVisible();
+
+      // Check if the height changed after resize
+      const boxAfter = await page.getByText('Resizable Event').first().boundingBox();
+      if (boxAfter) {
+        expect(boxAfter.height).not.toBe(originalHeight);
+      }
+    }
   });
 });

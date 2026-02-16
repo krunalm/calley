@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { createEvent, createTask, login, logout, signup, TEST_USER } from './helpers';
+import { createEvent, createTask, createTestUser, login, logout, signup } from './helpers';
 
 /**
  * P0 — Critical path E2E tests.
@@ -13,8 +13,10 @@ test.describe('P0 — Critical Path', () => {
   test('Signup → create first event → view in month view → verify event pill appears', async ({
     page,
   }) => {
+    const user = createTestUser('p0-signup');
+
     // 1. Sign up a new user
-    await signup(page);
+    await signup(page, user);
     await expect(page).toHaveURL(/\/calendar/);
 
     // 2. Create an event
@@ -26,11 +28,7 @@ test.describe('P0 — Critical Path', () => {
   });
 
   test('Login → logout → login again → verify session', async ({ page }) => {
-    // Create a fresh user for this test
-    const user = {
-      ...TEST_USER,
-      email: `e2e-session-${Date.now()}@example.com`,
-    };
+    const user = createTestUser('p0-session');
 
     // 1. Sign up and get to calendar
     await signup(page, user);
@@ -53,17 +51,13 @@ test.describe('P0 — Critical Path', () => {
   });
 
   test('Create recurring event → edit single instance → verify series intact', async ({ page }) => {
-    const user = {
-      ...TEST_USER,
-      email: `e2e-recur-${Date.now()}@example.com`,
-    };
+    const user = createTestUser('p0-recur');
     await signup(page, user);
 
     // 1. Create a recurring event via the event form
     const newEventBtn = page.getByRole('button', { name: /new event|create event|\+/i }).first();
-    if (await newEventBtn.isVisible()) {
-      await newEventBtn.click();
-    }
+    await expect(newEventBtn).toBeVisible({ timeout: 5_000 });
+    await newEventBtn.click();
 
     await page.getByLabel(/title/i).fill('Weekly Standup');
 
@@ -99,7 +93,9 @@ test.describe('P0 — Critical Path', () => {
       await page.waitForTimeout(500);
 
       // If scope dialog appears, select "this event only"
-      const thisOnlyBtn = page.getByRole('button', { name: /this event|this instance|only this/i });
+      const thisOnlyBtn = page.getByRole('button', {
+        name: /this event|this instance|only this/i,
+      });
       if (await thisOnlyBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
         await thisOnlyBtn.click();
       }
@@ -109,10 +105,7 @@ test.describe('P0 — Critical Path', () => {
   });
 
   test('Create task → check off → verify in done filter', async ({ page }) => {
-    const user = {
-      ...TEST_USER,
-      email: `e2e-task-${Date.now()}@example.com`,
-    };
+    const user = createTestUser('p0-task');
     await signup(page, user);
 
     // 1. Create a task
@@ -122,26 +115,24 @@ test.describe('P0 — Critical Path', () => {
     const taskItem = page.getByText('Complete report').first();
     await expect(taskItem).toBeVisible({ timeout: 10_000 });
 
-    // Click the checkbox near the task
+    // Click the checkbox near the task — assert it exists
     const checkbox = page
       .locator('[data-testid="task-item"], li, [role="listitem"]')
       .filter({ hasText: 'Complete report' })
       .getByRole('checkbox')
       .first();
 
-    if (await checkbox.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await checkbox.click();
-      await page.waitForTimeout(500);
+    await expect(checkbox).toBeVisible({ timeout: 5_000 });
+    await checkbox.click();
+    await page.waitForTimeout(500);
 
-      // 3. Filter by "done" tasks
-      const doneFilter = page.getByText(/done|completed/i).first();
-      if (await doneFilter.isVisible({ timeout: 3000 }).catch(() => false)) {
-        await doneFilter.click();
-        await page.waitForTimeout(500);
+    // 3. Filter by "done" tasks — assert the filter exists
+    const doneFilter = page.getByText(/done|completed/i).first();
+    await expect(doneFilter).toBeVisible({ timeout: 5_000 });
+    await doneFilter.click();
+    await page.waitForTimeout(500);
 
-        // 4. Verify the task appears in the done filter
-        await expect(page.getByText('Complete report')).toBeVisible();
-      }
-    }
+    // 4. Verify the task appears in the done filter
+    await expect(page.getByText('Complete report')).toBeVisible({ timeout: 5_000 });
   });
 });

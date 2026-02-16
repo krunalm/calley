@@ -187,5 +187,13 @@ describe('Search Routes — API Integration', () => {
 
       expect(res.status).toBe(400);
     });
+
+    it('should return 400 for query shorter than minimum length', async () => {
+      const res = await app.request('/search?q=a');
+
+      expect(res.status).toBe(400);
+      const body = (await res.json()) as { error: { code: string } };
+      expect(body.error.code).toBe('VALIDATION_ERROR');
+    });
   });
 });

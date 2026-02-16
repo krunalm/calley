@@ -187,6 +187,51 @@ describe('Reminder Routes — API Integration', () => {
     });
   });
 
+  // ─── BullMQ Job Scheduling ───────────────────────────────────────
+  //
+  // NOTE: reminderService is fully mocked at the route level, so these tests
+  // cannot verify that BullMQ jobs are actually enqueued/cancelled. The
+  // job-scheduling side effects (enqueue on create, cancel on delete) are
+  // tested at the service layer in services/__tests__/reminder.service.test.ts
+  // which mocks the BullMQ Queue directly and asserts .add() / .remove() calls.
+  // These route-level tests verify that the HTTP layer correctly delegates to
+  // the service and returns the expected status codes / response shapes.
+
+  describe('BullMQ job scheduling delegation', () => {
+    it('should call createReminder which internally schedules a BullMQ job', async () => {
+      const reminder = makeReminderResponse();
+      (reminderService.createReminder as ReturnType<typeof vi.fn>).mockResolvedValue(reminder);
+
+      const res = await app.request('/reminders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          itemType: 'event',
+          itemId: TEST_EVENT_ID,
+          minutesBefore: 15,
+          method: 'push',
+        }),
+      });
+
+      expect(res.status).toBe(201);
+      // Service was called — it internally enqueues the BullMQ delayed job
+      expect(reminderService.createReminder).toHaveBeenCalledTimes(1);
+    });
+
+    it('should call deleteReminder which internally cancels the BullMQ job', async () => {
+      (reminderService.deleteReminder as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+
+      const res = await app.request(`/reminders/${TEST_REMINDER_ID}`, {
+        method: 'DELETE',
+      });
+
+      expect(res.status).toBe(204);
+      // Service was called — it internally removes the BullMQ job
+      expect(reminderService.deleteReminder).toHaveBeenCalledTimes(1);
+      expect(reminderService.deleteReminder).toHaveBeenCalledWith(TEST_USER_ID, TEST_REMINDER_ID);
+    });
+  });
+
   // ─── Error Cases ───────────────────────────────────────────────
 
   describe('Error handling', () => {

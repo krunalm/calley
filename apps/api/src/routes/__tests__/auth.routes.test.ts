@@ -575,6 +575,11 @@ describe('Auth Routes — API Integration', () => {
       });
 
       expect(res.status).toBe(400);
+      expect(res.headers.get('Content-Type')).toContain('application/json');
+      const body = (await res.json()) as { error: { code: string; message: string } };
+      expect(body.error).toBeDefined();
+      expect(body.error.code).toBe('VALIDATION_ERROR');
+      expect(body.error.message).toBeTruthy();
     });
   });
 

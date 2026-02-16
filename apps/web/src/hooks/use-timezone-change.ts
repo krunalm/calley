@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 
 import { queryKeys } from '@/lib/query-keys';
-import { useCalendarStore } from '@/stores/calendar-store';
+import { getNowInUserTimezone, useCalendarStore } from '@/stores/calendar-store';
 
 /**
  * Hook that detects browser timezone changes (e.g. user travels,
@@ -30,7 +30,7 @@ export function useTimezoneChange() {
         queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
 
         // Nudge the calendar store to trigger a re-render
-        setDate(new Date());
+        setDate(getNowInUserTimezone(currentTz));
       }
     }, 60_000);
 

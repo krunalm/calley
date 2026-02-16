@@ -41,6 +41,7 @@ const SHORTCUT_GROUPS: { title: string; shortcuts: ShortcutEntry[] }[] = [
       { keys: ['C'], description: 'Create new event' },
       { keys: ['T'], description: 'Toggle task panel' },
       { keys: ['Esc'], description: 'Close modal / drawer' },
+      { keys: ['⇧', 'Enter'], description: 'Pick up focused event (keyboard move)' },
     ],
   },
   {

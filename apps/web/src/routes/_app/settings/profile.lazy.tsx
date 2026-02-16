@@ -7,7 +7,7 @@ export const Route = createLazyFileRoute('/_app/settings/profile')({
   component: ProfilePage,
 });
 
-function ProfilePage() {
+export default function ProfilePage() {
   return (
     <SettingsLayout>
       <ProfileSettings />

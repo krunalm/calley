@@ -17,6 +17,9 @@ const client = postgres(databaseUrl, {
   connect_timeout: 10,
   max_lifetime: 60 * 30, // 30 minutes max connection lifetime
   prepare: true,
+  connection: {
+    statement_timeout: queryTimeout * 1000, // milliseconds
+  },
 });
 
 export const db = drizzle(client, { schema });

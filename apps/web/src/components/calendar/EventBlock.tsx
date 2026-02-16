@@ -7,6 +7,7 @@ import { memo, useCallback, useState } from 'react';
 import { useKeyboardDndContext } from '@/components/calendar/DndCalendarProvider';
 import { EventDetailPopover } from '@/components/events/EventDetailPopover';
 import { useUserTimezone } from '@/hooks/use-user-timezone';
+import { isTypingInInput } from '@/lib/keyboard-utils';
 import { cn } from '@/lib/utils';
 
 import type { Event } from '@calley/shared';
@@ -86,6 +87,7 @@ export const EventBlock = memo(function EventBlock({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
+      if (isTypingInInput()) return;
       if (e.shiftKey && (e.key === 'Enter' || e.key === ' ')) {
         e.preventDefault();
         pickUp(event);

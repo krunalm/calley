@@ -1,7 +1,10 @@
+import { addDays, addMinutes, parseISO } from 'date-fns';
+import { fromZonedTime, toZonedTime } from 'date-fns-tz';
 import { useCallback, useEffect, useState } from 'react';
 
 import { announce } from '@/components/ui/aria-live-region';
 import { useUpdateEvent } from '@/hooks/use-event-mutations';
+import { useUserTimezone } from '@/hooks/use-user-timezone';
 
 import type { Event } from '@calley/shared';
 
@@ -33,6 +36,7 @@ export function useKeyboardDnd(): KeyboardDndState {
   const [pickedEvent, setPickedEvent] = useState<Event | null>(null);
   const [offset, setOffset] = useState({ days: 0, minutes: 0 });
   const updateEvent = useUpdateEvent();
+  const userTimezone = useUserTimezone();
 
   const pickUp = useCallback((event: Event) => {
     setPickedEvent(event);
@@ -61,19 +65,24 @@ export function useKeyboardDnd(): KeyboardDndState {
       return;
     }
 
-    const start = new Date(pickedEvent.startAt);
-    const end = new Date(pickedEvent.endAt);
+    // Convert UTC → user's local timezone, apply offsets, then back to UTC.
+    // This ensures DST transitions are handled correctly by date-fns-tz.
+    let zonedStart = toZonedTime(parseISO(pickedEvent.startAt), userTimezone);
+    let zonedEnd = toZonedTime(parseISO(pickedEvent.endAt), userTimezone);
 
-    start.setDate(start.getDate() + offset.days);
-    start.setMinutes(start.getMinutes() + offset.minutes);
-    end.setDate(end.getDate() + offset.days);
-    end.setMinutes(end.getMinutes() + offset.minutes);
+    zonedStart = addDays(zonedStart, offset.days);
+    zonedStart = addMinutes(zonedStart, offset.minutes);
+    zonedEnd = addDays(zonedEnd, offset.days);
+    zonedEnd = addMinutes(zonedEnd, offset.minutes);
+
+    const newStartUtc = fromZonedTime(zonedStart, userTimezone);
+    const newEndUtc = fromZonedTime(zonedEnd, userTimezone);
 
     updateEvent.mutate({
       eventId: pickedEvent.id,
       data: {
-        startAt: start.toISOString(),
-        endAt: end.toISOString(),
+        startAt: newStartUtc.toISOString(),
+        endAt: newEndUtc.toISOString(),
       },
     });
 
@@ -90,7 +99,7 @@ export function useKeyboardDnd(): KeyboardDndState {
     announce(`Dropped "${pickedEvent.title}" ${desc}`, 'assertive');
     setPickedEvent(null);
     setOffset({ days: 0, minutes: 0 });
-  }, [pickedEvent, offset, updateEvent]);
+  }, [pickedEvent, offset, updateEvent, userTimezone]);
 
   useEffect(() => {
     if (!pickedEvent) return;

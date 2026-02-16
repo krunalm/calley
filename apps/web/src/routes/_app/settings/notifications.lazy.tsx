@@ -7,7 +7,7 @@ export const Route = createLazyFileRoute('/_app/settings/notifications')({
   component: NotificationsPage,
 });
 
-function NotificationsPage() {
+export default function NotificationsPage() {
   return (
     <SettingsLayout>
       <NotificationSettings />

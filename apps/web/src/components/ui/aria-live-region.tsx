@@ -22,6 +22,8 @@ export function AriaLiveRegion() {
   const [assertiveMessage, setAssertiveMessage] = useState('');
   const politeTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const assertiveTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const politeRafRef = useRef<number>();
+  const assertiveRafRef = useRef<number>();
 
   const doAnnounce = useCallback(
     (message: string, politeness: 'polite' | 'assertive' = 'polite') => {
@@ -29,14 +31,16 @@ export function AriaLiveRegion() {
         // Clear first to force re-announcement even if same message
         setAssertiveMessage('');
         clearTimeout(assertiveTimeoutRef.current);
-        requestAnimationFrame(() => {
+        cancelAnimationFrame(assertiveRafRef.current!);
+        assertiveRafRef.current = requestAnimationFrame(() => {
           setAssertiveMessage(message);
           assertiveTimeoutRef.current = setTimeout(() => setAssertiveMessage(''), 5000);
         });
       } else {
         setPoliteMessage('');
         clearTimeout(politeTimeoutRef.current);
-        requestAnimationFrame(() => {
+        cancelAnimationFrame(politeRafRef.current!);
+        politeRafRef.current = requestAnimationFrame(() => {
           setPoliteMessage(message);
           politeTimeoutRef.current = setTimeout(() => setPoliteMessage(''), 5000);
         });
@@ -52,6 +56,16 @@ export function AriaLiveRegion() {
       announceRef.current = null;
     };
   }, [doAnnounce]);
+
+  // Clean up all timers and rAF handles on unmount
+  useEffect(() => {
+    return () => {
+      clearTimeout(politeTimeoutRef.current);
+      clearTimeout(assertiveTimeoutRef.current);
+      cancelAnimationFrame(politeRafRef.current!);
+      cancelAnimationFrame(assertiveRafRef.current!);
+    };
+  }, []);
 
   return (
     <>

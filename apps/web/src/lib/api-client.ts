@@ -2,6 +2,17 @@ import { toast } from 'sonner';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
+// Inject dns-prefetch for the API origin at runtime so it works in all environments
+try {
+  const apiOrigin = new URL(API_URL).origin;
+  const link = document.createElement('link');
+  link.rel = 'dns-prefetch';
+  link.href = apiOrigin;
+  document.head.appendChild(link);
+} catch {
+  // Ignore if URL is invalid
+}
+
 /**
  * Read the CSRF token from the `csrf_token` cookie.
  *

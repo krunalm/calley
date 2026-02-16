@@ -26,11 +26,14 @@ export function useSSE() {
 
   useEffect(() => {
     let mounted = true;
-    let reconnectTimer: ReturnType<typeof setTimeout>;
+    let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
 
     function connect() {
       if (!mounted) return;
 
+      // Connect to SSE stream. withCredentials ensures the session cookie
+      // is sent with the request. The server also supports a ?token= query
+      // param as a fallback for programmatic clients.
       const es = new EventSource(`${API_URL}/stream`, {
         withCredentials: true,
       });
@@ -115,7 +118,9 @@ export function useSSE() {
 
     return () => {
       mounted = false;
-      clearTimeout(reconnectTimer);
+      if (reconnectTimer !== undefined) {
+        clearTimeout(reconnectTimer);
+      }
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
         eventSourceRef.current = null;

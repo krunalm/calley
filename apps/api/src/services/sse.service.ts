@@ -12,7 +12,8 @@ export type SSEEventType =
   | 'task:deleted'
   | 'reminder:fired'
   | 'category:updated'
-  | 'category:deleted';
+  | 'category:deleted'
+  | 'server-shutdown';
 
 interface SSEConnection {
   controller: ReadableStreamDefaultController;

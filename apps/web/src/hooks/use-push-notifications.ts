@@ -131,13 +131,18 @@ export function usePushNotifications() {
 
   const unsubscribeMutation = useMutation({
     mutationFn: async (subscriptionId: string) => {
+      // Find the server-side subscription to get its endpoint
+      const serverSub = subscriptions.find((s) => s.id === subscriptionId);
+
+      // Always remove the server record
       await apiClient.delete(`/push-subscriptions/${subscriptionId}`);
 
-      // Also unsubscribe from browser push
+      // Only unsubscribe the browser push if this device's subscription
+      // matches the one being removed (avoid removing a different device's sub)
       const registration = await navigator.serviceWorker.ready;
-      const subscription = await registration.pushManager.getSubscription();
-      if (subscription) {
-        await subscription.unsubscribe();
+      const browserSub = await registration.pushManager.getSubscription();
+      if (browserSub && serverSub && browserSub.endpoint === serverSub.endpoint) {
+        await browserSub.unsubscribe();
       }
     },
     onSuccess: () => {

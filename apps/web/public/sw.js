@@ -1,3 +1,4 @@
+/* eslint-env serviceworker */
 // Calley Service Worker — Push Notifications
 // This runs in a separate thread from the main app.
 

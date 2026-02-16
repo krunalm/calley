@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { formatInTimeZone } from 'date-fns-tz';
 import { toast } from 'sonner';
 
 import { apiClient, ApiError } from '@/lib/api-client';
@@ -46,8 +47,8 @@ export function useCreateTask() {
         recurringTaskId: null,
         originalDate: null,
         sortOrder: 0,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        createdAt: formatInTimeZone(new Date(), 'UTC', "yyyy-MM-dd'T'HH:mm:ssXXX"),
+        updatedAt: formatInTimeZone(new Date(), 'UTC', "yyyy-MM-dd'T'HH:mm:ssXXX"),
         deletedAt: null,
       };
 
@@ -102,7 +103,13 @@ export function useUpdateTask() {
           queryClient.setQueryData(
             key,
             cacheData.map((task) =>
-              task.id === taskId ? { ...task, ...data, updatedAt: new Date().toISOString() } : task,
+              task.id === taskId
+                ? {
+                    ...task,
+                    ...data,
+                    updatedAt: formatInTimeZone(new Date(), 'UTC', "yyyy-MM-dd'T'HH:mm:ssXXX"),
+                  }
+                : task,
             ),
           );
         }
@@ -192,8 +199,10 @@ export function useToggleTask() {
               return {
                 ...task,
                 status: isDone ? ('todo' as const) : ('done' as const),
-                completedAt: isDone ? null : new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
+                completedAt: isDone
+                  ? null
+                  : formatInTimeZone(new Date(), 'UTC', "yyyy-MM-dd'T'HH:mm:ssXXX"),
+                updatedAt: formatInTimeZone(new Date(), 'UTC', "yyyy-MM-dd'T'HH:mm:ssXXX"),
               };
             }),
           );
@@ -273,8 +282,8 @@ export function useBulkCompleteTasks() {
                 ? {
                     ...task,
                     status: 'done' as const,
-                    completedAt: new Date().toISOString(),
-                    updatedAt: new Date().toISOString(),
+                    completedAt: formatInTimeZone(new Date(), 'UTC', "yyyy-MM-dd'T'HH:mm:ssXXX"),
+                    updatedAt: formatInTimeZone(new Date(), 'UTC', "yyyy-MM-dd'T'HH:mm:ssXXX"),
                   }
                 : task,
             ),

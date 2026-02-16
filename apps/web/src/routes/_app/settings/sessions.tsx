@@ -7,7 +7,7 @@ export const Route = createFileRoute('/_app/settings/sessions')({
   component: SessionsPage,
 });
 
-function SessionsPage() {
+export default function SessionsPage() {
   return (
     <SettingsLayout>
       <SessionSettings />

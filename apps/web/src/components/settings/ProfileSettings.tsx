@@ -1,6 +1,8 @@
 import { zodResolver } from '@hookform/resolvers/zod';
+import { parseISO } from 'date-fns';
+import { formatInTimeZone } from 'date-fns-tz';
 import { Github, Link2Off, Loader2 } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 
 import { changePasswordSchema, updateProfileSchema } from '@calley/shared';
@@ -73,10 +75,11 @@ function ProfileForm() {
   const {
     register,
     handleSubmit,
+    reset,
     formState: { errors, isDirty, isSubmitting },
   } = useForm<UpdateProfileInput>({
     resolver: zodResolver(updateProfileSchema),
-    values: user
+    defaultValues: user
       ? {
           name: user.name,
           timezone: user.timezone,
@@ -85,6 +88,22 @@ function ProfileForm() {
         }
       : undefined,
   });
+
+  // Sync form defaults when user data updates (e.g. after timezone/weekStart/timeFormat
+  // mutations) without overwriting dirty fields like an in-progress name edit.
+  useEffect(() => {
+    if (user) {
+      reset(
+        {
+          name: user.name,
+          timezone: user.timezone,
+          weekStart: user.weekStart,
+          timeFormat: user.timeFormat,
+        },
+        { keepDirtyValues: true },
+      );
+    }
+  }, [user, reset]);
 
   const timezones = useMemo(() => getTimezoneList(), []);
   const [timezoneSearch, setTimezoneSearch] = useState('');
@@ -315,8 +334,10 @@ function ChangePasswordForm() {
 // ─── Connected Accounts ─────────────────────────────────────────────
 
 function ConnectedAccounts() {
+  const { data: user } = useCurrentUser();
   const { data: accounts = [], isLoading } = useOAuthAccounts();
   const unlinkAccount = useUnlinkOAuthAccount();
+  const timezone = user?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   if (isLoading) return null;
 
@@ -383,7 +404,7 @@ function ConnectedAccounts() {
                 <div>
                   <p className="text-sm font-medium">{providerLabel(account.provider)}</p>
                   <p className="text-xs text-[var(--muted-foreground)]">
-                    Connected {new Date(account.createdAt).toLocaleDateString()}
+                    Connected {formatInTimeZone(parseISO(account.createdAt), timezone, 'PPP')}
                   </p>
                 </div>
               </div>

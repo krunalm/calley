@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { formatInTimeZone } from 'date-fns-tz';
 import { toast } from 'sonner';
 
 import { apiClient, ApiError } from '@/lib/api-client';
@@ -24,7 +25,13 @@ export function useUpdateProfile() {
       const previous = queryClient.getQueryData<User>(queryKeys.user.me);
 
       queryClient.setQueryData<User>(queryKeys.user.me, (old) =>
-        old ? { ...old, ...data, updatedAt: new Date().toISOString() } : old,
+        old
+          ? {
+              ...old,
+              ...data,
+              updatedAt: formatInTimeZone(new Date(), 'UTC', "yyyy-MM-dd'T'HH:mm:ssXXX"),
+            }
+          : old,
       );
 
       return { previous };
@@ -47,12 +54,21 @@ export function useUpdateProfile() {
 }
 
 export function useChangePassword() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (data: ChangePasswordInput) => apiClient.patch('/auth/me/password', data),
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.user.me });
+      const previous = queryClient.getQueryData<User>(queryKeys.user.me);
+      return { previous };
+    },
     onSuccess: () => {
       toast.success('Password changed successfully');
     },
-    onError: (err) => {
+    onError: (err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(queryKeys.user.me, context.previous);
+      }
       if (err instanceof ApiError && err.status === 429) return;
       const message =
         err instanceof ApiError && err.status === 401
@@ -60,22 +76,37 @@ export function useChangePassword() {
           : 'Failed to change password';
       toast.error(message);
     },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.user.me });
+    },
   });
 }
 
 export function useDeleteAccount() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (data: DeleteAccountInput) => apiClient.delete<void>('/auth/me', data),
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.user.me });
+      const previous = queryClient.getQueryData<User>(queryKeys.user.me);
+      return { previous };
+    },
     onSuccess: () => {
       window.location.href = '/login';
     },
-    onError: (err) => {
+    onError: (err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(queryKeys.user.me, context.previous);
+      }
       if (err instanceof ApiError && err.status === 429) return;
       const message =
         err instanceof ApiError && err.status === 401
           ? 'Password is incorrect'
           : 'Failed to delete account';
       toast.error(message);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.user.me });
     },
   });
 }

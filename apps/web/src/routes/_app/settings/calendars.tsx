@@ -7,7 +7,7 @@ export const Route = createFileRoute('/_app/settings/calendars')({
   component: CalendarsPage,
 });
 
-function CalendarsPage() {
+export default function CalendarsPage() {
   return (
     <SettingsLayout>
       <CalendarSettings />

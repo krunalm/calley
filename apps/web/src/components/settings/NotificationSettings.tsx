@@ -52,11 +52,23 @@ export const NotificationSettings = memo(function NotificationSettings() {
     setEmailNotifications,
   } = useNotificationPreferences();
 
-  const handleTogglePush = useCallback(() => {
+  const handleTogglePush = useCallback(async () => {
     if (isSubscribed && subscriptions.length > 0) {
-      // Unsubscribe the current device
-      const currentSub = subscriptions[0];
-      unsubscribe(currentSub.id);
+      // Find the subscription matching this device's browser push endpoint
+      try {
+        const registration = await navigator.serviceWorker.ready;
+        const browserSub = await registration.pushManager.getSubscription();
+        if (browserSub) {
+          const matching = subscriptions.find((s) => s.endpoint === browserSub.endpoint);
+          if (matching) {
+            unsubscribe(matching.id);
+            return;
+          }
+        }
+      } catch {
+        // Fallback: if we can't check the browser subscription, unsubscribe the first one
+      }
+      unsubscribe(subscriptions[0].id);
     } else {
       subscribe();
     }

@@ -5,6 +5,7 @@ import { z } from 'zod';
 
 import {
   changePasswordSchema,
+  cuid2Schema,
   deleteAccountSchema,
   forgotPasswordSchema,
   loginSchema,
@@ -35,6 +36,7 @@ import type {
 } from '@calley/shared';
 
 const emptySchema = z.object({});
+const oauthAccountIdParamSchema = z.object({ id: cuid2Schema });
 
 const auth = new Hono<{ Variables: AppVariables }>();
 
@@ -250,22 +252,34 @@ auth.delete('/auth/sessions', authMiddleware, doubleSubmitCsrf, async (c) => {
 /**
  * GET /auth/oauth/accounts — List linked OAuth accounts for the current user.
  */
-auth.get('/auth/oauth/accounts', authMiddleware, async (c) => {
-  const userId = c.get('userId')!;
-  const accounts = await authService.listOAuthAccounts(userId);
-  return c.json(accounts);
-});
+auth.get(
+  '/auth/oauth/accounts',
+  rateLimit({ limit: 30, windowSeconds: 60, keyPrefix: 'auth:oauth:accounts' }),
+  authMiddleware,
+  async (c) => {
+    const userId = c.get('userId')!;
+    const accounts = await authService.listOAuthAccounts(userId);
+    return c.json(accounts);
+  },
+);
 
 /**
  * DELETE /auth/oauth/accounts/:id — Unlink an OAuth account.
  * User must have a password set to avoid being locked out.
  */
-auth.delete('/auth/oauth/accounts/:id', authMiddleware, doubleSubmitCsrf, async (c) => {
-  const userId = c.get('userId')!;
-  const accountId = c.req.param('id');
-  await authService.unlinkOAuthAccount(userId, accountId);
-  return c.body(null, 204);
-});
+auth.delete(
+  '/auth/oauth/accounts/:id',
+  rateLimit({ limit: 10, windowSeconds: 60, keyPrefix: 'auth:oauth:accounts:unlink' }),
+  authMiddleware,
+  doubleSubmitCsrf,
+  validate('param', oauthAccountIdParamSchema),
+  async (c) => {
+    const userId = c.get('userId')!;
+    const { id } = c.get('validatedParam') as { id: string };
+    await authService.unlinkOAuthAccount(userId, id);
+    return c.body(null, 204);
+  },
+);
 
 // ─── OAuth Constants & Schemas ────────────────────────────────────────
 

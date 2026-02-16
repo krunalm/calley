@@ -7,7 +7,7 @@ vi.mock('../../db', () => {
   const mockDb = {
     query: {
       users: { findFirst: vi.fn() },
-      sessions: { findMany: vi.fn() },
+      sessions: { findFirst: vi.fn(), findMany: vi.fn() },
       oauthAccounts: { findFirst: vi.fn(), findMany: vi.fn() },
       calendarCategories: { findFirst: vi.fn() },
     },
@@ -855,15 +855,7 @@ describe('AuthService', () => {
   describe('revokeSession', () => {
     it('should revoke a target session that is not the current one', async () => {
       const targetSession = makeSessionRow({ id: 'session_target_123' });
-      // First call from beforeEach returns [], second call for findFirst
-      (db.query.sessions.findFirst as unknown as ReturnType<typeof vi.fn>) = vi.fn();
-
-      // We need to mock db.query.sessions.findFirst directly
-      // since sessions has findMany (mocked in beforeEach) but no findFirst mock set up
-      // The service calls db.query.sessions.findFirst for verifying the target session
-      // Let's use the query mock pattern
-      const sessionsQuery = db.query.sessions as Record<string, ReturnType<typeof vi.fn>>;
-      sessionsQuery.findFirst = vi.fn().mockResolvedValue(targetSession);
+      (db.query.sessions.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(targetSession);
 
       await service.revokeSession(TEST_USER_ID, TEST_SESSION_ID, 'session_target_123');
 
@@ -883,8 +875,7 @@ describe('AuthService', () => {
     });
 
     it('should throw NOT_FOUND when target session does not exist', async () => {
-      const sessionsQuery = db.query.sessions as Record<string, ReturnType<typeof vi.fn>>;
-      sessionsQuery.findFirst = vi.fn().mockResolvedValue(undefined);
+      (db.query.sessions.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
 
       await expect(
         service.revokeSession(TEST_USER_ID, TEST_SESSION_ID, 'nonexistent_session'),

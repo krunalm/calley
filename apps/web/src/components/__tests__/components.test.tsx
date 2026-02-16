@@ -1,6 +1,8 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import type { ReactNode } from 'react';
 
 // ─── Mock date-fns-tz before importing anything that uses the calendar store ──
 vi.mock('date-fns-tz', () => ({
@@ -66,10 +68,8 @@ describe('EmptyState', () => {
   });
 
   it('does not render the icon container when icon is omitted', () => {
-    const { container } = render(<EmptyState title="Empty" />);
-    // The icon container has a specific class pattern - verify none is rendered
-    const iconContainer = container.querySelector('.mb-4.flex.h-14');
-    expect(iconContainer).toBeNull();
+    render(<EmptyState title="Empty" />);
+    expect(screen.queryByTestId('empty-state-icon')).toBeNull();
   });
 });
 
@@ -128,7 +128,7 @@ describe('NoSearchResultsEmptyState', () => {
 
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 
-function ThrowingComponent({ message }: { message: string }) {
+function ThrowingComponent({ message }: { message: string }): ReactNode {
   throw new Error(message);
 }
 
@@ -330,16 +330,19 @@ describe('DateNavigator', () => {
     expect(newDate.getFullYear()).toBe(2026);
   });
 
-  it('navigates to today when the Today button is clicked', async () => {
-    const user = userEvent.setup();
+  it('navigates to today when the Today button is clicked', () => {
+    const FROZEN_NOW = new Date('2026-02-16T10:00:00Z');
+    vi.useFakeTimers({ now: FROZEN_NOW });
+
     // Move away from today first
     useCalendarStore.setState({ currentDate: new Date('2025-01-01T12:00:00Z') });
     render(<DateNavigator />);
 
-    await user.click(screen.getByRole('button', { name: 'Today' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Today' }));
 
     const newDate = useCalendarStore.getState().currentDate;
-    // Should be approximately now (within 2 seconds)
-    expect(Math.abs(newDate.getTime() - Date.now())).toBeLessThan(2000);
+    expect(newDate.getTime()).toBe(FROZEN_NOW.getTime());
+
+    vi.useRealTimers();
   });
 });

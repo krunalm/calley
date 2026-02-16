@@ -136,6 +136,9 @@ describe('useCalendarStore', () => {
     });
 
     it('should reset to current date when navigating today', () => {
+      const FROZEN_NOW = new Date('2026-02-16T10:00:00Z');
+      vi.useFakeTimers({ now: FROZEN_NOW });
+
       // Move away from "today" first
       useCalendarStore.getState().navigate('next');
       useCalendarStore.getState().navigate('next');
@@ -144,8 +147,10 @@ describe('useCalendarStore', () => {
       // Navigate to today — getNowInUserTimezone returns new Date() since toZonedTime is mocked as identity
       useCalendarStore.getState().navigate('today');
       const now = useCalendarStore.getState().currentDate;
-      // The date should be approximately now (within 1 second)
-      expect(Math.abs(now.getTime() - Date.now())).toBeLessThan(1000);
+      // The date should match the frozen time exactly
+      expect(now.getTime()).toBe(FROZEN_NOW.getTime());
+
+      vi.useRealTimers();
     });
   });
 

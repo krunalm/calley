@@ -22,7 +22,10 @@ export function EmptyState({ icon, title, description, action }: EmptyStateProps
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center">
       {icon && (
-        <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--muted)]">
+        <div
+          data-testid="empty-state-icon"
+          className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--muted)]"
+        >
           {icon}
         </div>
       )}

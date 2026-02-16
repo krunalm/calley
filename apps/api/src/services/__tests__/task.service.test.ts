@@ -216,6 +216,7 @@ describe('TaskService', () => {
       const result = await service.createTask(TEST_USER_ID, {
         title: 'Test Task',
         categoryId: TEST_CATEGORY_ID,
+        priority: 'none',
       });
 
       expect(result.id).toBe(TEST_TASK_ID);
@@ -233,6 +234,7 @@ describe('TaskService', () => {
         service.createTask(TEST_USER_ID, {
           title: 'Test Task',
           categoryId: 'nonexistentcat12345678901',
+          priority: 'none',
         }),
       ).rejects.toMatchObject({
         statusCode: 404,
@@ -253,6 +255,7 @@ describe('TaskService', () => {
       await service.createTask(TEST_USER_ID, {
         title: 'Test Task',
         categoryId: TEST_CATEGORY_ID,
+        priority: 'none',
         dueAt: '2026-03-15T10:00:00Z',
         reminder: { minutesBefore: 15, method: 'push' },
       });
@@ -295,6 +298,7 @@ describe('TaskService', () => {
       await service.createTask(TEST_USER_ID, {
         title: 'Test Task',
         categoryId: TEST_CATEGORY_ID,
+        priority: 'none',
         dueAt: '2026-03-15T10:00:00Z',
         reminder: { minutesBefore: 15, method: 'push' },
       });
@@ -326,6 +330,7 @@ describe('TaskService', () => {
         service.createTask(TEST_USER_ID, {
           title: 'Test Task',
           categoryId: TEST_CATEGORY_ID,
+          priority: 'none',
           rrule: 'INVALID_RRULE_STRING',
         }),
       ).rejects.toMatchObject({
@@ -345,6 +350,7 @@ describe('TaskService', () => {
       const result = await service.createTask(TEST_USER_ID, {
         title: 'Recurring Task',
         categoryId: TEST_CATEGORY_ID,
+        priority: 'none',
         rrule: 'FREQ=WEEKLY;BYDAY=MO,WE,FR',
       });
 
@@ -361,6 +367,7 @@ describe('TaskService', () => {
       await service.createTask(TEST_USER_ID, {
         title: 'Test Task',
         categoryId: TEST_CATEGORY_ID,
+        priority: 'none',
       });
 
       expect(sseService.emit).toHaveBeenCalledWith(
@@ -937,7 +944,7 @@ describe('TaskService', () => {
         .mockResolvedValueOnce(taskRows) // regular tasks
         .mockResolvedValueOnce([]); // recurring parents
 
-      const result = await service.listTasks(TEST_USER_ID, {});
+      const result = await service.listTasks(TEST_USER_ID, { sort: 'created_at' });
 
       expect(result).toHaveLength(1);
       expect(result[0].id).toBe(TEST_TASK_ID);
@@ -951,7 +958,7 @@ describe('TaskService', () => {
         .mockResolvedValueOnce([taskRow])
         .mockResolvedValueOnce([taskRow]);
 
-      const result = await service.listTasks(TEST_USER_ID, {});
+      const result = await service.listTasks(TEST_USER_ID, { sort: 'created_at' });
 
       // Should be deduplicated to 1 task
       expect(result).toHaveLength(1);
@@ -962,7 +969,7 @@ describe('TaskService', () => {
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
 
-      const result = await service.listTasks(TEST_USER_ID, {});
+      const result = await service.listTasks(TEST_USER_ID, { sort: 'created_at' });
 
       expect(result).toEqual([]);
     });
@@ -972,7 +979,7 @@ describe('TaskService', () => {
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
 
-      await service.listTasks(TEST_USER_ID, { status: ['todo'] });
+      await service.listTasks(TEST_USER_ID, { sort: 'created_at', status: ['todo'] });
 
       expect(db.query.tasks.findMany).toHaveBeenCalledTimes(2);
     });
@@ -982,7 +989,7 @@ describe('TaskService', () => {
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
 
-      await service.listTasks(TEST_USER_ID, { priority: ['high', 'medium'] });
+      await service.listTasks(TEST_USER_ID, { sort: 'created_at', priority: ['high', 'medium'] });
 
       expect(db.query.tasks.findMany).toHaveBeenCalledTimes(2);
     });
@@ -993,6 +1000,7 @@ describe('TaskService', () => {
         .mockResolvedValueOnce([]);
 
       await service.listTasks(TEST_USER_ID, {
+        sort: 'created_at',
         dueStart: '2026-03-01T00:00:00Z',
         dueEnd: '2026-03-31T23:59:59Z',
       });

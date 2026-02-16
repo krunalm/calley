@@ -36,9 +36,19 @@ export function getNowInUserTimezone(
   return toZonedTime(new Date(), tz);
 }
 
+/** Ordered index for each view — used to determine slide direction */
+const VIEW_ORDER: Record<CalendarView, number> = {
+  month: 0,
+  week: 1,
+  day: 2,
+  agenda: 3,
+};
+
 interface CalendarStore {
   currentDate: Date;
   view: CalendarView;
+  /** Animation direction for view transitions: 1 = forward, -1 = backward */
+  viewDirection: number;
   selectedItemId: string | null;
   isTaskPanelOpen: boolean;
   isSidebarOpen: boolean;
@@ -56,12 +66,17 @@ interface CalendarStore {
 export const useCalendarStore = create<CalendarStore>((set, get) => ({
   currentDate: getNowInUserTimezone(),
   view: 'month',
+  viewDirection: 1,
   selectedItemId: null,
   isTaskPanelOpen: false,
   isSidebarOpen: true,
   hiddenCategoryIds: loadHiddenCategories(),
 
-  setView: (view) => set({ view }),
+  setView: (view) => {
+    const currentView = get().view;
+    const direction = VIEW_ORDER[view] >= VIEW_ORDER[currentView] ? 1 : -1;
+    set({ view, viewDirection: direction });
+  },
 
   navigate: (direction) => {
     const { currentDate, view } = get();

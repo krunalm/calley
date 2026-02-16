@@ -757,36 +757,36 @@
 
 ### 8.3 Animations & Transitions
 
-- [ ] Implement view switch animation (crossfade + directional slide via AnimatePresence)
-- [ ] Implement modal open animation (scale from click origin)
-- [ ] Implement task check-off animation (strikethrough + fade)
-- [ ] Implement sidebar collapse animation (width transition)
-- [ ] Implement staggered page load reveal
-- [ ] Implement toast slide-in animation
-- [ ] All animations: verify they respect `prefers-reduced-motion`
+- [x] Implement view switch animation (crossfade + directional slide via AnimatePresence)
+- [x] Implement modal open animation (scale from click origin)
+- [x] Implement task check-off animation (strikethrough + fade)
+- [x] Implement sidebar collapse animation (width transition)
+- [x] Implement staggered page load reveal
+- [x] Implement toast slide-in animation
+- [x] All animations: verify they respect `prefers-reduced-motion`
 
 ### 8.4 Error Handling & Edge Cases
 
-- [ ] Add React error boundaries per route (show "Something went wrong" + retry button)
-- [ ] Handle network offline gracefully (show banner, disable mutations, auto-retry when online)
-- [ ] Handle API rate limiting (show toast with retry-after time)
-- [ ] Handle session expiration mid-session (401 → redirect to login with "session expired" message)
-- [ ] Handle concurrent edits (SSE updates invalidate stale data, show toast if conflict)
-- [ ] Handle very long event titles (truncate with ellipsis in pills/blocks)
-- [ ] Handle overlapping events in week/day view (column stacking algorithm)
-- [ ] Handle timezone changes (user changes timezone in settings → re-render all times)
-- [ ] Handle daylight saving time transitions (events near DST boundary)
+- [x] Add React error boundaries per route (show "Something went wrong" + retry button)
+- [x] Handle network offline gracefully (show banner, disable mutations, auto-retry when online)
+- [x] Handle API rate limiting (show toast with retry-after time)
+- [x] Handle session expiration mid-session (401 → redirect to login with "session expired" message)
+- [x] Handle concurrent edits (SSE updates invalidate stale data, show toast if conflict)
+- [x] Handle very long event titles (truncate with ellipsis in pills/blocks)
+- [x] Handle overlapping events in week/day view (column stacking algorithm)
+- [x] Handle timezone changes (user changes timezone in settings → re-render all times)
+- [x] Handle daylight saving time transitions (events near DST boundary)
 
 ### 8.5 Loading & Empty States
 
-- [ ] Skeleton screens for: calendar grid (month), week time grid, task panel, agenda list
-- [ ] Empty states for:
-  - [ ] No events this month: illustration + "Create your first event" CTA
-  - [ ] No tasks: illustration + "Add a task" CTA
-  - [ ] No search results: "No results for '{query}'"
-  - [ ] No categories (shouldn't happen — always has default): fallback message
-- [ ] Loading spinners for: individual mutations, OAuth redirects
-- [ ] Full-page loading for: initial auth check only
+- [x] Skeleton screens for: calendar grid (month), week time grid, task panel, agenda list
+- [x] Empty states for:
+  - [x] No events this month: illustration + "Create your first event" CTA
+  - [x] No tasks: illustration + "Add a task" CTA
+  - [x] No search results: "No results for '{query}'"
+  - [x] No categories (shouldn't happen — always has default): fallback message
+- [x] Loading spinners for: individual mutations, OAuth redirects
+- [x] Full-page loading for: initial auth check only
 
 ---
 

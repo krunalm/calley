@@ -9,10 +9,12 @@ import {
   startOfWeek,
   subMonths,
 } from 'date-fns';
+import { motion, useReducedMotion } from 'framer-motion';
 import { useMemo } from 'react';
 
 import { useCategories } from '@/hooks/use-categories';
 import { useEventsByDate } from '@/hooks/use-events';
+import { staggerContainer, staggerItem } from '@/lib/motion';
 import { useCalendarStore } from '@/stores/calendar-store';
 
 import { DayCell } from './DayCell';
@@ -62,6 +64,8 @@ export function MonthView() {
     return result;
   }, [days]);
 
+  const prefersReducedMotion = useReducedMotion();
+
   if (isLoading) {
     return <MonthViewSkeleton />;
   }
@@ -82,10 +86,20 @@ export function MonthView() {
         ))}
       </div>
 
-      {/* Grid */}
-      <div className="flex flex-1 flex-col">
+      {/* Grid with staggered reveal */}
+      <motion.div
+        className="flex flex-1 flex-col"
+        variants={prefersReducedMotion ? undefined : staggerContainer}
+        initial={prefersReducedMotion ? false : 'initial'}
+        animate="animate"
+      >
         {weeks.map((week, weekIdx) => (
-          <div key={weekIdx} className="grid flex-1 grid-cols-7" role="row">
+          <motion.div
+            key={weekIdx}
+            className="grid flex-1 grid-cols-7"
+            role="row"
+            variants={prefersReducedMotion ? undefined : staggerItem}
+          >
             {week.map((day) => {
               const dateKey = format(day, 'yyyy-MM-dd');
               const dayEvents: Event[] = eventsByDate.get(dateKey) ?? [];
@@ -102,9 +116,9 @@ export function MonthView() {
                 />
               );
             })}
-          </div>
+          </motion.div>
         ))}
-      </div>
+      </motion.div>
     </div>
   );
 }

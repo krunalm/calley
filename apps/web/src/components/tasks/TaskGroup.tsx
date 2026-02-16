@@ -1,6 +1,9 @@
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
+
+import { taskCheckOffVariants } from '@/lib/motion';
 
 import { SortableTaskItem } from './SortableTaskItem';
 import { TaskItem } from './TaskItem';
@@ -31,6 +34,7 @@ export const TaskGroup = memo(function TaskGroup({
   onToggleSelect,
 }: TaskGroupProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
+  const prefersReducedMotion = useReducedMotion();
 
   const taskIds = useMemo(() => tasks.map((t) => t.id), [tasks]);
 
@@ -68,26 +72,46 @@ export const TaskGroup = memo(function TaskGroup({
         <div role="list" className="mt-0.5">
           {sortable && !isSelecting ? (
             <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
-              {tasks.map((task) => (
-                <SortableTaskItem
-                  key={task.id}
-                  task={task}
-                  isSelecting={isSelecting}
-                  isSelected={selectedIds?.has(task.id)}
-                  onToggleSelect={onToggleSelect}
-                />
-              ))}
+              <AnimatePresence initial={false}>
+                {tasks.map((task) => (
+                  <motion.div
+                    key={task.id}
+                    variants={prefersReducedMotion ? undefined : taskCheckOffVariants}
+                    initial={prefersReducedMotion ? false : 'initial'}
+                    animate="animate"
+                    exit={prefersReducedMotion ? undefined : 'exit'}
+                    layout={!prefersReducedMotion}
+                  >
+                    <SortableTaskItem
+                      task={task}
+                      isSelecting={isSelecting}
+                      isSelected={selectedIds?.has(task.id)}
+                      onToggleSelect={onToggleSelect}
+                    />
+                  </motion.div>
+                ))}
+              </AnimatePresence>
             </SortableContext>
           ) : (
-            tasks.map((task) => (
-              <TaskItem
-                key={task.id}
-                task={task}
-                isSelecting={isSelecting}
-                isSelected={selectedIds?.has(task.id)}
-                onToggleSelect={onToggleSelect}
-              />
-            ))
+            <AnimatePresence initial={false}>
+              {tasks.map((task) => (
+                <motion.div
+                  key={task.id}
+                  variants={prefersReducedMotion ? undefined : taskCheckOffVariants}
+                  initial={prefersReducedMotion ? false : 'initial'}
+                  animate="animate"
+                  exit={prefersReducedMotion ? undefined : 'exit'}
+                  layout={!prefersReducedMotion}
+                >
+                  <TaskItem
+                    task={task}
+                    isSelecting={isSelecting}
+                    isSelected={selectedIds?.has(task.id)}
+                    onToggleSelect={onToggleSelect}
+                  />
+                </motion.div>
+              ))}
+            </AnimatePresence>
           )}
         </div>
       )}

@@ -50,8 +50,17 @@ export function useSSE() {
         queryClient.invalidateQueries({ queryKey: queryKeys.events.all });
       });
 
-      es.addEventListener('event:updated', () => {
+      es.addEventListener('event:updated', (e) => {
         queryClient.invalidateQueries({ queryKey: queryKeys.events.all });
+        // Notify about concurrent edits from another tab/device
+        try {
+          const data = JSON.parse(e.data) as { title?: string };
+          if (data.title) {
+            toast.info(`Event updated: ${data.title}`, { duration: 3000 });
+          }
+        } catch {
+          // Silent refresh is fine
+        }
       });
 
       es.addEventListener('event:deleted', () => {
@@ -62,8 +71,16 @@ export function useSSE() {
         queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
       });
 
-      es.addEventListener('task:updated', () => {
+      es.addEventListener('task:updated', (e) => {
         queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
+        try {
+          const data = JSON.parse(e.data) as { title?: string };
+          if (data.title) {
+            toast.info(`Task updated: ${data.title}`, { duration: 3000 });
+          }
+        } catch {
+          // Silent refresh is fine
+        }
       });
 
       es.addEventListener('task:deleted', () => {

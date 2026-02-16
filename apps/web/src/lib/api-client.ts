@@ -65,15 +65,36 @@ class ApiClient {
       }
     }
 
-    const res = await fetch(`${API_URL}${path}`, {
-      credentials: 'include',
-      ...options,
-      headers,
-    });
+    // Guard against offline requests — fail fast with a descriptive error
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      toast.error('You are offline. Please check your connection.');
+      throw new ApiError(0, {
+        code: 'NETWORK_OFFLINE',
+        message: 'No internet connection',
+      });
+    }
+
+    let res: Response;
+    try {
+      res = await fetch(`${API_URL}${path}`, {
+        credentials: 'include',
+        ...options,
+        headers,
+      });
+    } catch (err) {
+      // Network error (e.g. ERR_NETWORK, DNS failure, CORS preflight fail)
+      toast.error('Network error. Please check your connection and try again.');
+      throw new ApiError(0, {
+        code: 'NETWORK_ERROR',
+        message: err instanceof Error ? err.message : 'Network request failed',
+      });
+    }
 
     if (res.status === 401) {
+      // Session expired mid-session — redirect with informative message
+      toast.error('Your session has expired. Please sign in again.');
       window.location.href = '/login';
-      throw new ApiError(401, { code: 'UNAUTHORIZED', message: 'Unauthorized' });
+      throw new ApiError(401, { code: 'UNAUTHORIZED', message: 'Session expired' });
     }
 
     // Rate limit — show a warning toast with Retry-After info

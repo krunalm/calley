@@ -130,10 +130,12 @@ export const TaskItem = memo(function TaskItem({
             />
           )}
 
-          {/* Title */}
+          {/* Title — smooth transition for strikethrough + fade on check-off */}
           <span
-            className={`truncate text-sm ${
-              isDone ? 'text-[var(--muted-foreground)] line-through' : 'text-[var(--foreground)]'
+            className={`truncate text-sm transition-all duration-300 ${
+              isDone
+                ? 'text-[var(--muted-foreground)] line-through opacity-60'
+                : 'text-[var(--foreground)]'
             }`}
           >
             {task.title}

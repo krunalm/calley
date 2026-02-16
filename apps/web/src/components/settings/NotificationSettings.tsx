@@ -1,5 +1,6 @@
 import { Bell, BellOff, CheckCircle2, Mail, XCircle } from 'lucide-react';
 import { memo, useCallback } from 'react';
+import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -61,16 +62,23 @@ export const NotificationSettings = memo(function NotificationSettings() {
         if (browserSub) {
           const matching = subscriptions.find((s) => s.endpoint === browserSub.endpoint);
           if (matching) {
-            unsubscribe(matching.id);
+            await unsubscribe(matching.id);
             return;
           }
         }
-      } catch {
-        // Fallback: if we can't check the browser subscription, unsubscribe the first one
+        // No browser subscription found — can't determine which server subscription to revoke
+        toast.error('Could not identify the push subscription for this device');
+      } catch (err) {
+        toast.error('Failed to toggle push notifications');
+        console.error('handleTogglePush error:', err);
       }
-      unsubscribe(subscriptions[0].id);
     } else {
-      subscribe();
+      try {
+        await subscribe();
+      } catch (err) {
+        toast.error('Failed to enable push notifications');
+        console.error('handleTogglePush subscribe error:', err);
+      }
     }
   }, [isSubscribed, subscriptions, subscribe, unsubscribe]);
 

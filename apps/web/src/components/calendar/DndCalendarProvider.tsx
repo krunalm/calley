@@ -18,13 +18,14 @@ import {
   set,
 } from 'date-fns';
 import { fromZonedTime, toZonedTime } from 'date-fns-tz';
-import { createContext, useCallback, useContext, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 
 import { RecurrenceScopeDialog } from '@/components/calendar/RecurrenceScopeDialog';
 import { useUpdateEvent } from '@/hooks/use-event-mutations';
 import { useKeyboardDnd } from '@/hooks/use-keyboard-dnd';
 import { useUpdateTask } from '@/hooks/use-task-mutations';
 import { useUserTimezone } from '@/hooks/use-user-timezone';
+import { registerEventPickUp } from '@/lib/keyboard-utils';
 
 import type { EditScope, Event, Task } from '@calley/shared';
 import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core';
@@ -61,6 +62,12 @@ export function DndCalendarProvider({ children }: DndCalendarProviderProps) {
   const updateEvent = useUpdateEvent();
   const updateTask = useUpdateTask();
   const keyboardDnd = useKeyboardDnd();
+
+  // Register the keyboard DnD pickUp function globally so the central
+  // useKeyboardShortcuts hook can trigger it on Shift+Enter.
+  useEffect(() => {
+    return registerEventPickUp(keyboardDnd.pickUp);
+  }, [keyboardDnd.pickUp]);
 
   const [activeEvent, setActiveEvent] = useState<Event | null>(null);
   const [activeTask, setActiveTask] = useState<Task | null>(null);

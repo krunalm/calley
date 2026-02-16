@@ -2,12 +2,11 @@ import { useDraggable } from '@dnd-kit/core';
 import { parseISO } from 'date-fns';
 import { formatInTimeZone } from 'date-fns-tz';
 import { Repeat } from 'lucide-react';
-import { memo, useCallback, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 
-import { useKeyboardDndContext } from '@/components/calendar/DndCalendarProvider';
 import { EventDetailPopover } from '@/components/events/EventDetailPopover';
 import { useUserTimezone } from '@/hooks/use-user-timezone';
-import { isTypingInInput } from '@/lib/keyboard-utils';
+import { registerEventElement, unregisterEventElement } from '@/lib/keyboard-utils';
 import { cn } from '@/lib/utils';
 
 import type { Event } from '@calley/shared';
@@ -31,7 +30,6 @@ export const EventPill = memo(function EventPill({
 }: EventPillProps) {
   const userTimezone = useUserTimezone();
   const [popoverOpen, setPopoverOpen] = useState(false);
-  const { pickUp } = useKeyboardDndContext();
   const color = event.color ?? categoryColor ?? 'var(--primary)';
   const isRecurring = !!event.rrule || !!event.recurringEventId || event.isRecurringInstance;
 
@@ -46,6 +44,17 @@ export const EventPill = memo(function EventPill({
     ? 'All day'
     : formatInTimeZone(parseISO(event.startAt), userTimezone, 'h:mm a');
 
+  // Register this element in the event WeakMap so the centralized
+  // Shift+Enter handler in useKeyboardShortcuts can look up the event.
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const el = buttonRef.current;
+    if (el) {
+      registerEventElement(el, event);
+      return () => unregisterEventElement(el);
+    }
+  }, [event]);
+
   const handleClick = useCallback(() => {
     if (isDragging) return;
     if (showPopover) {
@@ -54,18 +63,6 @@ export const EventPill = memo(function EventPill({
       onClick?.(event);
     }
   }, [event, onClick, showPopover, isDragging]);
-
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (isTypingInInput()) return;
-      // Enter opens the detail; Shift+Enter picks up for keyboard move
-      if (e.shiftKey && (e.key === 'Enter' || e.key === ' ')) {
-        e.preventDefault();
-        pickUp(event);
-      }
-    },
-    [event, pickUp],
-  );
 
   const pill = (
     <div
@@ -83,11 +80,12 @@ export const EventPill = memo(function EventPill({
       {...listeners}
     >
       <button
+        ref={buttonRef}
         type="button"
         className="flex min-w-0 flex-1 items-center gap-1 text-left"
         onClick={handleClick}
-        onKeyDown={handleKeyDown}
         tabIndex={0}
+        data-event-id={event.id}
         aria-label={`${event.title}, ${timeLabel}. Shift+Enter to move with keyboard.`}
       >
         {!event.isAllDay && (

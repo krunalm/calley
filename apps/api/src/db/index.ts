@@ -9,7 +9,9 @@ if (!databaseUrl) {
 }
 
 const poolMax = Number(process.env.DB_POOL_MAX) || 20;
-const queryTimeout = Number(process.env.DB_QUERY_TIMEOUT) || 30;
+const parsedTimeout = Number(process.env.DB_QUERY_TIMEOUT);
+const queryTimeout =
+  process.env.DB_QUERY_TIMEOUT === undefined || Number.isNaN(parsedTimeout) ? 30 : parsedTimeout;
 
 const client = postgres(databaseUrl, {
   max: poolMax,

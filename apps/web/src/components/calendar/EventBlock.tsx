@@ -2,12 +2,11 @@ import { useDraggable } from '@dnd-kit/core';
 import { parseISO } from 'date-fns';
 import { formatInTimeZone } from 'date-fns-tz';
 import { MapPin, Repeat } from 'lucide-react';
-import { memo, useCallback, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 
-import { useKeyboardDndContext } from '@/components/calendar/DndCalendarProvider';
 import { EventDetailPopover } from '@/components/events/EventDetailPopover';
 import { useUserTimezone } from '@/hooks/use-user-timezone';
-import { isTypingInInput } from '@/lib/keyboard-utils';
+import { registerEventElement, unregisterEventElement } from '@/lib/keyboard-utils';
 import { cn } from '@/lib/utils';
 
 import type { Event } from '@calley/shared';
@@ -74,7 +73,17 @@ export const EventBlock = memo(function EventBlock({
   });
 
   const isDragging = isMoveDragging || isResizeDragging;
-  const { pickUp } = useKeyboardDndContext();
+
+  // Register this element in the event WeakMap so the centralized
+  // Shift+Enter handler in useKeyboardShortcuts can look up the event.
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const el = buttonRef.current;
+    if (el) {
+      registerEventElement(el, event);
+      return () => unregisterEventElement(el);
+    }
+  }, [event]);
 
   const handleClick = useCallback(() => {
     if (isDragging) return;
@@ -84,17 +93,6 @@ export const EventBlock = memo(function EventBlock({
       onClick?.(event);
     }
   }, [event, onClick, showPopover, isDragging]);
-
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (isTypingInInput()) return;
-      if (e.shiftKey && (e.key === 'Enter' || e.key === ' ')) {
-        e.preventDefault();
-        pickUp(event);
-      }
-    },
-    [event, pickUp],
-  );
 
   const block = (
     <div
@@ -118,11 +116,12 @@ export const EventBlock = memo(function EventBlock({
     >
       {/* Click layer - separate from drag to avoid conflicts */}
       <button
+        ref={buttonRef}
         type="button"
         className="flex flex-1 flex-col overflow-hidden px-1.5 text-left"
         onClick={handleClick}
-        onKeyDown={handleKeyDown}
         tabIndex={0}
+        data-event-id={event.id}
         aria-label={`${event.title}, ${timeLabel}. Shift+Enter to move with keyboard.`}
       >
         {isCompact ? (

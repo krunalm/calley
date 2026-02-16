@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 
 import { announce } from '@/components/ui/aria-live-region';
-import { isTypingInInput } from '@/lib/keyboard-utils';
+import { isTypingInInput, pickUpFocusedEvent } from '@/lib/keyboard-utils';
 import { useCalendarStore } from '@/stores/calendar-store';
 import { useUIStore } from '@/stores/ui-store';
 
@@ -29,6 +29,7 @@ export interface KeyboardShortcutsState {
  * - . or Home → go to today
  * - Escape → close any open modal/drawer/popover
  * - ? → show keyboard shortcuts help
+ * - Shift+Enter/Space → pick up focused event for keyboard move
  */
 export function useKeyboardShortcuts(onToggleShortcutsHelp: () => void) {
   const { setView, navigate, toggleTaskPanel } = useCalendarStore();
@@ -59,6 +60,14 @@ export function useKeyboardShortcuts(onToggleShortcutsHelp: () => void) {
 
       // Skip all other shortcuts when typing in an input
       if (isTypingInInput()) return;
+
+      // Shift+Enter/Space → pick up the focused event for keyboard DnD
+      if (e.shiftKey && (e.key === 'Enter' || e.key === ' ')) {
+        if (pickUpFocusedEvent()) {
+          e.preventDefault();
+        }
+        return;
+      }
 
       // Skip if any modifier key is held (except for shortcuts that need it)
       if (isMeta || e.altKey) return;

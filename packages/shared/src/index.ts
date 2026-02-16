@@ -63,6 +63,7 @@ export {
 export {
   createReminderSchema,
   listRemindersQuerySchema,
+  reminderIdParamSchema,
   reminderItemTypeSchema,
   reminderMethodSchema,
 } from './schemas/reminder.schema';

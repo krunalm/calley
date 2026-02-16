@@ -4,6 +4,7 @@ import { db } from '../db';
 import { calendarCategories, eventExceptions, events, reminders } from '../db/schema';
 import { AppError } from '../lib/errors';
 import { logger } from '../lib/logger';
+import { reminderQueue } from '../lib/queue';
 import { sanitizeHtml } from '../lib/sanitize';
 import { recurrenceService } from './recurrence.service';
 
@@ -316,6 +317,40 @@ export class EventService {
 
       return inserted;
     });
+
+    // Enqueue BullMQ job for the inline reminder (outside transaction)
+    if (data.reminder) {
+      const inlineReminder = await db.query.reminders.findFirst({
+        where: and(
+          eq(reminders.userId, userId),
+          eq(reminders.itemId, event.id),
+          eq(reminders.itemType, 'event'),
+        ),
+      });
+      if (inlineReminder) {
+        try {
+          await reminderQueue.add(
+            'send-reminder',
+            {
+              reminderId: inlineReminder.id,
+              userId,
+              itemType: 'event',
+              itemId: event.id,
+              method: inlineReminder.method,
+            },
+            {
+              jobId: inlineReminder.id,
+              delay: Math.max(0, inlineReminder.triggerAt.getTime() - Date.now()),
+            },
+          );
+        } catch (err) {
+          logger.warn(
+            { err, reminderId: inlineReminder.id },
+            'Failed to enqueue inline reminder job',
+          );
+        }
+      }
+    }
 
     logger.info({ userId, eventId: event.id }, 'Event created');
 

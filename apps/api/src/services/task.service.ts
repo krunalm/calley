@@ -4,6 +4,7 @@ import { db } from '../db';
 import { calendarCategories, reminders, tasks } from '../db/schema';
 import { AppError } from '../lib/errors';
 import { logger } from '../lib/logger';
+import { reminderQueue } from '../lib/queue';
 import { recurrenceService } from './recurrence.service';
 
 import type { CreateTaskInput, EditScope, ListTasksQuery, UpdateTaskInput } from '@calley/shared';
@@ -229,6 +230,40 @@ export class TaskService {
 
       return inserted;
     });
+
+    // Enqueue BullMQ job for the inline reminder (outside transaction)
+    if (data.reminder && data.dueAt) {
+      const inlineReminder = await db.query.reminders.findFirst({
+        where: and(
+          eq(reminders.userId, userId),
+          eq(reminders.itemId, task.id),
+          eq(reminders.itemType, 'task'),
+        ),
+      });
+      if (inlineReminder) {
+        try {
+          await reminderQueue.add(
+            'send-reminder',
+            {
+              reminderId: inlineReminder.id,
+              userId,
+              itemType: 'task',
+              itemId: task.id,
+              method: inlineReminder.method,
+            },
+            {
+              jobId: inlineReminder.id,
+              delay: Math.max(0, inlineReminder.triggerAt.getTime() - Date.now()),
+            },
+          );
+        } catch (err) {
+          logger.warn(
+            { err, reminderId: inlineReminder.id },
+            'Failed to enqueue inline reminder job',
+          );
+        }
+      }
+    }
 
     logger.info({ userId, taskId: task.id }, 'Task created');
 

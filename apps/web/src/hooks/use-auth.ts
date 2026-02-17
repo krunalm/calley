@@ -41,9 +41,6 @@ export function useLogin() {
       if (err instanceof ApiError && err.status === 429) return;
       toast.error('Invalid email or password');
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.user.me });
-    },
   });
 }
 
@@ -69,9 +66,6 @@ export function useSignup() {
           ? 'An account with this email already exists'
           : 'Failed to create account';
       toast.error(message);
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.user.me });
     },
   });
 }

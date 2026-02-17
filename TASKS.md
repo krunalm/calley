@@ -826,49 +826,49 @@
 
 ### 9.3 API Integration Tests
 
-- [ ] Auth flow: signup → login → protected access → logout
-- [ ] Auth flow: OAuth mock (Google + GitHub)
-- [ ] Auth flow: password reset (request → reset → login with new password)
-- [ ] Auth flow: account lockout after 5 failed attempts
-- [ ] Event CRUD: create → read → update → delete
-- [ ] Event recurrence: create → expand → edit instance → edit following → edit all → delete
-- [ ] Task CRUD: create → read → toggle → reorder → delete
-- [ ] Category CRUD: create → assign to event → update → delete → verify reassignment
-- [ ] Reminder: create → verify BullMQ job scheduled → delete → verify job cancelled
-- [ ] Search: create events + tasks → search → verify results
-- [ ] Rate limiting: exceed limit → verify 429 response → verify Retry-After header
-- [ ] Authorization: attempt to access another user's resource → verify 403/404
-- [ ] Input validation: send invalid data → verify 400 with details
+- [x] Auth flow: signup → login → protected access → logout
+- [x] Auth flow: OAuth mock (Google + GitHub)
+- [x] Auth flow: password reset (request → reset → login with new password)
+- [x] Auth flow: account lockout after 5 failed attempts
+- [x] Event CRUD: create → read → update → delete
+- [x] Event recurrence: create → expand → edit instance → edit following → edit all → delete
+- [x] Task CRUD: create → read → toggle → reorder → delete
+- [x] Category CRUD: create → assign to event → update → delete → verify reassignment
+- [x] Reminder: create → verify BullMQ job scheduled → delete → verify job cancelled
+- [x] Search: create events + tasks → search → verify results
+- [x] Rate limiting: exceed limit → verify 429 response → verify Retry-After header
+- [x] Authorization: attempt to access another user's resource → verify 403/404
+- [x] Input validation: send invalid data → verify 400 with details
 
 ### 9.4 E2E Tests (Playwright)
 
-- [ ] **P0 — Critical path**:
-  - [ ] Signup → create first event → view in month view → verify event pill appears
-  - [ ] Login → logout → login again → verify session
-  - [ ] Create recurring event → edit single instance → verify series intact
-  - [ ] Create task → check off → verify in done filter
-- [ ] **P1 — Core features**:
-  - [ ] Drag event to new time slot in week view → verify updated
-  - [ ] Cmd+K search → type query → arrow to result → Enter → verify navigation
-  - [ ] Create reminder → wait for trigger → verify in-app toast
-  - [ ] Mobile viewport: agenda view navigation + task panel toggle
-  - [ ] OAuth login flow (mocked provider)
-  - [ ] Password reset flow (mocked email)
-- [ ] **P2 — Edge cases**:
-  - [ ] Category create → assign to event → delete category → verify event reassigned
-  - [ ] Keyboard-only flow: navigate calendar, create event, complete task (no mouse)
-  - [ ] Resize event duration by dragging edge in week view
-  - [ ] Quick create from time slot click → Enter to save → verify event appears
-  - [ ] All keyboard shortcuts work correctly
+- [x] **P0 — Critical path**:
+  - [x] Signup → create first event → view in month view → verify event pill appears
+  - [x] Login → logout → login again → verify session
+  - [x] Create recurring event → edit single instance → verify series intact
+  - [x] Create task → check off → verify in done filter
+- [x] **P1 — Core features**:
+  - [x] Drag event to new time slot in week view → verify updated
+  - [x] Cmd+K search → type query → arrow to result → Enter → verify navigation
+  - [~] Create reminder → wait for trigger → verify in-app toast
+  - [x] Mobile viewport: agenda view navigation + task panel toggle
+  - [x] OAuth login flow (mocked provider)
+  - [x] Password reset flow (mocked email)
+- [x] **P2 — Edge cases**:
+  - [x] Category create → assign to event → delete category → verify event reassigned
+  - [x] Keyboard-only flow: navigate calendar, create event, complete task (no mouse)
+  - [x] Resize event duration by dragging edge in week view
+  - [x] Quick create from time slot click → Enter to save → verify event appears
+  - [x] All keyboard shortcuts work correctly
 
 ### 9.5 Cross-Browser Testing
 
-- [ ] Chrome (latest)
-- [ ] Firefox (latest)
-- [ ] Safari (latest)
-- [ ] Edge (latest)
-- [ ] Mobile Chrome (Android)
-- [ ] Mobile Safari (iOS)
+- [x] Chrome (latest)
+- [x] Firefox (latest)
+- [x] Safari (latest)
+- [x] Edge (latest)
+- [x] Mobile Chrome (Android)
+- [x] Mobile Safari (iOS)
 
 ---
 

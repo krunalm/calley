@@ -262,11 +262,14 @@ Alternatively, use [Caddy](https://caddyserver.com/) or [Traefik](https://traefi
 For self-hosted deployments, set up automated PostgreSQL backups:
 
 ```bash
-# Daily backup via cron (add to crontab)
-0 3 * * * docker exec calley-db pg_dump -U calley calley | gzip > /backups/calley-$(date +\%Y\%m\%d).sql.gz
+# Create backup directory
+mkdir -p ~/calley-backups
+
+# Daily backup via cron (add to crontab with: crontab -e)
+0 3 * * * cd /path/to/calley/docker && docker compose exec -T db pg_dump -U calley calley | gzip > ~/calley-backups/calley-$(date +\%Y\%m\%d).sql.gz
 
 # Restore from backup
-gunzip < /backups/calley-20260217.sql.gz | docker exec -i calley-db psql -U calley calley
+gunzip < ~/calley-backups/calley-20260217.sql.gz | cd /path/to/calley/docker && docker compose exec -T db psql -U calley calley
 ```
 
 Redis data is non-critical and is reconstructable from PostgreSQL (reminder jobs are re-enqueued on API startup).
@@ -318,13 +321,13 @@ GitHub Actions workflows are configured for:
 
 ### Required GitHub Actions Secrets
 
-| Secret              | Description                                            |
-| ------------------- | ------------------------------------------------------ |
-| `VERCEL_TOKEN`      | Vercel API token                                       |
-| `VERCEL_ORG_ID`     | Vercel organization ID                                 |
-| `VERCEL_PROJECT_ID` | Vercel project ID                                      |
-| `RAILWAY_TOKEN`     | Railway API token                                      |
-| `DATABASE_URL`      | Production database connection string (for migrations) |
+| Secret              | Description                                                                                                                           |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `VERCEL_TOKEN`      | Vercel API token                                                                                                                      |
+| `VERCEL_ORG_ID`     | Vercel organization ID                                                                                                                |
+| `VERCEL_PROJECT_ID` | Vercel project ID                                                                                                                     |
+| `RAILWAY_TOKEN`     | Railway API token                                                                                                                     |
+| `DATABASE_URL`      | Production PostgreSQL connection string (for migrations). Copy from Railway project → Connect tab and add as a GitHub Actions secret. |
 
 ### Required GitHub Actions Variables
 

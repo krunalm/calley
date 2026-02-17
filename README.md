@@ -269,7 +269,7 @@ mkdir -p ~/calley-backups
 0 3 * * * cd /path/to/calley/docker && docker compose exec -T db pg_dump -U calley calley | gzip > ~/calley-backups/calley-$(date +\%Y\%m\%d).sql.gz
 
 # Restore from backup
-gunzip < ~/calley-backups/calley-20260217.sql.gz | cd /path/to/calley/docker && docker compose exec -T db psql -U calley calley
+cd /path/to/calley/docker && gunzip < ~/calley-backups/calley-20260217.sql.gz | docker compose exec -T db psql -U calley calley
 ```
 
 Redis data is non-critical and is reconstructable from PostgreSQL (reminder jobs are re-enqueued on API startup).

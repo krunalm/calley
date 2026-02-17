@@ -166,21 +166,37 @@ export async function createTask(
 // ─── Keyboard Shortcut Helpers ──────────────────────────────────────
 
 /**
- * Verify common navigation keyboard shortcuts (arrows, today, escape).
+ * Verify common navigation keyboard shortcuts (arrows, task panel toggle, escape).
  * Extracted to avoid duplication across keyboard-related tests.
+ *
+ * Uses condition-based waits instead of fixed timeouts for reliability.
  */
 export async function verifyNavigationShortcuts(page: Page) {
-  // Navigate with arrow keys
+  // Navigate right and wait for the date header text to change
+  const dateHeader = page.locator('h2').first();
+  const oldHeaderText = await dateHeader.textContent();
   await page.keyboard.press('ArrowRight');
-  await page.waitForTimeout(300);
+  await expect(dateHeader).not.toContainText(oldHeaderText ?? '', { timeout: 5_000 });
+
+  // Navigate left and wait for the date header text to change back
+  const updatedHeaderText = await dateHeader.textContent();
   await page.keyboard.press('ArrowLeft');
-  await page.waitForTimeout(300);
+  await expect(dateHeader).not.toContainText(updatedHeaderText ?? '', { timeout: 5_000 });
 
-  // 't' for today
+  // 't' toggles the task panel — wait for the toggle button's data-active attribute
   await page.keyboard.press('t');
-  await page.waitForTimeout(300);
+  const taskToggle = page.getByRole('button', { name: /toggle task panel/i });
+  if (await taskToggle.isVisible({ timeout: 2_000 }).catch(() => false)) {
+    await expect(taskToggle).toHaveAttribute('data-active', { timeout: 5_000 });
+  }
 
-  // Escape should close any open dialog
+  // Escape should close any open dialog/panel
   await page.keyboard.press('Escape');
-  await page.waitForTimeout(300);
+  await page
+    .locator('[role="dialog"]')
+    .first()
+    .waitFor({ state: 'hidden', timeout: 5_000 })
+    .catch(() => {
+      // OK — no dialog was open to close
+    });
 }

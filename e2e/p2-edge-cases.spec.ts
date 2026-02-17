@@ -20,13 +20,12 @@ test.describe('P2 — Edge Cases', () => {
     const settingsLink = page.getByRole('link', { name: /settings/i }).first();
     await expect(settingsLink).toBeVisible({ timeout: 5_000 });
     await settingsLink.click();
-    await page.waitForTimeout(500);
+    await page.waitForURL('**/settings**', { timeout: 5_000 });
 
     // Navigate to calendars/categories section
     const calendarsTab = page.getByRole('link', { name: /calendar|categor/i }).first();
     await expect(calendarsTab).toBeVisible({ timeout: 3_000 });
     await calendarsTab.click();
-    await page.waitForTimeout(500);
 
     // Create a new category
     const addCategoryBtn = page.getByRole('button', { name: /add|new|create/i }).first();
@@ -34,7 +33,6 @@ test.describe('P2 — Edge Cases', () => {
     await addCategoryBtn.click();
     await page.getByLabel(/name/i).fill('Temporary Category');
     await page.getByRole('button', { name: /save|create|add/i }).click();
-    await page.waitForTimeout(1000);
 
     // Assert the category was created
     const categoryItem = page.getByText('Temporary Category').first();
@@ -42,7 +40,7 @@ test.describe('P2 — Edge Cases', () => {
 
     // 2. Go back to calendar and create an event assigned to this category
     await page.goto('/calendar');
-    await page.waitForTimeout(1000);
+    await page.waitForURL('**/calendar**', { timeout: 5_000 });
 
     await createEvent(page, { title: 'Categorized Event', category: 'Temporary Category' });
 
@@ -51,13 +49,12 @@ test.describe('P2 — Edge Cases', () => {
 
     // 3. Go back to settings and delete the category
     await page.goto('/settings/calendars');
-    await page.waitForTimeout(500);
+    await page.waitForURL('**/settings**', { timeout: 5_000 });
 
     // Navigate to categories section again
     const calendarsTabAgain = page.getByRole('link', { name: /calendar|categor/i }).first();
     if (await calendarsTabAgain.isVisible({ timeout: 2000 }).catch(() => false)) {
       await calendarsTabAgain.click();
-      await page.waitForTimeout(500);
     }
 
     // Find and delete the category
@@ -79,14 +76,12 @@ test.describe('P2 — Edge Cases', () => {
       await confirmBtn.click();
     }
 
-    await page.waitForTimeout(1000);
-
     // Assert the category no longer exists
     await expect(page.getByText('Temporary Category')).toHaveCount(0, { timeout: 5_000 });
 
     // 4. Go back to calendar and verify the event still exists (reassigned to default)
     await page.goto('/calendar');
-    await page.waitForTimeout(1000);
+    await page.waitForURL('**/calendar**', { timeout: 5_000 });
 
     // Event should still be visible — it was reassigned to the default category
     await expect(page.getByText('Categorized Event').first()).toBeVisible({ timeout: 10_000 });
@@ -97,12 +92,15 @@ test.describe('P2 — Edge Cases', () => {
   }) => {
     const user = createTestUser('p2-keyboard');
     await signup(page, user);
-    await page.waitForTimeout(1000);
+
+    // Wait for calendar to be interactive
+    await expect(
+      page.locator('[data-testid="calendar-view"], .calendar-container, main'),
+    ).toBeVisible({ timeout: 5_000 });
 
     // 1. Create an event using keyboard shortcut
-    // 'n' or 'c' to create event (common calendar shortcuts)
+    // 'c' to create event (calendar shortcut)
     await page.keyboard.press('n');
-    await page.waitForTimeout(500);
 
     // Fill in the event form
     const titleInput = page.getByLabel(/title/i);
@@ -113,14 +111,12 @@ test.describe('P2 — Edge Cases', () => {
 
       // Submit with Enter or Ctrl+Enter
       await page.keyboard.press('Meta+Enter');
-      await page.waitForTimeout(500);
 
       // Fallback: try clicking save if Ctrl+Enter didn't work
       const saveBtn = page.getByRole('button', { name: /save|create/i });
       if (await saveBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
         await saveBtn.click();
       }
-      await page.waitForTimeout(500);
     }
 
     // Assert the event was created and is visible
@@ -132,7 +128,6 @@ test.describe('P2 — Edge Cases', () => {
     if (await taskInput.isVisible({ timeout: 3000 }).catch(() => false)) {
       await taskInput.fill('Keyboard Task');
       await page.keyboard.press('Enter');
-      await page.waitForTimeout(1000);
 
       // Verify task was created
       await expect(page.getByText('Keyboard Task').first()).toBeVisible({ timeout: 5_000 });
@@ -146,23 +141,28 @@ test.describe('P2 — Edge Cases', () => {
       if (await taskCheckbox.isVisible({ timeout: 3000 }).catch(() => false)) {
         await taskCheckbox.focus();
         await page.keyboard.press('Space');
-        await page.waitForTimeout(500);
 
         // Verify checkbox is checked
         await expect(taskCheckbox).toBeChecked({ timeout: 3_000 });
       }
     }
 
-    // 3. Use shared helper for navigation shortcuts (arrows, today, escape)
+    // 3. Use shared helper for navigation shortcuts (arrows, task panel toggle, escape)
     await verifyNavigationShortcuts(page);
 
     // Test '?' shortcut for keyboard shortcuts help
     await page.keyboard.press('?');
-    await page.waitForTimeout(500);
 
-    // Close dialog if it opened
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(300);
+    // Wait for shortcuts help dialog and then close it
+    const helpDialog = page.getByText(/keyboard shortcuts/i).first();
+    if (await helpDialog.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await page.keyboard.press('Escape');
+      await page
+        .locator('[role="dialog"]')
+        .first()
+        .waitFor({ state: 'hidden', timeout: 5_000 })
+        .catch(() => {});
+    }
   });
 
   test('Quick create from time slot click → Enter to save → verify event appears', async ({
@@ -173,65 +173,65 @@ test.describe('P2 — Edge Cases', () => {
 
     // Switch to week view for time slots
     const weekViewBtn = page.getByRole('button', { name: /week/i }).first();
-    if (await weekViewBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await weekViewBtn.click();
-      await page.waitForTimeout(500);
-    }
+    await expect(weekViewBtn).toBeVisible({ timeout: 5_000 });
+    await weekViewBtn.click();
 
-    // Click on a time slot in the calendar grid
+    // Wait for week view grid to render
     const timeSlot = page
       .locator('[data-testid="time-slot"], .time-slot, [role="gridcell"]')
       .first();
-    if (await timeSlot.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await timeSlot.click();
-      await page.waitForTimeout(500);
+    await expect(timeSlot).toBeVisible({ timeout: 5_000 });
+    await timeSlot.click();
 
-      // Quick create popover should appear
-      const quickInput = page.getByPlaceholder(/event|title/i).first();
-      if (await quickInput.isVisible({ timeout: 3000 }).catch(() => false)) {
-        await quickInput.fill('Quick Event');
-        await page.keyboard.press('Enter');
-        await page.waitForTimeout(1000);
+    // Quick create popover must appear after clicking a time slot
+    const quickInput = page.getByPlaceholder(/event|title/i).first();
+    await expect(quickInput).toBeVisible({ timeout: 5_000 });
+    await quickInput.fill('Quick Event');
+    await page.keyboard.press('Enter');
 
-        // Verify event appears
-        await expect(page.getByText('Quick Event').first()).toBeVisible({ timeout: 10_000 });
-      }
-    }
+    // Verify event appears on the calendar
+    await expect(page.getByText('Quick Event').first()).toBeVisible({ timeout: 10_000 });
   });
 
   test('All keyboard shortcuts work correctly', async ({ page }) => {
     const user = createTestUser('p2-shortcuts');
     await signup(page, user);
-    await page.waitForTimeout(1000);
 
-    // Test view switching shortcuts
+    // Wait for calendar to be interactive
+    await expect(
+      page.locator('[data-testid="calendar-view"], .calendar-container, main'),
+    ).toBeVisible({ timeout: 5_000 });
+
+    // Test view switching shortcuts — wait for each view's aria-label to appear
     // 'd' for day view
     await page.keyboard.press('d');
-    await page.waitForTimeout(500);
+    await page.locator('[aria-label="Calendar day view"]').waitFor({ timeout: 5_000 });
 
     // 'w' for week view
     await page.keyboard.press('w');
-    await page.waitForTimeout(500);
+    await page.locator('[aria-label="Calendar week view"]').waitFor({ timeout: 5_000 });
 
     // 'm' for month view
     await page.keyboard.press('m');
-    await page.waitForTimeout(500);
+    await page.locator('[aria-label="Calendar month view"]').waitFor({ timeout: 5_000 });
 
     // 'a' for agenda view
     await page.keyboard.press('a');
-    await page.waitForTimeout(500);
+    await page.locator('[aria-label="Agenda view"]').waitFor({ timeout: 5_000 });
 
-    // Use shared helper for common navigation shortcuts (arrows, today, escape)
+    // Use shared helper for common navigation shortcuts (arrows, task panel toggle, escape)
     await verifyNavigationShortcuts(page);
 
     // '?' should open keyboard shortcuts help
     await page.keyboard.press('?');
-    await page.waitForTimeout(500);
     const helpDialog = page.getByText(/keyboard shortcuts/i).first();
-    if (await helpDialog.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await expect(helpDialog).toBeVisible();
-      await page.keyboard.press('Escape');
-    }
+    await expect(helpDialog).toBeVisible({ timeout: 5_000 });
+    await page.keyboard.press('Escape');
+    await page
+      .locator('[role="dialog"]')
+      .first()
+      .waitFor({ state: 'hidden', timeout: 5_000 })
+      .catch(() => {});
   });
 
   test('Resize event duration by dragging edge in week view', async ({ page }) => {
@@ -242,7 +242,7 @@ test.describe('P2 — Edge Cases', () => {
     const weekViewBtn = page.getByRole('button', { name: /week/i }).first();
     if (await weekViewBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
       await weekViewBtn.click();
-      await page.waitForTimeout(500);
+      await page.locator('[aria-label="Calendar week view"]').waitFor({ timeout: 5_000 });
     }
 
     // Create an event
@@ -264,10 +264,9 @@ test.describe('P2 — Edge Cases', () => {
       // Drag down to extend duration
       await page.mouse.move(box.x + box.width / 2, bottomEdgeY + 50, { steps: 10 });
       await page.mouse.up();
-      await page.waitForTimeout(1000);
 
       // Verify event still exists after resize attempt
-      await expect(page.getByText('Resizable Event')).toBeVisible();
+      await expect(page.getByText('Resizable Event')).toBeVisible({ timeout: 5_000 });
 
       // Check if the height changed after resize
       const boxAfter = await page.getByText('Resizable Event').first().boundingBox();

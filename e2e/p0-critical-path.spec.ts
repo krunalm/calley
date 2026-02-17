@@ -74,7 +74,6 @@ test.describe('P0 — Critical Path', () => {
     }
 
     await page.getByRole('button', { name: /save|create/i }).click();
-    await page.waitForTimeout(1000);
 
     // 2. Verify the event appears
     const eventPill = page.getByText('Weekly Standup').first();
@@ -82,7 +81,6 @@ test.describe('P0 — Critical Path', () => {
 
     // 3. Click on the event to edit it
     await eventPill.click();
-    await page.waitForTimeout(500);
 
     // 4. Edit just this instance (if scope dialog appears)
     const titleField = page.getByLabel(/title/i);
@@ -90,7 +88,6 @@ test.describe('P0 — Critical Path', () => {
       await titleField.fill('Modified Standup');
 
       await page.getByRole('button', { name: /save|update/i }).click();
-      await page.waitForTimeout(500);
 
       // If scope dialog appears, select "this event only"
       const thisOnlyBtn = page.getByRole('button', {
@@ -101,15 +98,16 @@ test.describe('P0 — Critical Path', () => {
       }
     }
 
-    await page.waitForTimeout(1000);
-
     // 5. Verify the edited instance shows the modified title
     await expect(page.getByText('Modified Standup').first()).toBeVisible({ timeout: 10_000 });
 
     // 6. Verify the rest of the series still has the original title
-    // Navigate forward to find another occurrence of the series
+    // Navigate forward and wait for the date header to change
+    const dateHeader = page.locator('h2').first();
+    const headerBefore = await dateHeader.textContent();
     await page.keyboard.press('ArrowRight');
-    await page.waitForTimeout(1000);
+    await expect(dateHeader).not.toContainText(headerBefore ?? '', { timeout: 5_000 });
+
     await expect(page.getByText('Weekly Standup').first()).toBeVisible({ timeout: 10_000 });
   });
 
@@ -133,13 +131,14 @@ test.describe('P0 — Critical Path', () => {
 
     await expect(checkbox).toBeVisible({ timeout: 5_000 });
     await checkbox.click();
-    await page.waitForTimeout(500);
+
+    // Wait for checkbox to reflect checked state
+    await expect(checkbox).toBeChecked({ timeout: 5_000 });
 
     // 3. Filter by "done" tasks — assert the filter exists
     const doneFilter = page.getByText(/done|completed/i).first();
     await expect(doneFilter).toBeVisible({ timeout: 5_000 });
     await doneFilter.click();
-    await page.waitForTimeout(500);
 
     // 4. Verify the task appears in the done filter
     await expect(page.getByText('Complete report')).toBeVisible({ timeout: 5_000 });

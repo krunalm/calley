@@ -14,11 +14,11 @@ test.describe('P1 — Core Features', () => {
     const user = createTestUser('p1-drag');
     await signup(page, user);
 
-    // Switch to week view
+    // Switch to week view and wait for it to render
     const weekViewBtn = page.getByRole('button', { name: /week/i }).first();
     if (await weekViewBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
       await weekViewBtn.click();
-      await page.waitForTimeout(500);
+      await page.locator('[aria-label="Calendar week view"]').waitFor({ timeout: 5_000 });
     }
 
     // Create an event first
@@ -27,9 +27,8 @@ test.describe('P1 — Core Features', () => {
     await newEventBtn.click();
     await page.getByLabel(/title/i).fill('Draggable Event');
     await page.getByRole('button', { name: /save|create/i }).click();
-    await page.waitForTimeout(1000);
 
-    // Find the event pill
+    // Find the event pill — wait for it to appear (replaces fixed timeout)
     const eventPill = page.getByText('Draggable Event').first();
     await expect(eventPill).toBeVisible({ timeout: 10_000 });
 
@@ -46,11 +45,10 @@ test.describe('P1 — Core Features', () => {
         { steps: 10 },
       );
       await page.mouse.up();
-      await page.waitForTimeout(1000);
     }
 
     // Verify event still exists after drag
-    await expect(page.getByText('Draggable Event')).toBeVisible();
+    await expect(page.getByText('Draggable Event')).toBeVisible({ timeout: 5_000 });
 
     // Verify the pill actually moved by checking new position
     if (boxBefore) {
@@ -74,38 +72,36 @@ test.describe('P1 — Core Features', () => {
     await newEventBtn.click();
     await page.getByLabel(/title/i).fill('Searchable Meeting');
     await page.getByRole('button', { name: /save|create/i }).click();
-    await page.waitForTimeout(1000);
+
+    // Wait for event to appear before searching
+    await expect(page.getByText('Searchable Meeting').first()).toBeVisible({ timeout: 10_000 });
 
     // Open Cmd+K search dialog
     await page.keyboard.press('Meta+k');
-    await page.waitForTimeout(500);
 
     const searchInput = page.getByPlaceholder(/search|find/i).first();
 
     // If Cmd+K didn't open it, try Ctrl+K (Linux/Windows)
     if (!(await searchInput.isVisible({ timeout: 2000 }).catch(() => false))) {
       await page.keyboard.press('Control+k');
-      await page.waitForTimeout(500);
     }
 
     // The search dialog MUST be visible after trying both shortcuts
     await expect(searchInput).toBeVisible({ timeout: 3_000 });
 
     await searchInput.fill('Searchable');
-    await page.waitForTimeout(1000);
+
+    // Wait for search results to appear
+    const searchResult = page.getByText('Searchable Meeting').last();
+    await expect(searchResult).toBeVisible({ timeout: 5_000 });
 
     // Navigate with arrow keys and select
     await page.keyboard.press('ArrowDown');
     await page.keyboard.press('Enter');
-    await page.waitForTimeout(1000);
 
     // Verify navigation occurred — either the URL changed or the event details
     // are shown on the page after selecting the search result
-    const currentUrl = page.url();
-    const eventDetail = page.getByText('Searchable Meeting');
-    const navigated =
-      currentUrl.includes('event') || (await eventDetail.isVisible().catch(() => false));
-    expect(navigated).toBeTruthy();
+    await expect(page.getByText('Searchable Meeting')).toBeVisible({ timeout: 5_000 });
   });
 
   test('Mobile viewport: agenda view navigation + task panel toggle', async ({ page }) => {
@@ -118,48 +114,38 @@ test.describe('P1 — Core Features', () => {
     // Check that the mobile layout is displayed
     await expect(page).toHaveURL(/\/calendar/);
 
-    // Look for mobile-specific navigation (hamburger, bottom tabs)
+    // Mobile navigation must be present at this viewport
     const mobileNav = page.getByRole('button', { name: /menu|hamburger/i }).first();
-    if (await mobileNav.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await mobileNav.click();
-      await page.waitForTimeout(500);
+    await expect(mobileNav).toBeVisible({ timeout: 5_000 });
+    await mobileNav.click();
 
-      // Verify the mobile menu opened — look for menu items or nav panel
-      const menuPanel = page.locator(
-        '[role="menu"], [data-testid="mobile-menu"], nav, [role="navigation"]',
-      );
-      await expect(menuPanel.first()).toBeVisible({ timeout: 3_000 });
-    }
+    // Verify the mobile menu opened — look for menu items or nav panel
+    const menuPanel = page.locator(
+      '[role="menu"], [data-testid="mobile-menu"], nav, [role="navigation"]',
+    );
+    await expect(menuPanel.first()).toBeVisible({ timeout: 3_000 });
 
-    // Try switching to agenda view
+    // Switch to agenda view — must be available in navigation
     const agendaBtn = page.getByRole('button', { name: /agenda/i }).first();
-    if (await agendaBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await agendaBtn.click();
-      await page.waitForTimeout(500);
+    await expect(agendaBtn).toBeVisible({ timeout: 5_000 });
+    await agendaBtn.click();
 
-      // Verify the agenda view is rendered
-      const agendaView = page.locator(
-        '[data-testid="agenda-view"], [data-view="agenda"], .agenda-view',
-      );
-      if (await agendaView.isVisible({ timeout: 3000 }).catch(() => false)) {
-        await expect(agendaView).toBeVisible();
-      }
-    }
+    // Verify the agenda view is rendered
+    const agendaView = page.locator(
+      '[data-testid="agenda-view"], [data-view="agenda"], .agenda-view',
+    );
+    await expect(agendaView.first()).toBeVisible({ timeout: 5_000 });
 
-    // Toggle task panel on mobile
+    // Toggle task panel on mobile — must be accessible
     const taskPanelToggle = page.getByRole('button', { name: /task|panel|sidebar/i }).first();
-    if (await taskPanelToggle.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await taskPanelToggle.click();
-      await page.waitForTimeout(500);
+    await expect(taskPanelToggle).toBeVisible({ timeout: 5_000 });
+    await taskPanelToggle.click();
 
-      // Verify task panel is visible
-      const taskPanel = page.locator(
-        '[data-testid="task-panel"], [role="complementary"], .task-panel, aside',
-      );
-      if (await taskPanel.isVisible({ timeout: 3000 }).catch(() => false)) {
-        await expect(taskPanel).toBeVisible();
-      }
-    }
+    // Verify task panel is visible
+    const taskPanel = page.locator(
+      '[data-testid="task-panel"], [role="complementary"], .task-panel, aside',
+    );
+    await expect(taskPanel.first()).toBeVisible({ timeout: 5_000 });
   });
 
   test('OAuth login flow (mocked provider)', async ({ page }) => {

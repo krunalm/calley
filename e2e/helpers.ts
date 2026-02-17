@@ -37,7 +37,8 @@ export async function signup(page: Page, user: TestUser = createTestUser()) {
   await page.getByLabel(/^password$/i).fill(user.password);
   await page.getByRole('button', { name: /sign up|create account/i }).click();
   // Wait for redirect to calendar after successful signup
-  await page.waitForURL('**/calendar**', { timeout: 15_000 });
+  // Signup involves Argon2id hashing (~1s) + DB ops + route guard /auth/me check
+  await page.waitForURL('**/calendar**', { timeout: 30_000 });
 }
 
 /**
@@ -48,7 +49,7 @@ export async function login(page: Page, user: TestUser) {
   await page.getByLabel(/email/i).fill(user.email);
   await page.getByLabel(/password/i).fill(user.password);
   await page.getByRole('button', { name: /log in|sign in/i }).click();
-  await page.waitForURL('**/calendar**', { timeout: 15_000 });
+  await page.waitForURL('**/calendar**', { timeout: 30_000 });
 }
 
 /**

@@ -1,7 +1,9 @@
-import { RRule, RRuleSet } from 'rrule';
+import rruleLib from 'rrule';
 
 import { AppError } from '../lib/errors';
 import { logger } from '../lib/logger';
+
+const { RRule, RRuleSet } = rruleLib;
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -157,7 +159,7 @@ export class RecurrenceService {
     }
     const duration = Math.max(0, rawDuration);
 
-    let rrule: RRule;
+    let rrule: InstanceType<typeof RRule>;
     try {
       rrule = RRule.fromString(parent.rrule!);
     } catch (err) {

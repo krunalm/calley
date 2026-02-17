@@ -174,14 +174,15 @@ export async function createTask(
 export async function verifyNavigationShortcuts(page: Page) {
   // Navigate right and wait for the date header text to change
   const dateHeader = page.locator('h2').first();
-  const oldHeaderText = await dateHeader.textContent();
+  await expect(dateHeader).toHaveText(/\S+/, { timeout: 5_000 });
+  const oldHeaderText = (await dateHeader.textContent())!;
   await page.keyboard.press('ArrowRight');
-  await expect(dateHeader).not.toContainText(oldHeaderText ?? '', { timeout: 5_000 });
+  await expect(dateHeader).not.toContainText(oldHeaderText, { timeout: 5_000 });
 
   // Navigate left and wait for the date header text to change back
-  const updatedHeaderText = await dateHeader.textContent();
+  const updatedHeaderText = (await dateHeader.textContent())!;
   await page.keyboard.press('ArrowLeft');
-  await expect(dateHeader).not.toContainText(updatedHeaderText ?? '', { timeout: 5_000 });
+  await expect(dateHeader).not.toContainText(updatedHeaderText, { timeout: 5_000 });
 
   // 't' toggles the task panel — wait for the toggle button's data-active attribute
   await page.keyboard.press('t');

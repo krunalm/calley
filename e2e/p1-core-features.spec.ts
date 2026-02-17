@@ -14,12 +14,11 @@ test.describe('P1 — Core Features', () => {
     const user = createTestUser('p1-drag');
     await signup(page, user);
 
-    // Switch to week view and wait for it to render
+    // Switch to week view — required precondition for drag test
     const weekViewBtn = page.getByRole('button', { name: /week/i }).first();
-    if (await weekViewBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await weekViewBtn.click();
-      await page.locator('[aria-label="Calendar week view"]').waitFor({ timeout: 5_000 });
-    }
+    await expect(weekViewBtn).toBeVisible({ timeout: 5_000 });
+    await weekViewBtn.click();
+    await page.locator('[aria-label="Calendar week view"]').waitFor({ timeout: 5_000 });
 
     // Create an event first
     const newEventBtn = page.getByRole('button', { name: /new event|create event|\+/i }).first();
@@ -161,7 +160,7 @@ test.describe('P1 — Core Features', () => {
 
     expect(googleVisible || githubVisible).toBeTruthy();
 
-    // Click Google OAuth button to verify it initiates the flow
+    // Click whichever OAuth button is visible to verify it initiates the flow
     if (googleVisible) {
       await Promise.all([
         page
@@ -170,6 +169,15 @@ test.describe('P1 — Core Features', () => {
           })
           .catch(() => null),
         googleBtn.click(),
+      ]);
+    } else if (githubVisible) {
+      await Promise.all([
+        page
+          .waitForResponse((resp) => resp.url().includes('/auth/oauth/github'), {
+            timeout: 5000,
+          })
+          .catch(() => null),
+        githubBtn.click(),
       ]);
     }
   });

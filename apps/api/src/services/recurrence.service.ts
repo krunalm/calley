@@ -1,4 +1,6 @@
-import { RRule, RRuleSet } from 'rrule';
+import rruleLib from 'rrule';
+
+const { RRule, RRuleSet } = rruleLib;
 
 import { AppError } from '../lib/errors';
 import { logger } from '../lib/logger';

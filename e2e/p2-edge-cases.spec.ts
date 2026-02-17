@@ -18,26 +18,27 @@ test.describe('P2 — Edge Cases', () => {
 
     // 1. Navigate to settings to create a category
     const settingsLink = page.getByRole('link', { name: /settings/i }).first();
-    if (await settingsLink.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await settingsLink.click();
-      await page.waitForTimeout(500);
-    }
+    await expect(settingsLink).toBeVisible({ timeout: 5_000 });
+    await settingsLink.click();
+    await page.waitForTimeout(500);
 
     // Navigate to calendars/categories section
     const calendarsTab = page.getByRole('link', { name: /calendar|categor/i }).first();
-    if (await calendarsTab.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await calendarsTab.click();
-      await page.waitForTimeout(500);
-    }
+    await expect(calendarsTab).toBeVisible({ timeout: 3_000 });
+    await calendarsTab.click();
+    await page.waitForTimeout(500);
 
     // Create a new category
     const addCategoryBtn = page.getByRole('button', { name: /add|new|create/i }).first();
-    if (await addCategoryBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await addCategoryBtn.click();
-      await page.getByLabel(/name/i).fill('Temporary Category');
-      await page.getByRole('button', { name: /save|create|add/i }).click();
-      await page.waitForTimeout(1000);
-    }
+    await expect(addCategoryBtn).toBeVisible({ timeout: 3_000 });
+    await addCategoryBtn.click();
+    await page.getByLabel(/name/i).fill('Temporary Category');
+    await page.getByRole('button', { name: /save|create|add/i }).click();
+    await page.waitForTimeout(1000);
+
+    // Assert the category was created
+    const categoryItem = page.getByText('Temporary Category').first();
+    await expect(categoryItem).toBeVisible({ timeout: 5_000 });
 
     // 2. Go back to calendar and create an event assigned to this category
     await page.goto('/calendar');
@@ -45,33 +46,43 @@ test.describe('P2 — Edge Cases', () => {
 
     await createEvent(page, { title: 'Categorized Event', category: 'Temporary Category' });
 
+    // Verify the event was created
+    await expect(page.getByText('Categorized Event').first()).toBeVisible({ timeout: 10_000 });
+
     // 3. Go back to settings and delete the category
-    if (await settingsLink.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await settingsLink.click();
-    } else {
-      await page.goto('/settings/calendars');
-    }
+    await page.goto('/settings/calendars');
     await page.waitForTimeout(500);
 
-    // Find the category and delete it
-    const categoryItem = page.getByText('Temporary Category').first();
-    if (await categoryItem.isVisible({ timeout: 3000 }).catch(() => false)) {
-      const deleteBtn = page
-        .locator('[data-testid="category-item"], li, [role="listitem"]')
-        .filter({ hasText: 'Temporary Category' })
-        .getByRole('button', { name: /delete|remove/i })
-        .first();
-
-      if (await deleteBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-        await deleteBtn.click();
-
-        // Confirm deletion if dialog appears
-        const confirmBtn = page.getByRole('button', { name: /confirm|delete|yes/i });
-        if (await confirmBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-          await confirmBtn.click();
-        }
-      }
+    // Navigate to categories section again
+    const calendarsTabAgain = page.getByRole('link', { name: /calendar|categor/i }).first();
+    if (await calendarsTabAgain.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await calendarsTabAgain.click();
+      await page.waitForTimeout(500);
     }
+
+    // Find and delete the category
+    const categoryToDelete = page.getByText('Temporary Category').first();
+    await expect(categoryToDelete).toBeVisible({ timeout: 5_000 });
+
+    const deleteBtn = page
+      .locator('[data-testid="category-item"], li, [role="listitem"]')
+      .filter({ hasText: 'Temporary Category' })
+      .getByRole('button', { name: /delete|remove/i })
+      .first();
+
+    await expect(deleteBtn).toBeVisible({ timeout: 3_000 });
+    await deleteBtn.click();
+
+    // Confirm deletion if dialog appears
+    const confirmBtn = page.getByRole('button', { name: /confirm|delete|yes/i });
+    if (await confirmBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await confirmBtn.click();
+    }
+
+    await page.waitForTimeout(1000);
+
+    // Assert the category no longer exists
+    await expect(page.getByText('Temporary Category')).toHaveCount(0, { timeout: 5_000 });
 
     // 4. Go back to calendar and verify the event still exists (reassigned to default)
     await page.goto('/calendar');
@@ -88,12 +99,12 @@ test.describe('P2 — Edge Cases', () => {
     await signup(page, user);
     await page.waitForTimeout(1000);
 
-    // Use keyboard shortcuts for navigation
+    // 1. Create an event using keyboard shortcut
     // 'n' or 'c' to create event (common calendar shortcuts)
     await page.keyboard.press('n');
     await page.waitForTimeout(500);
 
-    // If a create dialog opened, fill it in
+    // Fill in the event form
     const titleInput = page.getByLabel(/title/i);
     if (await titleInput.isVisible({ timeout: 3000 }).catch(() => false)) {
       await titleInput.fill('Keyboard Event');
@@ -112,7 +123,37 @@ test.describe('P2 — Edge Cases', () => {
       await page.waitForTimeout(500);
     }
 
-    // Use shared helper for navigation shortcuts (arrows, today, escape)
+    // Assert the event was created and is visible
+    await expect(page.getByText('Keyboard Event').first()).toBeVisible({ timeout: 10_000 });
+
+    // 2. Create and complete a task using keyboard
+    // Tab to task panel or use shortcut to open it
+    const taskInput = page.getByPlaceholder(/add task|new task/i).first();
+    if (await taskInput.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await taskInput.fill('Keyboard Task');
+      await page.keyboard.press('Enter');
+      await page.waitForTimeout(1000);
+
+      // Verify task was created
+      await expect(page.getByText('Keyboard Task').first()).toBeVisible({ timeout: 5_000 });
+
+      // Find the task checkbox and toggle it complete via keyboard
+      const taskCheckbox = page
+        .locator('[data-testid="task-item"], li, [role="listitem"]')
+        .filter({ hasText: 'Keyboard Task' })
+        .getByRole('checkbox')
+        .first();
+      if (await taskCheckbox.isVisible({ timeout: 3000 }).catch(() => false)) {
+        await taskCheckbox.focus();
+        await page.keyboard.press('Space');
+        await page.waitForTimeout(500);
+
+        // Verify checkbox is checked
+        await expect(taskCheckbox).toBeChecked({ timeout: 3_000 });
+      }
+    }
+
+    // 3. Use shared helper for navigation shortcuts (arrows, today, escape)
     await verifyNavigationShortcuts(page);
 
     // Test '?' shortcut for keyboard shortcuts help

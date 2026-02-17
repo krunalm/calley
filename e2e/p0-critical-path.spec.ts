@@ -102,6 +102,15 @@ test.describe('P0 — Critical Path', () => {
     }
 
     await page.waitForTimeout(1000);
+
+    // 5. Verify the edited instance shows the modified title
+    await expect(page.getByText('Modified Standup').first()).toBeVisible({ timeout: 10_000 });
+
+    // 6. Verify the rest of the series still has the original title
+    // Navigate forward to find another occurrence of the series
+    await page.keyboard.press('ArrowRight');
+    await page.waitForTimeout(1000);
+    await expect(page.getByText('Weekly Standup').first()).toBeVisible({ timeout: 10_000 });
   });
 
   test('Create task → check off → verify in done filter', async ({ page }) => {

@@ -80,31 +80,32 @@ test.describe('P1 — Core Features', () => {
     await page.keyboard.press('Meta+k');
     await page.waitForTimeout(500);
 
-    // If Cmd+K didn't open it, try Ctrl+K (Linux/Windows)
     const searchInput = page.getByPlaceholder(/search|find/i).first();
+
+    // If Cmd+K didn't open it, try Ctrl+K (Linux/Windows)
     if (!(await searchInput.isVisible({ timeout: 2000 }).catch(() => false))) {
       await page.keyboard.press('Control+k');
       await page.waitForTimeout(500);
     }
 
-    // Type search query and verify navigation
-    if (await searchInput.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await searchInput.fill('Searchable');
-      await page.waitForTimeout(1000);
+    // The search dialog MUST be visible after trying both shortcuts
+    await expect(searchInput).toBeVisible({ timeout: 3_000 });
 
-      // Navigate with arrow keys and select
-      await page.keyboard.press('ArrowDown');
-      await page.keyboard.press('Enter');
-      await page.waitForTimeout(1000);
+    await searchInput.fill('Searchable');
+    await page.waitForTimeout(1000);
 
-      // Verify navigation occurred — either the URL changed or the event details
-      // are shown on the page after selecting the search result
-      const currentUrl = page.url();
-      const eventDetail = page.getByText('Searchable Meeting');
-      const navigated =
-        currentUrl.includes('event') || (await eventDetail.isVisible().catch(() => false));
-      expect(navigated).toBeTruthy();
-    }
+    // Navigate with arrow keys and select
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(1000);
+
+    // Verify navigation occurred — either the URL changed or the event details
+    // are shown on the page after selecting the search result
+    const currentUrl = page.url();
+    const eventDetail = page.getByText('Searchable Meeting');
+    const navigated =
+      currentUrl.includes('event') || (await eventDetail.isVisible().catch(() => false));
+    expect(navigated).toBeTruthy();
   });
 
   test('Mobile viewport: agenda view navigation + task panel toggle', async ({ page }) => {

@@ -97,6 +97,20 @@ export async function createEvent(
     }
   }
 
+  if (options.startTime) {
+    const startField = page.getByLabel(/start time|from/i).first();
+    if (await startField.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await startField.fill(options.startTime);
+    }
+  }
+
+  if (options.endTime) {
+    const endField = page.getByLabel(/end time|to|until/i).first();
+    if (await endField.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await endField.fill(options.endTime);
+    }
+  }
+
   if (options.description) {
     const descField = page.getByLabel(/description|notes/i);
     if (await descField.isVisible()) {

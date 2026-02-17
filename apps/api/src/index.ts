@@ -1,6 +1,7 @@
 import { serve } from '@hono/node-server';
 
 import { app } from './app';
+import { validateEnv } from './lib/env';
 import { initializeJobProcessing } from './jobs';
 import { logger } from './lib/logger';
 import { closeQueues } from './lib/queue';
@@ -12,6 +13,11 @@ const port = Number(process.env.PORT) || 4000;
 let server: ReturnType<typeof serve>;
 
 async function start() {
+  // Validate environment variables before starting
+  if (!validateEnv()) {
+    process.exit(1);
+  }
+
   try {
     await connectRedis();
   } catch {

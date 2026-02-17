@@ -13,9 +13,9 @@ PASS=0
 WARN=0
 FAIL=0
 
-pass() { echo -e "${GREEN}[PASS]${NC} $1"; ((PASS++)); }
-warn() { echo -e "${YELLOW}[WARN]${NC} $1"; ((WARN++)); }
-fail() { echo -e "${RED}[FAIL]${NC} $1"; ((FAIL++)); }
+pass() { echo -e "${GREEN}[PASS]${NC} $1"; PASS=$((PASS + 1)); }
+warn() { echo -e "${YELLOW}[WARN]${NC} $1"; WARN=$((WARN + 1)); }
+fail() { echo -e "${RED}[FAIL]${NC} $1"; FAIL=$((FAIL + 1)); }
 
 echo "=================================================="
 echo "  Calley Pre-Launch Readiness Check"
@@ -24,27 +24,42 @@ echo ""
 
 # ─── 1. Build Check ─────────────────────────────────
 echo "--- Build ---"
-if pnpm build > /dev/null 2>&1; then
+TMPOUT=$(mktemp)
+if pnpm build > "$TMPOUT" 2>&1; then
   pass "Project builds successfully"
 else
+  echo ""
+  cat "$TMPOUT"
+  echo ""
   fail "Project build failed"
 fi
+rm -f "$TMPOUT"
 
 # ─── 2. Type Check ──────────────────────────────────
 echo "--- Type Safety ---"
-if pnpm type-check > /dev/null 2>&1; then
+TMPOUT=$(mktemp)
+if pnpm type-check > "$TMPOUT" 2>&1; then
   pass "TypeScript type checking passes"
 else
+  echo ""
+  cat "$TMPOUT"
+  echo ""
   fail "TypeScript type errors found"
 fi
+rm -f "$TMPOUT"
 
 # ─── 3. Lint Check ──────────────────────────────────
 echo "--- Linting ---"
-if pnpm lint > /dev/null 2>&1; then
+TMPOUT=$(mktemp)
+if pnpm lint > "$TMPOUT" 2>&1; then
   pass "ESLint passes with no errors"
 else
+  echo ""
+  cat "$TMPOUT"
+  echo ""
   fail "ESLint found errors"
 fi
+rm -f "$TMPOUT"
 
 # ─── 4. Dependency Audit ────────────────────────────
 echo "--- Dependency Security ---"
@@ -80,7 +95,9 @@ fi
 # ─── 6. No Secrets in Code ──────────────────────────
 echo "--- Secret Scanning ---"
 SECRET_PATTERNS='(password|secret|api_key|apikey|token|private_key)\s*[:=]\s*["\x27][^"\x27]{8,}'
-if grep -rIi --include="*.ts" --include="*.tsx" --include="*.js" -E "$SECRET_PATTERNS" apps/ packages/ 2>/dev/null | grep -v ".env" | grep -v "example" | grep -v "test" | grep -v "mock" | grep -v "process.env" | grep -v ".d.ts" | head -5 | grep -q .; then
+MATCHES=$(grep -rIi --include="*.ts" --include="*.tsx" --include="*.js" -E "$SECRET_PATTERNS" apps/ packages/ 2>/dev/null | grep -v ".env" | grep -v "example" | grep -v "test" | grep -v "mock" | grep -v "process.env" | grep -v ".d.ts" | head -5 || true)
+if [ -n "$MATCHES" ]; then
+  echo "$MATCHES"
   warn "Potential hardcoded secrets found — review the matches above"
 else
   pass "No obvious hardcoded secrets detected"

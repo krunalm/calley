@@ -40,34 +40,34 @@ A modern, production-grade calendar web application for managing events, tasks, 
 ## Architecture
 
 ```
-┌──────────────────┐
-│   CDN / Vercel   │
-│  (React SPA)     │
-└────────┬─────────┘
-         │ HTTPS
-┌────────▼─────────┐
-│   Hono API       │
-│   (Node.js 22)   │
-│                   │
-│  Middleware:      │
-│  • CORS          │
-│  • Security Hdrs │
-│  • Rate Limiting │
-│  • Auth (Lucia)  │
-│  • Validation    │
-│  • Logging       │
-└──┬────────────┬──┘
-   │            │
-┌──▼──────┐  ┌─▼─────────────┐
-│PostgreSQL│  │  Redis         │
-│  16      │  │  7             │
-│          │  │                │
-│ Users    │  │ BullMQ queues  │
-│ Events   │  │ Rate limiting  │
-│ Tasks    │  │ SSE pub/sub    │
-│ Sessions │  │                │
-│ ...      │  │                │
-└──────────┘  └────────────────┘
+┌───────────────────┐
+│   CDN / Vercel    │
+│   (React SPA)     │
+└─────────┬─────────┘
+          │ HTTPS
+┌─────────▼─────────┐
+│   Hono API        │
+│   (Node.js 22)    │
+│                    │
+│   Middleware:      │
+│   • CORS          │
+│   • Security Hdrs │
+│   • Rate Limiting │
+│   • Auth (Lucia)  │
+│   • Validation    │
+│   • Logging       │
+└──┬─────────────┬──┘
+   │             │
+┌──▼──────┐  ┌──▼──────────────┐
+│PostgreSQL│  │ Redis            │
+│ 16       │  │ 7                │
+│          │  │                  │
+│ Users    │  │ BullMQ queues    │
+│ Events   │  │ Rate limiting    │
+│ Tasks    │  │ SSE pub/sub      │
+│ Sessions │  │                  │
+│ ...      │  │                  │
+└──────────┘  └──────────────────┘
 ```
 
 ### Project Structure
@@ -328,8 +328,8 @@ GitHub Actions workflows are configured for:
 
 ### Required GitHub Actions Variables
 
-| Variable                  | Description                        |
-| ------------------------- | ---------------------------------- |
+| Variable                  | Description                                                                  |
+| ------------------------- | ---------------------------------------------------------------------------- |
 | `PRODUCTION_API_URL`      | Production API URL for health checks (e.g., `https://api.calley.app/api/v1`) |
 | `PRODUCTION_FRONTEND_URL` | Production frontend URL for health checks (e.g., `https://calley.app`)       |
 
@@ -337,64 +337,64 @@ GitHub Actions workflows are configured for:
 
 ### Authentication
 
-| Method   | Path                              | Description                      |
-| -------- | --------------------------------- | -------------------------------- |
-| `POST`   | `/auth/signup`                    | Create account (email + password)|
-| `POST`   | `/auth/login`                     | Login with email + password      |
-| `POST`   | `/auth/logout`                    | Logout (invalidate session)      |
-| `POST`   | `/auth/forgot-password`           | Request password reset email     |
-| `POST`   | `/auth/reset-password`            | Reset password with token        |
-| `GET`    | `/auth/me`                        | Get current user profile         |
-| `PATCH`  | `/auth/me`                        | Update profile                   |
-| `PATCH`  | `/auth/me/password`               | Change password                  |
-| `DELETE` | `/auth/me`                        | Delete account                   |
-| `GET`    | `/auth/sessions`                  | List active sessions             |
-| `DELETE` | `/auth/sessions/:id`              | Revoke a specific session        |
-| `DELETE` | `/auth/sessions`                  | Revoke all other sessions        |
-| `GET`    | `/auth/oauth/google`              | Initiate Google OAuth            |
-| `GET`    | `/auth/oauth/google/callback`     | Google OAuth callback            |
-| `GET`    | `/auth/oauth/github`              | Initiate GitHub OAuth            |
-| `GET`    | `/auth/oauth/github/callback`     | GitHub OAuth callback            |
+| Method   | Path                          | Description                       |
+| -------- | ----------------------------- | --------------------------------- |
+| `POST`   | `/auth/signup`                | Create account (email + password) |
+| `POST`   | `/auth/login`                 | Login with email + password       |
+| `POST`   | `/auth/logout`                | Logout (invalidate session)       |
+| `POST`   | `/auth/forgot-password`       | Request password reset email      |
+| `POST`   | `/auth/reset-password`        | Reset password with token         |
+| `GET`    | `/auth/me`                    | Get current user profile          |
+| `PATCH`  | `/auth/me`                    | Update profile                    |
+| `PATCH`  | `/auth/me/password`           | Change password                   |
+| `DELETE` | `/auth/me`                    | Delete account                    |
+| `GET`    | `/auth/sessions`              | List active sessions              |
+| `DELETE` | `/auth/sessions/:id`          | Revoke a specific session         |
+| `DELETE` | `/auth/sessions`              | Revoke all other sessions         |
+| `GET`    | `/auth/oauth/google`          | Initiate Google OAuth             |
+| `GET`    | `/auth/oauth/google/callback` | Google OAuth callback             |
+| `GET`    | `/auth/oauth/github`          | Initiate GitHub OAuth             |
+| `GET`    | `/auth/oauth/github/callback` | GitHub OAuth callback             |
 
 ### Events
 
-| Method   | Path                              | Description                      |
-| -------- | --------------------------------- | -------------------------------- |
-| `GET`    | `/events`                         | List events in date range        |
-| `POST`   | `/events`                         | Create event                     |
-| `GET`    | `/events/:id`                     | Get single event                 |
-| `PATCH`  | `/events/:id`                     | Update event (with scope param)  |
-| `DELETE` | `/events/:id`                     | Delete event (with scope param)  |
-| `POST`   | `/events/:id/duplicate`           | Duplicate event                  |
-| `GET`    | `/events/:id/ics`                 | Export as .ics file              |
+| Method   | Path                    | Description                     |
+| -------- | ----------------------- | ------------------------------- |
+| `GET`    | `/events`               | List events in date range       |
+| `POST`   | `/events`               | Create event                    |
+| `GET`    | `/events/:id`           | Get single event                |
+| `PATCH`  | `/events/:id`           | Update event (with scope param) |
+| `DELETE` | `/events/:id`           | Delete event (with scope param) |
+| `POST`   | `/events/:id/duplicate` | Duplicate event                 |
+| `GET`    | `/events/:id/ics`       | Export as .ics file             |
 
 ### Tasks
 
-| Method   | Path                              | Description                      |
-| -------- | --------------------------------- | -------------------------------- |
-| `GET`    | `/tasks`                          | List tasks with filters          |
-| `POST`   | `/tasks`                          | Create task                      |
-| `GET`    | `/tasks/:id`                      | Get single task                  |
-| `PATCH`  | `/tasks/:id`                      | Update task (with scope param)   |
-| `DELETE` | `/tasks/:id`                      | Delete task (with scope param)   |
-| `PATCH`  | `/tasks/:id/toggle`               | Toggle task completion           |
-| `PATCH`  | `/tasks/reorder`                  | Reorder tasks                    |
+| Method   | Path                | Description                    |
+| -------- | ------------------- | ------------------------------ |
+| `GET`    | `/tasks`            | List tasks with filters        |
+| `POST`   | `/tasks`            | Create task                    |
+| `GET`    | `/tasks/:id`        | Get single task                |
+| `PATCH`  | `/tasks/:id`        | Update task (with scope param) |
+| `DELETE` | `/tasks/:id`        | Delete task (with scope param) |
+| `PATCH`  | `/tasks/:id/toggle` | Toggle task completion         |
+| `PATCH`  | `/tasks/reorder`    | Reorder tasks                  |
 
 ### Categories, Reminders, Search, Health
 
-| Method   | Path                              | Description                      |
-| -------- | --------------------------------- | -------------------------------- |
-| `GET`    | `/categories`                     | List categories                  |
-| `POST`   | `/categories`                     | Create category                  |
-| `PATCH`  | `/categories/:id`                 | Update category                  |
-| `DELETE` | `/categories/:id`                 | Delete category                  |
-| `GET`    | `/reminders`                      | List reminders for item          |
-| `POST`   | `/reminders`                      | Create reminder                  |
-| `DELETE` | `/reminders/:id`                  | Delete reminder                  |
-| `GET`    | `/search`                         | Full-text search                 |
-| `GET`    | `/stream`                         | SSE real-time updates            |
-| `GET`    | `/health`                         | Liveness probe                   |
-| `GET`    | `/health/ready`                   | Readiness probe                  |
+| Method   | Path              | Description             |
+| -------- | ----------------- | ----------------------- |
+| `GET`    | `/categories`     | List categories         |
+| `POST`   | `/categories`     | Create category         |
+| `PATCH`  | `/categories/:id` | Update category         |
+| `DELETE` | `/categories/:id` | Delete category         |
+| `GET`    | `/reminders`      | List reminders for item |
+| `POST`   | `/reminders`      | Create reminder         |
+| `DELETE` | `/reminders/:id`  | Delete reminder         |
+| `GET`    | `/search`         | Full-text search        |
+| `GET`    | `/stream`         | SSE real-time updates   |
+| `GET`    | `/health`         | Liveness probe          |
+| `GET`    | `/health/ready`   | Readiness probe         |
 
 ## Security
 

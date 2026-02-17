@@ -80,10 +80,17 @@ jobs:
       - name: Verify Frontend
         if: vars.PRODUCTION_FRONTEND_URL != ''
         run: |
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${{ vars.PRODUCTION_FRONTEND_URL }}" || true)
-          if [ "$STATUS" = "200" ]; then
-            echo "Frontend health check passed (HTTP $STATUS)"
-          else
-            echo "Frontend health check failed (HTTP $STATUS)"
-            exit 1
-          fi
+          MAX_RETRIES=5
+          RETRY=0
+          until [ $RETRY -ge $MAX_RETRIES ]; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${{ vars.PRODUCTION_FRONTEND_URL }}" || true)
+            if [ "$STATUS" = "200" ]; then
+              echo "Frontend health check passed (HTTP $STATUS)"
+              exit 0
+            fi
+            RETRY=$((RETRY + 1))
+            echo "Frontend health check attempt $RETRY/$MAX_RETRIES failed (HTTP $STATUS), retrying in 10s..."
+            sleep 10
+          done
+          echo "Frontend health check failed after $MAX_RETRIES attempts"
+          exit 1

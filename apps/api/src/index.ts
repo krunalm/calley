@@ -1,8 +1,8 @@
 import { serve } from '@hono/node-server';
 
 import { app } from './app';
-import { validateEnv } from './lib/env';
 import { initializeJobProcessing } from './jobs';
+import { validateEnv } from './lib/env';
 import { logger } from './lib/logger';
 import { closeQueues } from './lib/queue';
 import { connectRedis, disconnectRedis } from './lib/redis';

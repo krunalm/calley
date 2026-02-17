@@ -39,7 +39,7 @@ A modern, production-grade calendar web application for managing events, tasks, 
 
 ## Architecture
 
-```
+```text
 ┌───────────────────┐
 │   CDN / Vercel    │
 │   (React SPA)     │
@@ -72,7 +72,7 @@ A modern, production-grade calendar web application for managing events, tasks, 
 
 ### Project Structure
 
-```
+```text
 calley/
 ├── .github/
 │   ├── workflows/          # CI/CD pipelines
@@ -282,31 +282,31 @@ Redis data is non-critical and is reconstructable from PostgreSQL (reminder jobs
 
 ### Backend (`apps/api/.env`)
 
-| Variable               | Description                           | Default                       |
-| ---------------------- | ------------------------------------- | ----------------------------- |
-| `NODE_ENV`             | Environment                           | `development`                 |
-| `PORT`                 | API server port                       | `4000`                        |
-| `DATABASE_URL`         | PostgreSQL connection string          | — (required)                  |
-| `DB_POOL_MAX`          | Max database pool connections         | `20`                          |
-| `DB_QUERY_TIMEOUT`     | Query timeout in milliseconds         | `30000`                       |
-| `REDIS_URL`            | Redis connection string               | — (required)                  |
-| `SESSION_SECRET`       | Session signing secret (min 32 chars) | — (required)                  |
-| `COOKIE_DOMAIN`        | Cookie domain                         | `localhost`                   |
-| `CORS_ORIGIN`          | Allowed CORS origin (frontend URL)    | — (required)                  |
-| `GOOGLE_CLIENT_ID`     | Google OAuth client ID                | —                             |
-| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret            | —                             |
-| `GOOGLE_REDIRECT_URI`  | Google OAuth callback URL             | —                             |
-| `GITHUB_CLIENT_ID`     | GitHub OAuth client ID                | —                             |
-| `GITHUB_CLIENT_SECRET` | GitHub OAuth client secret            | —                             |
-| `GITHUB_REDIRECT_URI`  | GitHub OAuth callback URL             | —                             |
-| `RESEND_API_KEY`       | Resend email API key                  | —                             |
-| `EMAIL_FROM`           | Sender email address                  | `Calley <noreply@calley.app>` |
-| `VAPID_PRIVATE_KEY`    | Web Push VAPID private key            | —                             |
-| `VAPID_PUBLIC_KEY`     | Web Push VAPID public key             | —                             |
-| `VAPID_SUBJECT`        | VAPID subject (mailto: URL)           | —                             |
-| `RATE_LIMIT_ENABLED`   | Enable rate limiting                  | `true`                        |
-| `SENTRY_DSN`           | Sentry error tracking DSN (optional)  | —                             |
-| `LOG_LEVEL`            | Pino log level                        | `info`                        |
+| Variable               | Description                                                                       | Default                       |
+| ---------------------- | --------------------------------------------------------------------------------- | ----------------------------- |
+| `NODE_ENV`             | Environment                                                                       | `development`                 |
+| `PORT`                 | API server port                                                                   | `4000`                        |
+| `DATABASE_URL`         | PostgreSQL connection string                                                      | — (required)                  |
+| `DB_POOL_MAX`          | Max database pool connections                                                     | `20`                          |
+| `DB_QUERY_TIMEOUT`     | Query timeout in milliseconds                                                     | `30000`                       |
+| `REDIS_URL`            | Redis connection string                                                           | — (required)                  |
+| `SESSION_SECRET`       | Session signing secret (min 32 chars)                                             | — (required)                  |
+| `COOKIE_DOMAIN`        | Cookie domain                                                                     | `localhost`                   |
+| `CORS_ORIGIN`          | Allowed CORS origin (frontend URL; `*` rejected in production — see `lib/env.ts`) | — (required)                  |
+| `GOOGLE_CLIENT_ID`     | Google OAuth client ID                                                            | —                             |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret                                                        | —                             |
+| `GOOGLE_REDIRECT_URI`  | Google OAuth callback URL                                                         | —                             |
+| `GITHUB_CLIENT_ID`     | GitHub OAuth client ID                                                            | —                             |
+| `GITHUB_CLIENT_SECRET` | GitHub OAuth client secret                                                        | —                             |
+| `GITHUB_REDIRECT_URI`  | GitHub OAuth callback URL                                                         | —                             |
+| `RESEND_API_KEY`       | Resend email API key                                                              | —                             |
+| `EMAIL_FROM`           | Sender email address                                                              | `Calley <noreply@calley.app>` |
+| `VAPID_PRIVATE_KEY`    | Web Push VAPID private key                                                        | —                             |
+| `VAPID_PUBLIC_KEY`     | Web Push VAPID public key                                                         | —                             |
+| `VAPID_SUBJECT`        | VAPID subject (mailto: URL)                                                       | —                             |
+| `RATE_LIMIT_ENABLED`   | Enable rate limiting                                                              | `true`                        |
+| `SENTRY_DSN`           | Sentry error tracking DSN (optional)                                              | —                             |
+| `LOG_LEVEL`            | Pino log level                                                                    | `info`                        |
 
 ## CI/CD
 

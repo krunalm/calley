@@ -10,6 +10,7 @@
     "type-check": "turbo type-check",
     "test": "turbo test",
     "test:e2e": "playwright test",
+    "pre-launch-check": "bash scripts/pre-launch-check.sh",
     "prepare": "husky"
   },
   "devDependencies": {

@@ -1,5 +1,7 @@
 import rruleLib from 'rrule';
 
+import type { RRule as RRuleType } from 'rrule';
+
 const { RRule, RRuleSet } = rruleLib;
 
 import { AppError } from '../lib/errors';
@@ -159,7 +161,7 @@ export class RecurrenceService {
     }
     const duration = Math.max(0, rawDuration);
 
-    let rrule: RRule;
+    let rrule: RRuleType;
     try {
       rrule = RRule.fromString(parent.rrule!);
     } catch (err) {

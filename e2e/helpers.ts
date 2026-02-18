@@ -38,7 +38,8 @@ export async function signup(page: Page, user: TestUser = createTestUser()) {
   await page.getByRole('button', { name: /sign up|create account/i }).click();
   // Wait for redirect to calendar after successful signup
   // Signup involves Argon2id hashing (~1s) + DB ops + route guard /auth/me check
-  await page.waitForURL('**/calendar**', { timeout: 30_000 });
+  // Use generous timeout for CI where 14 tests share 1 worker and CPU is limited
+  await page.waitForURL('**/calendar**', { timeout: 45_000 });
 }
 
 /**
@@ -69,9 +70,14 @@ export async function logout(page: Page) {
  * Navigate to settings via the user menu dropdown.
  */
 export async function goToSettings(page: Page) {
-  await page.getByRole('button', { name: /user menu/i }).click();
-  await page.getByRole('menuitem', { name: /settings/i }).click();
-  await page.waitForURL('**/settings**', { timeout: 5_000 });
+  const userMenuBtn = page.getByRole('button', { name: /user menu/i });
+  await expect(userMenuBtn).toBeVisible({ timeout: 5_000 });
+  await userMenuBtn.click();
+  // Wait for the dropdown menu to open
+  const settingsItem = page.getByRole('menuitem', { name: /^settings$/i });
+  await expect(settingsItem).toBeVisible({ timeout: 3_000 });
+  await settingsItem.click();
+  await page.waitForURL('**/settings**', { timeout: 10_000 });
 }
 
 /**
@@ -216,9 +222,18 @@ export async function verifyNavigationShortcuts(page: Page) {
   await page.keyboard.press('ArrowLeft');
   await expect(dateHeader).not.toContainText(updatedHeaderText, { timeout: 5_000 });
 
-  // 't' toggles the task panel — verify the panel becomes visible
-  await page.keyboard.press('t');
+  // 't' toggles the task panel
   const taskPanel = page.locator('[role="complementary"][aria-label="Task panel"]');
+  const panelWasVisible = await taskPanel.isVisible().catch(() => false);
+
+  // If panel is already open, close it first so we can verify the toggle
+  if (panelWasVisible) {
+    await page.keyboard.press('t');
+    await taskPanel.waitFor({ state: 'hidden', timeout: 5_000 }).catch(() => {});
+  }
+
+  // Now toggle it open
+  await page.keyboard.press('t');
   await expect(taskPanel).toBeVisible({ timeout: 5_000 });
 
   // Escape should close any open dialog/panel

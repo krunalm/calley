@@ -169,7 +169,7 @@ jobs:
       - run: pnpm build
 
       - name: Push database schema
-        run: pnpm --filter api db:push
+        run: pnpm --filter api db:push --force
 
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps chromium

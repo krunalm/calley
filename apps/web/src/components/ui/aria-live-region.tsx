@@ -20,10 +20,10 @@ export function announce(message: string, politeness: 'polite' | 'assertive' = '
 export function AriaLiveRegion() {
   const [politeMessage, setPoliteMessage] = useState('');
   const [assertiveMessage, setAssertiveMessage] = useState('');
-  const politeTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
-  const assertiveTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
-  const politeRafRef = useRef<number>();
-  const assertiveRafRef = useRef<number>();
+  const politeTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const assertiveTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const politeRafRef = useRef<number | undefined>(undefined);
+  const assertiveRafRef = useRef<number | undefined>(undefined);
 
   const doAnnounce = useCallback(
     (message: string, politeness: 'polite' | 'assertive' = 'polite') => {
@@ -31,7 +31,7 @@ export function AriaLiveRegion() {
         // Clear first to force re-announcement even if same message
         setAssertiveMessage('');
         clearTimeout(assertiveTimeoutRef.current);
-        cancelAnimationFrame(assertiveRafRef.current!);
+        if (assertiveRafRef.current != null) cancelAnimationFrame(assertiveRafRef.current);
         assertiveRafRef.current = requestAnimationFrame(() => {
           setAssertiveMessage(message);
           assertiveTimeoutRef.current = setTimeout(() => setAssertiveMessage(''), 5000);
@@ -39,7 +39,7 @@ export function AriaLiveRegion() {
       } else {
         setPoliteMessage('');
         clearTimeout(politeTimeoutRef.current);
-        cancelAnimationFrame(politeRafRef.current!);
+        if (politeRafRef.current != null) cancelAnimationFrame(politeRafRef.current);
         politeRafRef.current = requestAnimationFrame(() => {
           setPoliteMessage(message);
           politeTimeoutRef.current = setTimeout(() => setPoliteMessage(''), 5000);
@@ -62,8 +62,8 @@ export function AriaLiveRegion() {
     return () => {
       clearTimeout(politeTimeoutRef.current);
       clearTimeout(assertiveTimeoutRef.current);
-      cancelAnimationFrame(politeRafRef.current!);
-      cancelAnimationFrame(assertiveRafRef.current!);
+      if (politeRafRef.current != null) cancelAnimationFrame(politeRafRef.current);
+      if (assertiveRafRef.current != null) cancelAnimationFrame(assertiveRafRef.current);
     };
   }, []);
 

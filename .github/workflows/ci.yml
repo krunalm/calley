@@ -152,6 +152,9 @@ jobs:
       DATABASE_URL: postgresql://calley:testpassword@localhost:5432/calley_test
       REDIS_URL: redis://localhost:6379
       NODE_ENV: test
+      SESSION_SECRET: e2e-test-session-secret-00000000000000000000
+      CORS_ORIGIN: http://localhost:5173
+      COOKIE_DOMAIN: localhost
     steps:
       - uses: actions/checkout@v6
 
@@ -164,6 +167,9 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
+
+      - name: Push database schema
+        run: pnpm --filter api db:push
 
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps chromium

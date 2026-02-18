@@ -1,6 +1,13 @@
 import { expect, test } from '@playwright/test';
 
-import { createEvent, createTestUser, signup, verifyNavigationShortcuts } from './helpers';
+import {
+  createEvent,
+  createTestUser,
+  ensureTaskPanelOpen,
+  goToSettings,
+  signup,
+  verifyNavigationShortcuts,
+} from './helpers';
 
 /**
  * P2 — Edge case E2E tests.
@@ -16,23 +23,25 @@ test.describe('P2 — Edge Cases', () => {
     const user = createTestUser('p2-category');
     await signup(page, user);
 
-    // 1. Navigate to settings to create a category
-    const settingsLink = page.getByRole('link', { name: /settings/i }).first();
-    await expect(settingsLink).toBeVisible({ timeout: 5_000 });
-    await settingsLink.click();
-    await page.waitForURL('**/settings**', { timeout: 5_000 });
+    // 1. Navigate to settings via the user menu
+    await goToSettings(page);
 
-    // Navigate to calendars/categories section
-    const calendarsTab = page.getByRole('link', { name: /calendar|categor/i }).first();
-    await expect(calendarsTab).toBeVisible({ timeout: 3_000 });
-    await calendarsTab.click();
+    // Navigate to Calendars section — SettingsLayout has Link with text "Calendars"
+    const calendarsLink = page.getByRole('link', { name: /calendars/i }).first();
+    await expect(calendarsLink).toBeVisible({ timeout: 3_000 });
+    await calendarsLink.click();
+    await page.waitForURL('**/settings/calendars**', { timeout: 5_000 });
 
-    // Create a new category
-    const addCategoryBtn = page.getByRole('button', { name: /add|new|create/i }).first();
+    // Create a new category — button text is "New calendar"
+    const addCategoryBtn = page.getByRole('button', { name: /new calendar/i });
     await expect(addCategoryBtn).toBeVisible({ timeout: 3_000 });
     await addCategoryBtn.click();
-    await page.getByLabel(/name/i).fill('Temporary Category');
-    await page.getByRole('button', { name: /save|create|add/i }).click();
+
+    // Fill in the name in the New Calendar dialog (label htmlFor="new-cat-name")
+    const nameInput = page.getByLabel(/^name$/i);
+    await expect(nameInput).toBeVisible({ timeout: 3_000 });
+    await nameInput.fill('Temporary Category');
+    await page.getByRole('button', { name: /^create$/i }).click();
 
     // Assert the category was created
     const categoryItem = page.getByText('Temporary Category').first();
@@ -48,32 +57,26 @@ test.describe('P2 — Edge Cases', () => {
     await expect(page.getByText('Categorized Event').first()).toBeVisible({ timeout: 10_000 });
 
     // 3. Go back to settings and delete the category
-    await page.goto('/settings/calendars');
-    await page.waitForURL('**/settings**', { timeout: 5_000 });
+    await goToSettings(page);
 
-    // Navigate to categories section again
-    const calendarsTabAgain = page.getByRole('link', { name: /calendar|categor/i }).first();
-    if (await calendarsTabAgain.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await calendarsTabAgain.click();
+    // Navigate to Calendars section
+    const calendarsLinkAgain = page.getByRole('link', { name: /calendars/i }).first();
+    if (await calendarsLinkAgain.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await calendarsLinkAgain.click();
+      await page.waitForURL('**/settings/calendars**', { timeout: 5_000 });
     }
 
-    // Find and delete the category
-    const categoryToDelete = page.getByText('Temporary Category').first();
-    await expect(categoryToDelete).toBeVisible({ timeout: 5_000 });
-
-    const deleteBtn = page
-      .locator('[data-testid="category-item"], li, [role="listitem"]')
-      .filter({ hasText: 'Temporary Category' })
-      .getByRole('button', { name: /delete|remove/i })
-      .first();
-
-    await expect(deleteBtn).toBeVisible({ timeout: 3_000 });
+    // Find and delete the category — button has aria-label="Delete Temporary Category"
+    const deleteBtn = page.getByRole('button', { name: /delete temporary category/i });
+    await expect(deleteBtn).toBeVisible({ timeout: 5_000 });
     await deleteBtn.click();
 
-    // Confirm deletion if dialog appears
-    const confirmBtn = page.getByRole('button', { name: /confirm|delete|yes/i });
-    if (await confirmBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await confirmBtn.click();
+    // Confirm deletion in the Delete Calendar dialog — button text is "Delete"
+    const confirmDeleteBtn = page
+      .locator('[role="dialog"]')
+      .getByRole('button', { name: /^delete$/i });
+    if (await confirmDeleteBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await confirmDeleteBtn.click();
     }
 
     // Assert the category no longer exists
@@ -94,26 +97,19 @@ test.describe('P2 — Edge Cases', () => {
     await signup(page, user);
 
     // Wait for calendar to be interactive
-    await expect(
-      page.locator('[data-testid="calendar-view"], .calendar-container, main'),
-    ).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator('main')).toBeVisible({ timeout: 5_000 });
 
     // 1. Create an event using keyboard shortcut
-    // 'c' to create event (calendar shortcut)
-    await page.keyboard.press('n');
+    // 'c' opens the event drawer (from useKeyboardShortcuts)
+    await page.keyboard.press('c');
 
     // Fill in the event form
-    const titleInput = page.getByLabel(/title/i);
+    const titleInput = page.getByLabel(/^title$/i);
     if (await titleInput.isVisible({ timeout: 3000 }).catch(() => false)) {
       await titleInput.fill('Keyboard Event');
-      await page.keyboard.press('Tab');
-      await page.keyboard.press('Tab');
 
-      // Submit with Enter or Ctrl+Enter
-      await page.keyboard.press('Meta+Enter');
-
-      // Fallback: try clicking save if Ctrl+Enter didn't work
-      const saveBtn = page.getByRole('button', { name: /save|create/i });
+      // Submit by clicking the Create button
+      const saveBtn = page.getByRole('button', { name: /^create$/i });
       if (await saveBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
         await saveBtn.click();
       }
@@ -122,19 +118,34 @@ test.describe('P2 — Edge Cases', () => {
     // Assert the event was created and is visible
     await expect(page.getByText('Keyboard Event').first()).toBeVisible({ timeout: 10_000 });
 
-    // 2. Create and complete a task using keyboard
-    // Tab to task panel or use shortcut to open it
-    const taskInput = page.getByPlaceholder(/add task|new task/i).first();
-    if (await taskInput.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await taskInput.fill('Keyboard Task');
-      await page.keyboard.press('Enter');
+    // 2. Create and complete a task
+    // 't' toggles the task panel open
+    await ensureTaskPanelOpen(page);
+
+    // Click "Create new task" button in the task panel
+    const newTaskBtn = page.getByRole('button', { name: /create new task/i });
+    if (await newTaskBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await newTaskBtn.click();
+
+      const taskTitleInput = page.getByLabel(/^title$/i);
+      if (await taskTitleInput.isVisible({ timeout: 3000 }).catch(() => false)) {
+        await taskTitleInput.fill('Keyboard Task');
+        await page.getByRole('button', { name: /^create$/i }).click();
+
+        // Wait for drawer to close
+        await page
+          .locator('[role="dialog"]')
+          .first()
+          .waitFor({ state: 'hidden', timeout: 5_000 })
+          .catch(() => {});
+      }
 
       // Verify task was created
       await expect(page.getByText('Keyboard Task').first()).toBeVisible({ timeout: 5_000 });
 
       // Find the task checkbox and toggle it complete via keyboard
       const taskCheckbox = page
-        .locator('[data-testid="task-item"], li, [role="listitem"]')
+        .locator('[role="listitem"]')
         .filter({ hasText: 'Keyboard Task' })
         .getByRole('checkbox')
         .first();
@@ -171,15 +182,12 @@ test.describe('P2 — Edge Cases', () => {
     const user = createTestUser('p2-quickcreate');
     await signup(page, user);
 
-    // Switch to week view for time slots
-    const weekViewBtn = page.getByRole('button', { name: /week/i }).first();
-    await expect(weekViewBtn).toBeVisible({ timeout: 5_000 });
-    await weekViewBtn.click();
+    // Switch to week view using keyboard shortcut
+    await page.keyboard.press('w');
+    await page.locator('[aria-label="Calendar week view"]').waitFor({ timeout: 5_000 });
 
-    // Wait for week view grid to render
-    const timeSlot = page
-      .locator('[data-testid="time-slot"], .time-slot, [role="gridcell"]')
-      .first();
+    // Wait for week view grid to render — grid cells use role="gridcell"
+    const timeSlot = page.locator('[role="gridcell"]').first();
     await expect(timeSlot).toBeVisible({ timeout: 5_000 });
     await timeSlot.click();
 
@@ -198,11 +206,9 @@ test.describe('P2 — Edge Cases', () => {
     await signup(page, user);
 
     // Wait for calendar to be interactive
-    await expect(
-      page.locator('[data-testid="calendar-view"], .calendar-container, main'),
-    ).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator('main')).toBeVisible({ timeout: 5_000 });
 
-    // Test view switching shortcuts — wait for each view's aria-label to appear
+    // Test view switching shortcuts — each view has a specific aria-label
     // 'd' for day view
     await page.keyboard.press('d');
     await page.locator('[aria-label="Calendar day view"]').waitFor({ timeout: 5_000 });
@@ -238,12 +244,9 @@ test.describe('P2 — Edge Cases', () => {
     const user = createTestUser('p2-resize');
     await signup(page, user);
 
-    // Switch to week view
-    const weekViewBtn = page.getByRole('button', { name: /week/i }).first();
-    if (await weekViewBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await weekViewBtn.click();
-      await page.locator('[aria-label="Calendar week view"]').waitFor({ timeout: 5_000 });
-    }
+    // Switch to week view using keyboard shortcut
+    await page.keyboard.press('w');
+    await page.locator('[aria-label="Calendar week view"]').waitFor({ timeout: 5_000 });
 
     // Create an event
     await createEvent(page, { title: 'Resizable Event' });

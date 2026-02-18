@@ -14,20 +14,26 @@ test.describe('P1 — Core Features', () => {
     const user = createTestUser('p1-drag');
     await signup(page, user);
 
-    // Switch to week view — required precondition for drag test
-    const weekViewBtn = page.getByRole('button', { name: /week/i }).first();
-    await expect(weekViewBtn).toBeVisible({ timeout: 5_000 });
-    await weekViewBtn.click();
+    // Switch to week view — ViewSwitcher uses role="tab"
+    const weekViewTab = page.getByRole('tab', { name: /week/i }).first();
+    await expect(weekViewTab).toBeVisible({ timeout: 5_000 });
+    await weekViewTab.click();
     await page.locator('[aria-label="Calendar week view"]').waitFor({ timeout: 5_000 });
 
-    // Create an event first
-    const newEventBtn = page.getByRole('button', { name: /new event|create event|\+/i }).first();
-    await expect(newEventBtn).toBeVisible({ timeout: 5_000 });
-    await newEventBtn.click();
-    await page.getByLabel(/title/i).fill('Draggable Event');
-    await page.getByRole('button', { name: /save|create/i }).click();
+    // Create an event via the Create dropdown
+    const createBtn = page.getByRole('button', { name: /create new/i });
+    await expect(createBtn).toBeVisible({ timeout: 5_000 });
+    await createBtn.click();
+    await page.getByRole('menuitem', { name: /new event/i }).click();
 
-    // Find the event pill — wait for it to appear (replaces fixed timeout)
+    const drawer = page.locator('[role="dialog"]').first();
+    await expect(drawer).toBeVisible({ timeout: 5_000 });
+
+    await page.getByLabel(/^title$/i).fill('Draggable Event');
+    await page.getByRole('button', { name: /^create$/i }).click();
+    await drawer.waitFor({ state: 'hidden', timeout: 5_000 }).catch(() => {});
+
+    // Find the event pill — wait for it to appear
     const eventPill = page.getByText('Draggable Event').first();
     await expect(eventPill).toBeVisible({ timeout: 10_000 });
 
@@ -65,20 +71,27 @@ test.describe('P1 — Core Features', () => {
     const user = createTestUser('p1-search');
     await signup(page, user);
 
-    // Create an event to search for
-    const newEventBtn = page.getByRole('button', { name: /new event|create event|\+/i }).first();
-    await expect(newEventBtn).toBeVisible({ timeout: 5_000 });
-    await newEventBtn.click();
-    await page.getByLabel(/title/i).fill('Searchable Meeting');
-    await page.getByRole('button', { name: /save|create/i }).click();
+    // Create an event to search for via the Create dropdown
+    const createBtn = page.getByRole('button', { name: /create new/i });
+    await expect(createBtn).toBeVisible({ timeout: 5_000 });
+    await createBtn.click();
+    await page.getByRole('menuitem', { name: /new event/i }).click();
+
+    const drawer = page.locator('[role="dialog"]').first();
+    await expect(drawer).toBeVisible({ timeout: 5_000 });
+
+    await page.getByLabel(/^title$/i).fill('Searchable Meeting');
+    await page.getByRole('button', { name: /^create$/i }).click();
+    await drawer.waitFor({ state: 'hidden', timeout: 5_000 }).catch(() => {});
 
     // Wait for event to appear before searching
     await expect(page.getByText('Searchable Meeting').first()).toBeVisible({ timeout: 10_000 });
 
-    // Open Cmd+K search dialog
+    // Open Cmd+K search dialog — SearchModal uses CommandDialog
     await page.keyboard.press('Meta+k');
 
-    const searchInput = page.getByPlaceholder(/search|find/i).first();
+    // The CommandInput has placeholder "Search events and tasks..."
+    const searchInput = page.getByPlaceholder(/search/i).first();
 
     // If Cmd+K didn't open it, try Ctrl+K (Linux/Windows)
     if (!(await searchInput.isVisible({ timeout: 2000 }).catch(() => false))) {
@@ -113,44 +126,39 @@ test.describe('P1 — Core Features', () => {
     // Check that the mobile layout is displayed
     await expect(page).toHaveURL(/\/calendar/);
 
-    // Mobile navigation must be present at this viewport
-    const mobileNav = page.getByRole('button', { name: /menu|hamburger/i }).first();
-    await expect(mobileNav).toBeVisible({ timeout: 5_000 });
-    await mobileNav.click();
+    // On mobile, the sidebar toggle has aria-label="Toggle sidebar"
+    const sidebarToggle = page.getByRole('button', { name: /toggle sidebar/i }).first();
+    await expect(sidebarToggle).toBeVisible({ timeout: 5_000 });
+    await sidebarToggle.click();
 
-    // Verify the mobile menu opened — look for menu items or nav panel
-    const menuPanel = page.locator(
-      '[role="menu"], [data-testid="mobile-menu"], nav, [role="navigation"]',
-    );
-    await expect(menuPanel.first()).toBeVisible({ timeout: 3_000 });
+    // Verify the sidebar opened
+    const sidebar = page.locator('aside, nav, [role="navigation"]').first();
+    await expect(sidebar).toBeVisible({ timeout: 3_000 });
 
-    // Switch to agenda view — must be available in navigation
-    const agendaBtn = page.getByRole('button', { name: /agenda/i }).first();
-    await expect(agendaBtn).toBeVisible({ timeout: 5_000 });
-    await agendaBtn.click();
+    // Close sidebar by pressing Escape or clicking toggle again
+    await page.keyboard.press('Escape');
 
-    // Verify the agenda view is rendered
-    const agendaView = page.locator(
-      '[data-testid="agenda-view"], [data-view="agenda"], .agenda-view',
-    );
-    await expect(agendaView.first()).toBeVisible({ timeout: 5_000 });
+    // Switch to agenda view using keyboard shortcut 'a'
+    await page.keyboard.press('a');
 
-    // Toggle task panel on mobile — must be accessible
-    const taskPanelToggle = page.getByRole('button', { name: /task|panel|sidebar/i }).first();
+    // Verify the agenda view is rendered — it has aria-label="Agenda view"
+    const agendaView = page.locator('[aria-label="Agenda view"]');
+    await expect(agendaView).toBeVisible({ timeout: 5_000 });
+
+    // Toggle task panel — the button has aria-label="Toggle task panel"
+    const taskPanelToggle = page.getByRole('button', { name: /toggle task panel/i }).first();
     await expect(taskPanelToggle).toBeVisible({ timeout: 5_000 });
     await taskPanelToggle.click();
 
-    // Verify task panel is visible
-    const taskPanel = page.locator(
-      '[data-testid="task-panel"], [role="complementary"], .task-panel, aside',
-    );
-    await expect(taskPanel.first()).toBeVisible({ timeout: 5_000 });
+    // Verify task panel is visible — it has role="complementary" aria-label="Task panel"
+    const taskPanel = page.locator('[role="complementary"][aria-label="Task panel"]');
+    await expect(taskPanel).toBeVisible({ timeout: 5_000 });
   });
 
   test('OAuth login flow (mocked provider)', async ({ page }) => {
     await page.goto('/login');
 
-    // Verify OAuth buttons are visible
+    // Verify OAuth buttons are visible — OAuthButtons renders "Google" and "GitHub" buttons
     const googleBtn = page.getByRole('button', { name: /google/i }).first();
     const githubBtn = page.getByRole('button', { name: /github/i }).first();
 
@@ -185,16 +193,16 @@ test.describe('P1 — Core Features', () => {
   test('Password reset flow (mocked email)', async ({ page }) => {
     await page.goto('/forgot-password');
 
-    // Fill in email
+    // Fill in email — ForgotPasswordForm has Label htmlFor="email"
     const emailInput = page.getByLabel(/email/i);
     await expect(emailInput).toBeVisible({ timeout: 5000 });
     await emailInput.fill('test@example.com');
 
-    // Submit
+    // Submit — button text is "Send reset link"
     await page.getByRole('button', { name: /send|reset|submit/i }).click();
 
-    // Should show success message
-    const successMsg = page.getByText(/sent|check your email|if that email/i);
+    // Should show success message — "If an account exists with that email..."
+    const successMsg = page.getByText(/sent|check your email|if.*email/i);
     await expect(successMsg).toBeVisible({ timeout: 10_000 });
   });
 });

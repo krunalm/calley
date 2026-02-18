@@ -43,11 +43,8 @@ test.describe('P0 — Critical Path', () => {
     await expect(page).toHaveURL(/\/calendar/);
 
     // 4. Verify the calendar page is accessible (session is valid)
-    await expect(
-      page.locator('[data-testid="calendar-view"], .calendar-container, main'),
-    ).toBeVisible({
-      timeout: 10_000,
-    });
+    // The _app layout renders a <main> element
+    await expect(page.locator('main')).toBeVisible({ timeout: 10_000 });
   });
 
   test('Create recurring event → edit single instance → verify series intact', async ({ page }) => {
@@ -55,53 +52,71 @@ test.describe('P0 — Critical Path', () => {
     await signup(page, user);
 
     // 1. Create a recurring event via the event form
-    const newEventBtn = page.getByRole('button', { name: /new event|create event|\+/i }).first();
-    await expect(newEventBtn).toBeVisible({ timeout: 5_000 });
-    await newEventBtn.click();
+    // Open the "Create new" dropdown and select "New Event"
+    const createBtn = page.getByRole('button', { name: /create new/i });
+    await expect(createBtn).toBeVisible({ timeout: 5_000 });
+    await createBtn.click();
+    await page.getByRole('menuitem', { name: /new event/i }).click();
 
-    await page.getByLabel(/title/i).fill('Weekly Standup');
+    // Wait for the EventDrawer to appear
+    const drawer = page.locator('[role="dialog"]').first();
+    await expect(drawer).toBeVisible({ timeout: 5_000 });
 
-    // Look for a recurrence/repeat option
-    const repeatOption = page.getByText(/repeat|recurrence|recurring/i).first();
-    if (await repeatOption.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await repeatOption.click();
+    await page.getByLabel(/^title$/i).fill('Weekly Standup');
 
-      // Select weekly recurrence
-      const weeklyOption = page.getByText(/weekly/i).first();
+    // Open the "Repeat" select — default value is "Does not repeat"
+    const repeatTrigger = drawer.locator('button').filter({ hasText: 'Does not repeat' }).first();
+    if (await repeatTrigger.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await repeatTrigger.click();
+
+      // Select "Weekly" from the dropdown
+      const weeklyOption = page.getByRole('option', { name: /^weekly$/i }).first();
       if (await weeklyOption.isVisible({ timeout: 2000 }).catch(() => false)) {
         await weeklyOption.click();
       }
     }
 
-    await page.getByRole('button', { name: /save|create/i }).click();
+    await page.getByRole('button', { name: /^create$/i }).click();
+
+    // Wait for drawer to close
+    await drawer.waitFor({ state: 'hidden', timeout: 5_000 }).catch(() => {});
 
     // 2. Verify the event appears
     const eventPill = page.getByText('Weekly Standup').first();
     await expect(eventPill).toBeVisible({ timeout: 10_000 });
 
-    // 3. Click on the event to edit it
+    // 3. Click on the event to edit it — this opens EventDetailPopover
     await eventPill.click();
 
-    // 4. Edit just this instance (if scope dialog appears)
-    const titleField = page.getByLabel(/title/i);
+    // 4. Look for an edit button in the popover to open the edit drawer
+    const editBtn = page.getByRole('button', { name: /edit/i }).first();
+    if (await editBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await editBtn.click();
+    }
+
+    // 5. Edit just this instance (if edit drawer/form appeared)
+    const titleField = page.getByLabel(/^title$/i);
     if (await titleField.isVisible({ timeout: 3000 }).catch(() => false)) {
       await titleField.fill('Modified Standup');
 
-      await page.getByRole('button', { name: /save|update/i }).click();
+      await page.getByRole('button', { name: /^save$/i }).click();
 
-      // If scope dialog appears, select "this event only"
-      const thisOnlyBtn = page.getByRole('button', {
-        name: /this event|this instance|only this/i,
-      });
-      if (await thisOnlyBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-        await thisOnlyBtn.click();
+      // If scope dialog appears for recurring event, select "This event"
+      const thisEventOption = page.getByText('This event', { exact: true }).first();
+      if (await thisEventOption.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await thisEventOption.click();
+        // Confirm the scope selection
+        const confirmBtn = page.getByRole('button', { name: /^save$/i }).last();
+        if (await confirmBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+          await confirmBtn.click();
+        }
       }
     }
 
-    // 5. Verify the edited instance shows the modified title
+    // 6. Verify the edited instance shows the modified title
     await expect(page.getByText('Modified Standup').first()).toBeVisible({ timeout: 10_000 });
 
-    // 6. Verify the rest of the series still has the original title
+    // 7. Verify the rest of the series still has the original title
     // Navigate forward and wait for the date header to change
     const dateHeader = page.locator('h2').first();
     const headerBefore = await dateHeader.textContent();
@@ -122,9 +137,9 @@ test.describe('P0 — Critical Path', () => {
     const taskItem = page.getByText('Complete report').first();
     await expect(taskItem).toBeVisible({ timeout: 10_000 });
 
-    // Click the checkbox near the task — assert it exists
+    // Click the checkbox near the task — TaskItem uses role="listitem"
     const checkbox = page
-      .locator('[data-testid="task-item"], li, [role="listitem"]')
+      .locator('[role="listitem"]')
       .filter({ hasText: 'Complete report' })
       .getByRole('checkbox')
       .first();
@@ -135,12 +150,13 @@ test.describe('P0 — Critical Path', () => {
     // Wait for checkbox to reflect checked state
     await expect(checkbox).toBeChecked({ timeout: 5_000 });
 
-    // 3. Filter by "done" tasks — assert the filter exists
-    const doneFilter = page.getByText(/done|completed/i).first();
-    await expect(doneFilter).toBeVisible({ timeout: 5_000 });
-    await doneFilter.click();
+    // 3. Click "Show done" button to show completed tasks
+    // The TaskFilter has a button toggling between "Show done" / "Hide done"
+    const showDoneBtn = page.getByRole('button', { name: /show done/i });
+    await expect(showDoneBtn).toBeVisible({ timeout: 5_000 });
+    await showDoneBtn.click();
 
-    // 4. Verify the task appears in the done filter
+    // 4. Verify the task appears in the completed section
     await expect(page.getByText('Complete report')).toBeVisible({ timeout: 5_000 });
   });
 });

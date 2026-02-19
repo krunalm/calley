@@ -155,6 +155,7 @@ jobs:
       SESSION_SECRET: e2e-test-session-secret-00000000000000000000
       CORS_ORIGIN: http://localhost:5173
       COOKIE_DOMAIN: localhost
+      RATE_LIMIT_ENABLED: 'false'
     steps:
       - uses: actions/checkout@v6
 

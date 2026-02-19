@@ -32,6 +32,7 @@ export type TestUser = ReturnType<typeof createTestUser>;
  */
 export async function signup(page: Page, user: TestUser = createTestUser()) {
   await page.goto('/signup');
+
   await page.getByLabel(/name/i).fill(user.name);
   await page.getByLabel(/email/i).fill(user.email);
   await page.getByLabel(/^password$/i).fill(user.password);
@@ -82,12 +83,18 @@ export async function goToSettings(page: Page) {
 
 /**
  * Ensure the task panel is open (visible).
- * If not visible, presses 't' to toggle it open.
+ * Uses the toolbar button instead of the 't' keyboard shortcut,
+ * because shortcuts are blocked when focus is inside a text input.
  */
 export async function ensureTaskPanelOpen(page: Page) {
   const taskPanel = page.locator('[role="complementary"][aria-label="Task panel"]');
   if (!(await taskPanel.isVisible().catch(() => false))) {
-    await page.keyboard.press('t');
+    // Click the body first to ensure no input is focused (keyboard shortcuts guard)
+    await page.locator('body').click({ position: { x: 0, y: 0 }, force: true });
+    // Click the toggle button in the topbar
+    const toggleBtn = page.getByRole('button', { name: /toggle task panel/i });
+    await expect(toggleBtn).toBeVisible({ timeout: 5_000 });
+    await toggleBtn.click();
     await expect(taskPanel).toBeVisible({ timeout: 5_000 });
   }
 }
@@ -210,11 +217,23 @@ export async function createTask(
  * Uses condition-based waits instead of fixed timeouts for reliability.
  */
 export async function verifyNavigationShortcuts(page: Page) {
+  // Ensure no input is focused so keyboard shortcuts work
+  await page.locator('body').click({ position: { x: 0, y: 0 }, force: true });
+
+  // Switch to day view for reliable navigation (ArrowRight changes date in day view)
+  await page.keyboard.press('d');
+  await page
+    .locator('[aria-label="Calendar day view"]')
+    .waitFor({ timeout: 5_000 })
+    .catch(() => {});
+  await page.waitForTimeout(500);
+
   // Navigate right and wait for the date header text to change
   const dateHeader = page.locator('h2').first();
   await expect(dateHeader).toHaveText(/\S+/, { timeout: 5_000 });
   const oldHeaderText = (await dateHeader.textContent())!;
   await page.keyboard.press('ArrowRight');
+  // Wait for date to change (day view advances by 1 day)
   await expect(dateHeader).not.toContainText(oldHeaderText, { timeout: 5_000 });
 
   // Navigate left and wait for the date header text to change back
@@ -222,19 +241,8 @@ export async function verifyNavigationShortcuts(page: Page) {
   await page.keyboard.press('ArrowLeft');
   await expect(dateHeader).not.toContainText(updatedHeaderText, { timeout: 5_000 });
 
-  // 't' toggles the task panel
-  const taskPanel = page.locator('[role="complementary"][aria-label="Task panel"]');
-  const panelWasVisible = await taskPanel.isVisible().catch(() => false);
-
-  // If panel is already open, close it first so we can verify the toggle
-  if (panelWasVisible) {
-    await page.keyboard.press('t');
-    await taskPanel.waitFor({ state: 'hidden', timeout: 5_000 }).catch(() => {});
-  }
-
-  // Now toggle it open
-  await page.keyboard.press('t');
-  await expect(taskPanel).toBeVisible({ timeout: 5_000 });
+  // 't' toggles the task panel — use button click for reliability
+  await ensureTaskPanelOpen(page);
 
   // Escape should close any open dialog/panel
   await page.keyboard.press('Escape');

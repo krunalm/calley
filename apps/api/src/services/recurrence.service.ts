@@ -130,11 +130,12 @@ export class RecurrenceService {
     return map;
   }
 
-  private exceptionKey(parentId: string, originalDate: string): string {
-    // Use full ISO timestamp for unique keying (avoids collisions when
-    // multiple occurrences fall on the same calendar date)
-    const isoTimestamp = new Date(originalDate).toISOString();
-    return `${parentId}::${isoTimestamp}`;
+  private exceptionKey(parentId: string, originalDate: string | Date): string {
+    // Use epoch seconds for unique keying — truncate milliseconds to avoid
+    // precision mismatches between rrule.js expansion and DB-stored dates.
+    const d = new Date(originalDate);
+    d.setMilliseconds(0);
+    return `${parentId}::${d.toISOString()}`;
   }
 
   /**
@@ -221,6 +222,8 @@ export class RecurrenceService {
         continue;
       }
 
+      // Normalize: truncate ms to match exceptionKey precision
+      occurrence.setMilliseconds(0);
       const instanceDate = occurrence.toISOString();
 
       // Skip if this occurrence is in exDates (double check in case rruleSet missed it)

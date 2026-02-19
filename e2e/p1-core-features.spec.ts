@@ -114,18 +114,40 @@ test.describe('P1 — Core Features', () => {
 
     await expect(page).toHaveURL(/\/calendar/);
 
-    // On mobile, the sidebar toggle has aria-label="Toggle sidebar"
+    // On mobile the sidebar may be open by default with a backdrop overlay.
+    // First, dismiss the sidebar if a backdrop is present.
+    // Use dispatchEvent to force the click handler to fire, bypassing visibility checks
+    const backdrop = page.locator('div[aria-hidden="true"].fixed');
+    if (await backdrop.isVisible().catch(() => false)) {
+      await backdrop.dispatchEvent('click');
+      await page.waitForTimeout(500);
+    } else {
+      // Fallback if isVisible returns false but element exists and blocks
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(500);
+    }
+
+    // Now toggle the sidebar open
     const sidebarToggle = page.getByRole('button', { name: /toggle sidebar/i }).first();
-    if (await sidebarToggle.isVisible({ timeout: 3000 }).catch(() => false)) {
+    if (await sidebarToggle.isVisible().catch(() => false)) {
       await sidebarToggle.click();
 
       // Verify the sidebar opened
       const sidebar = page.locator('aside, nav, [role="navigation"]').first();
       await expect(sidebar).toBeVisible({ timeout: 3_000 });
 
-      // Close sidebar
-      await page.keyboard.press('Escape');
+      // Close sidebar by clicking the backdrop overlay
+      if (await backdrop.isVisible().catch(() => false)) {
+        await backdrop.click({ force: true });
+        await page.waitForTimeout(500);
+      } else {
+        await page.keyboard.press('Escape');
+        await page.waitForTimeout(500);
+      }
     }
+
+    // Ensure no input is focused so keyboard shortcuts work
+    await page.locator('body').click({ position: { x: 0, y: 0 }, force: true });
 
     // Switch to agenda view using keyboard shortcut
     await page.keyboard.press('a');
@@ -134,7 +156,7 @@ test.describe('P1 — Core Features', () => {
 
     // Toggle task panel — button has aria-label="Toggle task panel"
     const taskPanelToggle = page.getByRole('button', { name: /toggle task panel/i }).first();
-    if (await taskPanelToggle.isVisible({ timeout: 3000 }).catch(() => false)) {
+    if (await taskPanelToggle.isVisible().catch(() => false)) {
       await taskPanelToggle.click();
 
       const taskPanel = page.locator('[role="complementary"][aria-label="Task panel"]');
@@ -145,19 +167,20 @@ test.describe('P1 — Core Features', () => {
   test('OAuth login buttons are visible and clickable', async ({ page }) => {
     await page.goto('/login');
 
+    // Wait for the page to fully load
+    await page.waitForLoadState('networkidle');
+
     // OAuthButtons renders "Google" and "GitHub" buttons
     const googleBtn = page.getByRole('button', { name: /google/i }).first();
     const githubBtn = page.getByRole('button', { name: /github/i }).first();
 
-    // At least one OAuth button should be present
-    const googleVisible = await googleBtn.isVisible({ timeout: 3000 }).catch(() => false);
-    const githubVisible = await githubBtn.isVisible({ timeout: 3000 }).catch(() => false);
-
+    // Wait for the page to render buttons — check each individually
+    // (Using .or() can cause strict mode violation when both resolve)
+    await page.waitForTimeout(2000);
+    const googleVisible = await googleBtn.isVisible().catch(() => false);
+    const githubVisible = await githubBtn.isVisible().catch(() => false);
     expect(googleVisible || githubVisible).toBeTruthy();
 
-    // OAuth uses window.location.href to redirect, so we just verify the button
-    // is enabled and clickable. Clicking it would navigate away from the page,
-    // which we catch by listening for the URL change.
     if (googleVisible) {
       await expect(googleBtn).toBeEnabled();
       // Verify the button triggers a navigation (OAuth redirect)

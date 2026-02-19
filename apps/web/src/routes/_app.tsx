@@ -29,6 +29,12 @@ const LazyKeyboardShortcutsHelp = lazy(() =>
     default: m.KeyboardShortcutsHelp,
   })),
 );
+const LazyTaskPanel = lazy(() =>
+  import('@/components/tasks/TaskPanel').then((m) => ({ default: m.TaskPanel })),
+);
+const LazyTaskDrawer = lazy(() =>
+  import('@/components/tasks/TaskDrawer').then((m) => ({ default: m.TaskDrawer })),
+);
 
 export const Route = createFileRoute('/_app')({
   beforeLoad: async ({ context }) => {
@@ -125,11 +131,17 @@ export default function AppLayout() {
             <Outlet />
           </ErrorBoundary>
         </main>
+
+        {/* Task panel — renders next to main content */}
+        <Suspense fallback={null}>
+          <LazyTaskPanel />
+        </Suspense>
       </div>
 
       {/* Global overlays — lazy loaded, rendered only when needed */}
       <Suspense fallback={null}>
         <LazyEventDrawer />
+        <LazyTaskDrawer />
         <LazySearchModal />
         <LazyKeyboardShortcutsHelp open={shortcutsHelpOpen} onOpenChange={setShortcutsHelpOpen} />
       </Suspense>

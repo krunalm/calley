@@ -622,6 +622,7 @@ export class EventService {
     }
 
     const origDate = new Date(instanceDate);
+    origDate.setMilliseconds(0);
 
     // Build overrides object containing only the fields that were changed
     const overrides: Record<string, unknown> = {};
@@ -783,6 +784,7 @@ export class EventService {
     }
 
     const origDate = new Date(instanceDate);
+    origDate.setMilliseconds(0);
     const parentId = event.recurringEventId ?? event.id;
 
     await db.transaction(async (tx) => {

@@ -184,12 +184,13 @@ test.describe('P1 — Core Features', () => {
     if (googleVisible) {
       await expect(googleBtn).toBeEnabled();
       // Verify the button triggers a navigation (OAuth redirect)
+      const urlBefore = page.url();
       const [response] = await Promise.all([
         page.waitForEvent('framenavigated', { timeout: 5000 }).catch(() => null),
         googleBtn.click(),
       ]);
       // Either we got a navigation event or the URL changed
-      expect(response !== null || page.url() !== 'about:blank').toBeTruthy();
+      expect(response !== null || page.url() !== urlBefore).toBeTruthy();
     } else if (githubVisible) {
       await expect(githubBtn).toBeEnabled();
     }

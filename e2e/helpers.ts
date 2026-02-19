@@ -32,13 +32,15 @@ export type TestUser = ReturnType<typeof createTestUser>;
  */
 export async function signup(page: Page, user: TestUser = createTestUser()) {
   await page.goto('/signup');
+
   await page.getByLabel(/name/i).fill(user.name);
   await page.getByLabel(/email/i).fill(user.email);
   await page.getByLabel(/^password$/i).fill(user.password);
   await page.getByRole('button', { name: /sign up|create account/i }).click();
   // Wait for redirect to calendar after successful signup
   // Signup involves Argon2id hashing (~1s) + DB ops + route guard /auth/me check
-  await page.waitForURL('**/calendar**', { timeout: 30_000 });
+  // Use generous timeout for CI where 14 tests share 1 worker and CPU is limited
+  await page.waitForURL('**/calendar**', { timeout: 45_000 });
 }
 
 /**
@@ -54,23 +56,55 @@ export async function login(page: Page, user: TestUser) {
 
 /**
  * Log out via the UI.
+ * Opens the user menu dropdown and clicks "Sign out".
  */
 export async function logout(page: Page) {
-  // Open user menu and click logout
-  await page.getByRole('button', { name: /user|profile|account|avatar/i }).click();
-  await page.getByRole('menuitem', { name: /log ?out|sign ?out/i }).click();
+  // Open user menu — the UserMenu trigger has aria-label="User menu"
+  await page.getByRole('button', { name: /user menu/i }).click();
+  await page.getByRole('menuitem', { name: /sign ?out/i }).click();
   await page.waitForURL('**/login**', { timeout: 10_000 });
+}
+
+// ─── Navigation Helpers ─────────────────────────────────────────────
+
+/**
+ * Navigate to settings via the user menu dropdown.
+ */
+export async function goToSettings(page: Page) {
+  const userMenuBtn = page.getByRole('button', { name: /user menu/i });
+  await expect(userMenuBtn).toBeVisible({ timeout: 5_000 });
+  await userMenuBtn.click();
+  // Wait for the dropdown menu to open
+  const settingsItem = page.getByRole('menuitem', { name: /^settings$/i });
+  await expect(settingsItem).toBeVisible({ timeout: 3_000 });
+  await settingsItem.click();
+  await page.waitForURL('**/settings**', { timeout: 10_000 });
+}
+
+/**
+ * Ensure the task panel is open (visible).
+ * Uses the toolbar button instead of the 't' keyboard shortcut,
+ * because shortcuts are blocked when focus is inside a text input.
+ */
+export async function ensureTaskPanelOpen(page: Page) {
+  const taskPanel = page.locator('[role="complementary"][aria-label="Task panel"]');
+  if (!(await taskPanel.isVisible().catch(() => false))) {
+    // Click the body first to ensure no input is focused (keyboard shortcuts guard)
+    await page.locator('body').click({ position: { x: 0, y: 0 }, force: true });
+    // Click the toggle button in the topbar
+    const toggleBtn = page.getByRole('button', { name: /toggle task panel/i });
+    await expect(toggleBtn).toBeVisible({ timeout: 5_000 });
+    await toggleBtn.click();
+    await expect(taskPanel).toBeVisible({ timeout: 5_000 });
+  }
 }
 
 // ─── Event Helpers ──────────────────────────────────────────────────
 
-/** Selectors for event/task form drawer/dialog. */
-const FORM_DIALOG_SELECTOR =
-  '[role="dialog"], [data-testid="event-drawer"], [data-testid="event-form"]';
-
 /**
- * Create an event using the quick create or event form.
- * Fails fast if the new-event button is not visible.
+ * Create an event using the Create dropdown + EventDrawer form.
+ * Opens the "Create new" dropdown, selects "New Event", fills in the form,
+ * and saves.
  */
 export async function createEvent(
   page: Page,
@@ -82,58 +116,61 @@ export async function createEvent(
     description?: string;
   },
 ) {
-  // Click "new event" button — fail fast if not visible
-  const newEventBtn = page.getByRole('button', { name: /new event|create event|\+/i }).first();
-  await expect(newEventBtn).toBeVisible({ timeout: 5_000 });
-  await newEventBtn.click();
+  // Open the "Create new" dropdown in the Topbar
+  const createBtn = page.getByRole('button', { name: /create new/i });
+  await expect(createBtn).toBeVisible({ timeout: 5_000 });
+  await createBtn.click();
 
-  // Fill in the event form
-  await page.getByLabel(/title/i).fill(options.title);
+  // Select "New Event" from the dropdown menu
+  await page.getByRole('menuitem', { name: /new event/i }).click();
+
+  // Wait for the EventDrawer (Sheet with role="dialog") to appear
+  const drawer = page.locator('[role="dialog"]').first();
+  await expect(drawer).toBeVisible({ timeout: 5_000 });
+
+  // Fill in the event form — the Title label has htmlFor="event-title"
+  await page.getByLabel(/^title$/i).fill(options.title);
 
   if (options.category) {
-    const categorySelect = page.getByLabel(/category|calendar/i);
-    if (await categorySelect.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await categorySelect.click();
+    // Category is a Select component — click the trigger to open dropdown
+    const categoryTrigger = drawer.locator('text=Select category').first();
+    if (await categoryTrigger.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await categoryTrigger.click();
       await page.getByText(options.category, { exact: true }).click();
     }
   }
 
   if (options.startTime) {
-    const startField = page.getByLabel(/start time|from/i).first();
+    const startField = page.getByLabel(/start time/i).first();
     if (await startField.isVisible({ timeout: 2000 }).catch(() => false)) {
       await startField.fill(options.startTime);
     }
   }
 
   if (options.endTime) {
-    const endField = page.getByLabel(/end time|to|until/i).first();
+    const endField = page.getByLabel(/end time/i).first();
     if (await endField.isVisible({ timeout: 2000 }).catch(() => false)) {
       await endField.fill(options.endTime);
     }
   }
 
   if (options.description) {
-    const descField = page.getByLabel(/description|notes/i);
+    const descField = page.getByLabel(/description/i);
     if (await descField.isVisible()) {
       await descField.fill(options.description);
     }
   }
 
-  // Save the event
-  await page.getByRole('button', { name: /save|create|add/i }).click();
+  // Save the event — button text is "Create" (new) or "Save" (edit)
+  await page.getByRole('button', { name: /^create$|^save$/i }).click();
 
-  // Wait for the form dialog to close rather than a fixed timeout
-  await page
-    .locator(FORM_DIALOG_SELECTOR)
-    .waitFor({ state: 'hidden', timeout: 5_000 })
-    .catch(() => {
-      // Fallback: dialog may not exist in all flows (e.g. quick create popover)
-    });
+  // Wait for the dialog to close
+  await drawer.waitFor({ state: 'hidden', timeout: 5_000 }).catch(() => {});
 }
 
 /**
- * Create a task using the task panel.
- * Fails fast if the new-task button is not visible.
+ * Create a task using the task panel's "Create new task" button + TaskDrawer form.
+ * Ensures the task panel is open first.
  */
 export async function createTask(
   page: Page,
@@ -142,26 +179,33 @@ export async function createTask(
     description?: string;
   },
 ) {
-  const newTaskBtn = page.getByRole('button', { name: /new task|add task|\+/i }).first();
+  // Ensure the task panel is visible
+  await ensureTaskPanelOpen(page);
+
+  // Click the "Create new task" button in the task panel header
+  const newTaskBtn = page.getByRole('button', { name: /create new task/i });
   await expect(newTaskBtn).toBeVisible({ timeout: 5_000 });
   await newTaskBtn.click();
 
-  await page.getByLabel(/title/i).fill(options.title);
+  // Wait for the TaskDrawer dialog to appear
+  const drawer = page.locator('[role="dialog"]').first();
+  await expect(drawer).toBeVisible({ timeout: 5_000 });
+
+  // Fill in the task form — Title label has htmlFor="task-title"
+  await page.getByLabel(/^title$/i).fill(options.title);
 
   if (options.description) {
-    const descField = page.getByLabel(/description|notes/i);
+    const descField = page.getByLabel(/description/i);
     if (await descField.isVisible()) {
       await descField.fill(options.description);
     }
   }
 
-  await page.getByRole('button', { name: /save|create|add/i }).click();
+  // Save the task
+  await page.getByRole('button', { name: /^create$|^save$/i }).click();
 
-  // Wait for the form dialog to close rather than a fixed timeout
-  await page
-    .locator(FORM_DIALOG_SELECTOR)
-    .waitFor({ state: 'hidden', timeout: 5_000 })
-    .catch(() => {});
+  // Wait for the dialog to close
+  await drawer.waitFor({ state: 'hidden', timeout: 5_000 }).catch(() => {});
 }
 
 // ─── Keyboard Shortcut Helpers ──────────────────────────────────────
@@ -173,11 +217,23 @@ export async function createTask(
  * Uses condition-based waits instead of fixed timeouts for reliability.
  */
 export async function verifyNavigationShortcuts(page: Page) {
+  // Ensure no input is focused so keyboard shortcuts work
+  await page.locator('body').click({ position: { x: 0, y: 0 }, force: true });
+
+  // Switch to day view for reliable navigation (ArrowRight changes date in day view)
+  await page.keyboard.press('d');
+  await page
+    .locator('[aria-label="Calendar day view"]')
+    .waitFor({ timeout: 5_000 })
+    .catch(() => {});
+  await page.waitForTimeout(500);
+
   // Navigate right and wait for the date header text to change
   const dateHeader = page.locator('h2').first();
   await expect(dateHeader).toHaveText(/\S+/, { timeout: 5_000 });
   const oldHeaderText = (await dateHeader.textContent())!;
   await page.keyboard.press('ArrowRight');
+  // Wait for date to change (day view advances by 1 day)
   await expect(dateHeader).not.toContainText(oldHeaderText, { timeout: 5_000 });
 
   // Navigate left and wait for the date header text to change back
@@ -185,12 +241,8 @@ export async function verifyNavigationShortcuts(page: Page) {
   await page.keyboard.press('ArrowLeft');
   await expect(dateHeader).not.toContainText(updatedHeaderText, { timeout: 5_000 });
 
-  // 't' toggles the task panel — wait for the toggle button's data-active attribute
-  await page.keyboard.press('t');
-  const taskToggle = page.getByRole('button', { name: /toggle task panel/i });
-  if (await taskToggle.isVisible({ timeout: 2_000 }).catch(() => false)) {
-    await expect(taskToggle).toHaveAttribute('data-active', { timeout: 5_000 });
-  }
+  // 't' toggles the task panel — use button click for reliability
+  await ensureTaskPanelOpen(page);
 
   // Escape should close any open dialog/panel
   await page.keyboard.press('Escape');

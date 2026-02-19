@@ -49,3 +49,7 @@ docker/data/
 
 # Drizzle
 drizzle/meta/
+
+# Playwright
+test-results/
+playwright-report/

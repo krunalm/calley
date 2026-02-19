@@ -116,7 +116,7 @@ const COLOR_PRESETS = [
 
 export function EventDrawer() {
   const {
-    eventDrawer: { open, eventId, defaultDate, defaultTime },
+    eventDrawer: { open, eventId, defaultDate, defaultTime, instanceDate: storeInstanceDate },
     closeEventDrawer,
   } = useUIStore();
 
@@ -280,7 +280,7 @@ export function EventDrawer() {
             eventId,
             data: payload,
             scope,
-            instanceDate: existingEvent?.instanceDate ?? undefined,
+            instanceDate: storeInstanceDate ?? existingEvent?.instanceDate ?? undefined,
           },
           { onSuccess: () => closeEventDrawer() },
         );
@@ -292,6 +292,7 @@ export function EventDrawer() {
       isEditMode,
       eventId,
       existingEvent,
+      storeInstanceDate,
       buildApiPayload,
       updateEvent,
       createEvent,
@@ -319,13 +320,21 @@ export function EventDrawer() {
           {
             eventId,
             scope,
-            instanceDate: existingEvent?.instanceDate ?? undefined,
+            instanceDate: storeInstanceDate ?? existingEvent?.instanceDate ?? undefined,
           },
           { onSuccess: () => closeEventDrawer() },
         );
       }
     },
-    [scopeDialog, submitWithScope, eventId, existingEvent, deleteEvent, closeEventDrawer],
+    [
+      scopeDialog,
+      submitWithScope,
+      eventId,
+      existingEvent,
+      storeInstanceDate,
+      deleteEvent,
+      closeEventDrawer,
+    ],
   );
 
   const handleDelete = useCallback(() => {

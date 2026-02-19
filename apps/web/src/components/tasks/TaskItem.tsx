@@ -2,7 +2,7 @@ import { useDraggable } from '@dnd-kit/core';
 import { format, isPast, isToday, parseISO } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz';
 import { Repeat } from 'lucide-react';
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useRef } from 'react';
 
 import { Checkbox } from '@/components/ui/checkbox';
 import { useCategories } from '@/hooks/use-categories';
@@ -53,11 +53,23 @@ export const TaskItem = memo(function TaskItem({
     disabled: isSelecting || !draggableToCalendar,
   });
 
+  // Use a ref to prevent double-toggling within the same render cycle/event loop
+  const isInteractableRef = useRef(true);
+
   const handleToggle = useCallback(() => {
     if (isSelecting && onToggleSelect) {
       onToggleSelect(task.id);
     } else {
-      toggleTask.mutate(task.id);
+      if (!isInteractableRef.current) return;
+
+      isInteractableRef.current = false;
+      toggleTask.mutate(task.id, {
+        onSettled: () => {
+          setTimeout(() => {
+            isInteractableRef.current = true;
+          }, 100);
+        },
+      });
     }
   }, [isSelecting, onToggleSelect, toggleTask, task.id]);
 
@@ -92,6 +104,8 @@ export const TaskItem = memo(function TaskItem({
       } ${isDragging ? 'opacity-40' : ''}`}
       {...(draggableToCalendar && !isSelecting ? { ...attributes, ...listeners } : {})}
       role="listitem"
+      data-task-id={task.id}
+      data-optimistic={task.id.startsWith('optimistic-')}
     >
       {/* Category color stripe */}
       <div

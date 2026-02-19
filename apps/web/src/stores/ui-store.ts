@@ -5,6 +5,7 @@ interface EventDrawerState {
   eventId: string | null;
   defaultDate?: Date;
   defaultTime?: Date;
+  instanceDate?: string;
 }
 
 interface TaskDrawerState {

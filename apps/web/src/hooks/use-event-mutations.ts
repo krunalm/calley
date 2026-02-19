@@ -52,7 +52,7 @@ export function useCreateEvent() {
       };
 
       for (const [key, data] of snapshot) {
-        if (data) {
+        if (Array.isArray(data)) {
           queryClient.setQueryData(key, [...data, placeholder]);
         }
       }
@@ -99,7 +99,7 @@ export function useUpdateEvent() {
 
       // Optimistically update the event in all matching range caches
       for (const [key, cacheData] of snapshot) {
-        if (cacheData) {
+        if (Array.isArray(cacheData)) {
           queryClient.setQueryData(
             key,
             cacheData.map((event) =>
@@ -156,7 +156,7 @@ export function useDeleteEvent() {
 
       // Optimistically remove the event from all matching range caches
       for (const [key, cacheData] of snapshot) {
-        if (cacheData) {
+        if (Array.isArray(cacheData)) {
           queryClient.setQueryData(
             key,
             cacheData.filter((event) => event.id !== eventId),

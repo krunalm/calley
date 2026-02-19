@@ -50,8 +50,11 @@ export function EventDetailPopover({
 
   const handleEdit = useCallback(() => {
     onOpenChange(false);
-    openEventDrawer({ eventId: event.id });
-  }, [event.id, onOpenChange, openEventDrawer]);
+    openEventDrawer({
+      eventId: event.recurringEventId ?? event.id,
+      instanceDate: event.isRecurringInstance ? (event.instanceDate ?? event.startAt) : undefined,
+    });
+  }, [event, onOpenChange, openEventDrawer]);
 
   const handleDuplicate = useCallback(async () => {
     onOpenChange(false);

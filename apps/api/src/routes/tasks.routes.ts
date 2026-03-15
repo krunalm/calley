@@ -33,15 +33,24 @@ const tasksRouter = new Hono<{ Variables: AppVariables }>();
 // All task routes require authentication
 tasksRouter.use('/*', authMiddleware);
 
+// User-based rate limit key
+const userKey = (c: Parameters<typeof authMiddleware>[0]) => c.get('userId') ?? 'anon';
+
 // ─── PATCH /tasks/reorder — Reorder tasks (must be before /:id routes) ──
 
-tasksRouter.patch('/reorder', doubleSubmitCsrf, validate('json', reorderTasksSchema), async (c) => {
-  const userId = c.get('userId')!;
-  const { ids } = c.get('validatedBody') as ReorderTasksInput;
+tasksRouter.patch(
+  '/reorder',
+  rateLimit({ limit: 60, windowSeconds: 60, keyPrefix: 'tasks:reorder', keyFn: userKey }),
+  doubleSubmitCsrf,
+  validate('json', reorderTasksSchema),
+  async (c) => {
+    const userId = c.get('userId')!;
+    const { ids } = c.get('validatedBody') as ReorderTasksInput;
 
-  await taskService.reorderTasks(userId, ids);
-  return c.body(null, 204);
-});
+    await taskService.reorderTasks(userId, ids);
+    return c.body(null, 204);
+  },
+);
 
 // ─── PATCH /tasks/bulk-complete — Bulk complete tasks (must be before /:id) ──
 
@@ -77,38 +86,55 @@ tasksRouter.post(
 
 // ─── GET /tasks — List tasks with filters ──────────────────────────
 
-tasksRouter.get('/', validate('query', listTasksQuerySchema), async (c) => {
-  const userId = c.get('userId')!;
-  const filters = c.get('validatedQuery') as ListTasksQuery;
+tasksRouter.get(
+  '/',
+  rateLimit({ limit: 120, windowSeconds: 60, keyPrefix: 'tasks:list', keyFn: userKey }),
+  validate('query', listTasksQuerySchema),
+  async (c) => {
+    const userId = c.get('userId')!;
+    const filters = c.get('validatedQuery') as ListTasksQuery;
 
-  const result = await taskService.listTasks(userId, filters);
-  return c.json(result);
-});
+    const result = await taskService.listTasks(userId, filters);
+    return c.json(result);
+  },
+);
 
 // ─── POST /tasks — Create a new task ───────────────────────────────
 
-tasksRouter.post('/', doubleSubmitCsrf, validate('json', createTaskSchema), async (c) => {
-  const userId = c.get('userId')!;
-  const data = c.get('validatedBody') as CreateTaskInput;
+tasksRouter.post(
+  '/',
+  rateLimit({ limit: 30, windowSeconds: 60, keyPrefix: 'tasks:create', keyFn: userKey }),
+  doubleSubmitCsrf,
+  validate('json', createTaskSchema),
+  async (c) => {
+    const userId = c.get('userId')!;
+    const data = c.get('validatedBody') as CreateTaskInput;
 
-  const task = await taskService.createTask(userId, data);
-  return c.json(task, 201);
-});
+    const task = await taskService.createTask(userId, data);
+    return c.json(task, 201);
+  },
+);
 
 // ─── GET /tasks/:id — Get a single task ────────────────────────────
 
-tasksRouter.get('/:id', validate('param', taskIdParamSchema), async (c) => {
-  const userId = c.get('userId')!;
-  const { id } = c.get('validatedParam') as { id: string };
+tasksRouter.get(
+  '/:id',
+  rateLimit({ limit: 120, windowSeconds: 60, keyPrefix: 'tasks:read', keyFn: userKey }),
+  validate('param', taskIdParamSchema),
+  async (c) => {
+    const userId = c.get('userId')!;
+    const { id } = c.get('validatedParam') as { id: string };
 
-  const task = await taskService.getTask(userId, id);
-  return c.json(task);
-});
+    const task = await taskService.getTask(userId, id);
+    return c.json(task);
+  },
+);
 
 // ─── PATCH /tasks/:id — Update a task ──────────────────────────────
 
 tasksRouter.patch(
   '/:id',
+  rateLimit({ limit: 60, windowSeconds: 60, keyPrefix: 'tasks:update', keyFn: userKey }),
   doubleSubmitCsrf,
   validate('param', taskIdParamSchema),
   validate('json', updateTaskSchema),
@@ -128,6 +154,7 @@ tasksRouter.patch(
 
 tasksRouter.delete(
   '/:id',
+  rateLimit({ limit: 30, windowSeconds: 60, keyPrefix: 'tasks:delete', keyFn: userKey }),
   doubleSubmitCsrf,
   validate('param', taskIdParamSchema),
   validate('query', taskScopeQuerySchema),
@@ -145,6 +172,7 @@ tasksRouter.delete(
 
 tasksRouter.patch(
   '/:id/toggle',
+  rateLimit({ limit: 60, windowSeconds: 60, keyPrefix: 'tasks:update', keyFn: userKey }),
   doubleSubmitCsrf,
   validate('param', taskIdParamSchema),
   async (c) => {

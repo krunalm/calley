@@ -24,6 +24,7 @@ interface SSEConnection {
 
 const HEARTBEAT_INTERVAL_MS = 30_000;
 const MAX_CONNECTIONS_PER_USER = 5;
+const MAX_TOTAL_CONNECTIONS = 10_000;
 
 // ─── Service ────────────────────────────────────────────────────────
 
@@ -42,7 +43,13 @@ class SSEService {
    * Add a new SSE connection for a user.
    * Enforces max connections per user; closes oldest on overflow.
    */
-  addConnection(userId: string, controller: ReadableStreamDefaultController): SSEConnection {
+  addConnection(userId: string, controller: ReadableStreamDefaultController): SSEConnection | null {
+    // Enforce global connection limit
+    if (this.getConnectionCount() >= MAX_TOTAL_CONNECTIONS) {
+      logger.warn({ userId, total: MAX_TOTAL_CONNECTIONS }, 'Global SSE connection limit reached');
+      return null;
+    }
+
     let userConnections = this.connections.get(userId);
     if (!userConnections) {
       userConnections = new Set();

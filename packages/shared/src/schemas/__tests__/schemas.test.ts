@@ -613,17 +613,17 @@ describe('Task Schemas', () => {
       expect(result.dueAt).toBe('2026-04-01T12:00:00Z');
     });
 
-    it('should accept description up to 5000 characters', () => {
+    it('should accept description up to 2000 characters', () => {
       const result = createTaskSchema.parse({
         ...validTask,
-        description: 'a'.repeat(5000),
+        description: 'a'.repeat(2000),
       });
-      expect(result.description).toHaveLength(5000);
+      expect(result.description).toHaveLength(2000);
     });
 
-    it('should reject description longer than 5000 characters', () => {
+    it('should reject description longer than 2000 characters', () => {
       expect(() =>
-        createTaskSchema.parse({ ...validTask, description: 'a'.repeat(5001) }),
+        createTaskSchema.parse({ ...validTask, description: 'a'.repeat(2001) }),
       ).toThrow();
     });
   });

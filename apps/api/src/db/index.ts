@@ -1,7 +1,10 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 
+import { logger as appLogger } from '../lib/logger';
 import * as schema from './schema';
+
+import type { Logger } from 'drizzle-orm/logger';
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) {
@@ -24,7 +27,18 @@ const client = postgres(databaseUrl, {
   },
 });
 
-export const db = drizzle(client, { schema });
+const isDev = process.env.NODE_ENV !== 'production';
+
+const drizzleLogger: Logger = {
+  logQuery(query: string, params: unknown[]) {
+    appLogger.debug({ query, params }, 'DB query');
+  },
+};
+
+export const db = drizzle(client, {
+  schema,
+  ...(isDev && { logger: drizzleLogger }),
+});
 
 export { client };
 

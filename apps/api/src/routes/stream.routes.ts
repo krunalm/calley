@@ -76,6 +76,16 @@ stream.get('/', validate('query', streamQuerySchema), async (c) => {
       // Register the connection
       const connection = sseService.addConnection(resolvedUserId, controller);
 
+      if (!connection) {
+        // Global limit reached — close immediately
+        try {
+          controller.close();
+        } catch {
+          // Already closed
+        }
+        return;
+      }
+
       // Send initial connected event
       const encoder = new TextEncoder();
       try {

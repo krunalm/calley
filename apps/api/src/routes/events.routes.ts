@@ -10,6 +10,7 @@ import {
 
 import { authMiddleware } from '../middleware/auth.middleware';
 import { doubleSubmitCsrf } from '../middleware/csrf.middleware';
+import { rateLimit } from '../middleware/rate-limit.middleware';
 import { validate } from '../middleware/validate.middleware';
 import { eventService } from '../services/event.service';
 
@@ -26,40 +27,60 @@ const eventsRouter = new Hono<{ Variables: AppVariables }>();
 // All event routes require authentication
 eventsRouter.use('/*', authMiddleware);
 
+// User-based rate limit key
+const userKey = (c: Parameters<typeof authMiddleware>[0]) => c.get('userId') ?? 'anon';
+
 // ─── GET /events — List events in a date range ──────────────────────
 
-eventsRouter.get('/', validate('query', listEventsQuerySchema), async (c) => {
-  const userId = c.get('userId')!;
-  const { start, end, categoryIds } = c.get('validatedQuery') as ListEventsQuery;
+eventsRouter.get(
+  '/',
+  rateLimit({ limit: 120, windowSeconds: 60, keyPrefix: 'events:list', keyFn: userKey }),
+  validate('query', listEventsQuerySchema),
+  async (c) => {
+    const userId = c.get('userId')!;
+    const { start, end, categoryIds } = c.get('validatedQuery') as ListEventsQuery;
 
-  const events = await eventService.listEvents(userId, start, end, categoryIds);
-  return c.json(events);
-});
+    const events = await eventService.listEvents(userId, start, end, categoryIds);
+    return c.json(events);
+  },
+);
 
 // ─── POST /events — Create a new event ──────────────────────────────
 
-eventsRouter.post('/', doubleSubmitCsrf, validate('json', createEventSchema), async (c) => {
-  const userId = c.get('userId')!;
-  const data = c.get('validatedBody') as CreateEventInput;
+eventsRouter.post(
+  '/',
+  rateLimit({ limit: 30, windowSeconds: 60, keyPrefix: 'events:create', keyFn: userKey }),
+  doubleSubmitCsrf,
+  validate('json', createEventSchema),
+  async (c) => {
+    const userId = c.get('userId')!;
+    const data = c.get('validatedBody') as CreateEventInput;
 
-  const event = await eventService.createEvent(userId, data);
-  return c.json(event, 201);
-});
+    const event = await eventService.createEvent(userId, data);
+    return c.json(event, 201);
+  },
+);
 
 // ─── GET /events/:id — Get a single event ───────────────────────────
 
-eventsRouter.get('/:id', validate('param', eventIdParamSchema), async (c) => {
-  const userId = c.get('userId')!;
-  const { id } = c.get('validatedParam') as { id: string };
+eventsRouter.get(
+  '/:id',
+  rateLimit({ limit: 120, windowSeconds: 60, keyPrefix: 'events:read', keyFn: userKey }),
+  validate('param', eventIdParamSchema),
+  async (c) => {
+    const userId = c.get('userId')!;
+    const { id } = c.get('validatedParam') as { id: string };
 
-  const event = await eventService.getEvent(userId, id);
-  return c.json(event);
-});
+    const event = await eventService.getEvent(userId, id);
+    return c.json(event);
+  },
+);
 
 // ─── PATCH /events/:id — Update an event ────────────────────────────
 
 eventsRouter.patch(
   '/:id',
+  rateLimit({ limit: 60, windowSeconds: 60, keyPrefix: 'events:update', keyFn: userKey }),
   doubleSubmitCsrf,
   validate('param', eventIdParamSchema),
   validate('json', updateEventSchema),
@@ -79,6 +100,7 @@ eventsRouter.patch(
 
 eventsRouter.delete(
   '/:id',
+  rateLimit({ limit: 30, windowSeconds: 60, keyPrefix: 'events:delete', keyFn: userKey }),
   doubleSubmitCsrf,
   validate('param', eventIdParamSchema),
   validate('query', eventScopeQuerySchema),
@@ -96,6 +118,7 @@ eventsRouter.delete(
 
 eventsRouter.post(
   '/:id/duplicate',
+  rateLimit({ limit: 30, windowSeconds: 60, keyPrefix: 'events:create', keyFn: userKey }),
   doubleSubmitCsrf,
   validate('param', eventIdParamSchema),
   async (c) => {
@@ -109,16 +132,21 @@ eventsRouter.post(
 
 // ─── GET /events/:id/ics — Export event as .ics file ────────────────
 
-eventsRouter.get('/:id/ics', validate('param', eventIdParamSchema), async (c) => {
-  const userId = c.get('userId')!;
-  const { id } = c.get('validatedParam') as { id: string };
+eventsRouter.get(
+  '/:id/ics',
+  rateLimit({ limit: 30, windowSeconds: 60, keyPrefix: 'events:export', keyFn: userKey }),
+  validate('param', eventIdParamSchema),
+  async (c) => {
+    const userId = c.get('userId')!;
+    const { id } = c.get('validatedParam') as { id: string };
 
-  const icsContent = await eventService.exportIcs(userId, id);
+    const icsContent = await eventService.exportIcs(userId, id);
 
-  c.header('Content-Type', 'text/calendar; charset=utf-8');
-  c.header('Content-Disposition', `attachment; filename="event-${id}.ics"`);
+    c.header('Content-Type', 'text/calendar; charset=utf-8');
+    c.header('Content-Disposition', `attachment; filename="event-${id}.ics"`);
 
-  return c.body(icsContent);
-});
+    return c.body(icsContent);
+  },
+);
 
 export default eventsRouter;

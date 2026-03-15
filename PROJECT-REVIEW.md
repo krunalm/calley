@@ -116,7 +116,17 @@
 - DELETE: 30 req/min per user
 - Bulk operations: 10 req/min per user
 
-### 3.2 No `.nvmrc` or `.node-version` File (Severity: LOW)
+### 3.2 Task Description Field Length Exceeds Spec (Severity: MEDIUM)
+
+The task description schema allows 5,000 characters, but SPECS.md §6.2 specifies a maximum of 2,000 characters for task descriptions (event descriptions are correctly set to 5,000).
+
+- **File**: `packages/shared/src/schemas/task.schema.ts:20`
+- **Current**: `.max(5000, 'Description must be at most 5000 characters')`
+- **Expected**: `.max(2000, 'Description must be at most 2000 characters')`
+
+**Impact**: Users can submit task descriptions 2.5x longer than intended, increasing storage and rendering costs.
+
+### 3.3 No `.nvmrc` or `.node-version` File (Severity: LOW)
 
 The project requires Node.js 22 but doesn't have a version pinning file. Developers may use incorrect Node versions.
 
@@ -201,14 +211,32 @@ All 30+ items in Phase 10 are pending:
 - **Input sanitization**: DOMPurify applied to all user HTML content (event descriptions)
 - **No raw SQL**: All queries via Drizzle ORM or parameterized template literals
 
-### 5.2 Areas for Improvement
+### 5.2 Frontend Code Quality (from Detailed Audit)
+
+| Area | Status | Notes |
+|------|--------|-------|
+| Component structure | Excellent | 58 components well-organized into functional subdirectories |
+| Zustand stores | Excellent | 4 stores with clear responsibilities, localStorage persistence |
+| TanStack Query | Excellent | Optimistic updates with proper rollback on all mutations |
+| Form validation | Good | React Hook Form + Zod with timezone-aware refinements |
+| Accessibility | Very Good | ARIA live regions, keyboard nav, semantic HTML, skip-to-content |
+| Error boundaries | Good | At route level; no Sentry integration yet |
+| Loading states | Good | Skeleton loaders + Suspense for all major views |
+| Responsive design | Excellent | Mobile-first with proper breakpoints |
+| Performance | Good | memo(), lazy loading, useMemo, reduced-motion support |
+| Routing guards | Excellent | Auth guard with `beforeLoad`, guest redirect |
+| CSS/Tailwind | Excellent | Semantic design tokens, theme system, z-index scale |
+
+### 5.3 Areas for Improvement
 
 | Issue | Location | Severity |
 |-------|----------|----------|
+| Task description max length (5000) doesn't match spec (2000) | `packages/shared/src/schemas/task.schema.ts:20` | Medium |
 | Task service tests marked incomplete in TASKS.md but test files exist (`task.service.test.ts` 35KB) — TASKS.md may be out of date | `TASKS.md:424-425` | Low |
 | No `any` type audit performed — potential type safety gaps | Project-wide | Low |
 | No explicit API versioning strategy (e.g., `/v1/events`) | `apps/api/src/app.ts` | Medium |
 | No request timeout middleware for long-running requests | `apps/api/src/middleware/` | Medium |
+| ErrorBoundary lacks Sentry/error reporting integration | `apps/web/src/components/ErrorBoundary.tsx` | Low |
 
 ---
 

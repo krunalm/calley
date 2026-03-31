@@ -91,15 +91,20 @@ export type UpdateEventInput = z.infer<typeof updateEventSchema>;
 
 // ─── List Events Query ──────────────────────────────────────────────
 
-export const listEventsQuerySchema = z.object({
-  start: datetimeSchema,
-  end: datetimeSchema,
-  categoryIds: z
-    .string()
-    .transform((val) => val.split(',').filter(Boolean))
-    .pipe(z.array(cuid2Schema))
-    .optional(),
-});
+export const listEventsQuerySchema = z
+  .object({
+    start: datetimeSchema,
+    end: datetimeSchema,
+    categoryIds: z
+      .string()
+      .transform((val) => val.split(',').filter(Boolean))
+      .pipe(z.array(cuid2Schema))
+      .optional(),
+  })
+  .refine((data) => new Date(data.start) < new Date(data.end), {
+    message: 'Start must be before end',
+    path: ['end'],
+  });
 
 export type ListEventsQuery = z.infer<typeof listEventsQuerySchema>;
 

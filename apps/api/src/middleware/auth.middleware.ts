@@ -4,6 +4,7 @@ import { getCookie } from 'hono/cookie';
 import { db } from '../db';
 import { sessions } from '../db/schema';
 import { AppError } from '../lib/errors';
+import { logger } from '../lib/logger';
 import { lucia } from '../lib/lucia';
 
 import type { AppVariables } from '../types/hono';
@@ -33,6 +34,14 @@ export const authMiddleware: MiddlewareHandler<{ Variables: AppVariables }> = as
   // Check idle timeout
   const lastActive =
     session.lastActiveAt instanceof Date ? session.lastActiveAt : new Date(session.lastActiveAt);
+  // Guard against null/undefined lastActiveAt producing an Invalid Date
+  // (NaN arithmetic would cause the idle check to silently pass, creating permanent sessions)
+  if (isNaN(lastActive.getTime())) {
+    await lucia.invalidateSession(session.id);
+    const blankCookie = lucia.createBlankSessionCookie();
+    c.header('Set-Cookie', blankCookie.serialize(), { append: true });
+    throw new AppError(401, 'UNAUTHORIZED', 'Invalid session state');
+  }
   if (Date.now() - lastActive.getTime() > IDLE_TIMEOUT_MS) {
     await lucia.invalidateSession(session.id);
     const blankCookie = lucia.createBlankSessionCookie();
@@ -53,8 +62,8 @@ export const authMiddleware: MiddlewareHandler<{ Variables: AppVariables }> = as
       .set({ lastActiveAt: new Date() })
       .where(eq(sessions.id, session.id))
       .execute()
-      .catch(() => {
-        // Non-critical — swallow errors silently
+      .catch((err) => {
+        logger.warn({ err, sessionId: session.id }, 'Failed to update session lastActiveAt');
       });
   }
 

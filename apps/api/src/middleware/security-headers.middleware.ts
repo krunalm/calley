@@ -19,6 +19,7 @@ export const securityHeaders: MiddlewareHandler = async (c, next) => {
     [
       "default-src 'self'",
       "script-src 'self'",
+      // TODO: implement nonce-based CSP for inline styles before removing 'unsafe-inline'
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: https:",
       "font-src 'self' https://fonts.gstatic.com",

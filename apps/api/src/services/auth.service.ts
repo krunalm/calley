@@ -87,11 +87,10 @@ async function enforceMaxSessions(userId: string): Promise<void> {
   });
 
   if (userSessions.length >= MAX_SESSIONS_PER_USER) {
-    // Delete oldest sessions to make room
-    const sessionsToDelete = userSessions.slice(0, userSessions.length - MAX_SESSIONS_PER_USER + 1);
-    for (const s of sessionsToDelete) {
-      await lucia.invalidateSession(s.id);
-    }
+    // Delete oldest sessions in parallel to make room for one new session
+    const excessCount = userSessions.length - MAX_SESSIONS_PER_USER + 1;
+    const sessionsToDelete = userSessions.slice(0, excessCount);
+    await Promise.all(sessionsToDelete.map((s) => lucia.invalidateSession(s.id)));
   }
 }
 
@@ -239,13 +238,8 @@ export class AuthService {
         });
 
         // Send lockout warning email (fire-and-forget — don't block the response)
-        // Derive frontend URL: prefer FRONTEND_URL, then first origin from CORS_ORIGIN
         const frontendUrl =
-          process.env.FRONTEND_URL ||
-          process.env.CORS_ORIGIN?.split(',')
-            .map((s) => s.trim())
-            .find((s) => s.length > 0) ||
-          'http://localhost:5173';
+          process.env.FRONTEND_URL || process.env.CORS_ORIGIN || 'http://localhost:5173';
         const resetPasswordUrl = `${frontendUrl}/forgot-password`;
         const { html, text } = accountLockoutEmail({
           lockoutDurationMinutes: LOCKOUT_DURATION_MINUTES,
@@ -344,7 +338,8 @@ export class AuthService {
     });
 
     // Build the reset URL
-    const frontendUrl = process.env.CORS_ORIGIN || 'http://localhost:5173';
+    const frontendUrl =
+      process.env.FRONTEND_URL || process.env.CORS_ORIGIN || 'http://localhost:5173';
     const resetUrl = `${frontendUrl}/reset-password?token=${rawToken}`;
 
     // Send the email
@@ -506,9 +501,7 @@ export class AuthService {
       where: and(eq(sessions.userId, userId), ne(sessions.id, currentSessionId)),
     });
 
-    for (const s of allSessions) {
-      await lucia.invalidateSession(s.id);
-    }
+    await Promise.all(allSessions.map((s) => lucia.invalidateSession(s.id)));
 
     logger.info({ userId }, 'Password changed');
 
@@ -848,9 +841,7 @@ export class AuthService {
       where: and(eq(sessions.userId, userId), ne(sessions.id, currentSessionId)),
     });
 
-    for (const s of otherSessions) {
-      await lucia.invalidateSession(s.id);
-    }
+    await Promise.all(otherSessions.map((s) => lucia.invalidateSession(s.id)));
 
     logger.info({ userId, revokedCount: otherSessions.length }, 'All other sessions revoked');
 

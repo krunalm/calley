@@ -45,6 +45,17 @@ vi.mock('../../lib/queue', () => ({
 vi.mock('../recurrence.service', () => ({
   recurrenceService: {
     validateRrule: vi.fn(),
+    terminateSeriesAt: vi.fn((rrule: string, splitDate: Date) => {
+      const untilDate = new Date(splitDate.getTime() - 1);
+      const untilStr = untilDate
+        .toISOString()
+        .replace(/[-:]/g, '')
+        .replace(/\.\d{3}/, '');
+      let updated = rrule;
+      updated = updated.replace(/;?(UNTIL|COUNT)=[^;]*/g, '');
+      updated += `;UNTIL=${untilStr}`;
+      return updated;
+    }),
   },
 }));
 

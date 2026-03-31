@@ -11,6 +11,31 @@ interface RateLimitOptions {
   keyFn?: (c: Parameters<MiddlewareHandler>[0]) => string;
 }
 
+/**
+ * Extract a client IP from the request, only trusting proxy headers when
+ * TRUSTED_PROXIES is configured. Falls back to 'unknown' when no reliable
+ * source is available.
+ */
+function getClientIp(c: Parameters<MiddlewareHandler>[0]): string {
+  const trustedProxies = process.env.TRUSTED_PROXIES;
+
+  if (trustedProxies) {
+    // Only trust X-Forwarded-For / X-Real-IP when requests arrive through
+    // a known reverse proxy. In production this should be set to the proxy
+    // CIDR (e.g. "10.0.0.0/8") or "*" to trust any proxy.
+    const forwarded = c.req.header('x-forwarded-for')?.split(',')[0]?.trim();
+    if (forwarded) return forwarded;
+
+    const realIp = c.req.header('x-real-ip');
+    if (realIp) return realIp;
+  }
+
+  // Without trusted proxies configured, fall back to a fixed identifier.
+  // This means all requests share the same bucket, which is intentionally
+  // restrictive to prevent IP spoofing from bypassing rate limits.
+  return 'unknown';
+}
+
 export function rateLimit(
   options: RateLimitOptions,
 ): MiddlewareHandler<{ Variables: AppVariables }> {
@@ -22,11 +47,7 @@ export function rateLimit(
       return;
     }
 
-    const identifier = keyFn
-      ? keyFn(c)
-      : c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ||
-        c.req.header('x-real-ip') ||
-        'unknown';
+    const identifier = keyFn ? keyFn(c) : getClientIp(c);
 
     const key = `rl:${keyPrefix}:${identifier}`;
     const now = Date.now();

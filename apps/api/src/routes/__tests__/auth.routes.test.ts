@@ -144,6 +144,8 @@ vi.mock('../../lib/oauth', () => ({
       .mockReturnValue(new URL('https://github.com/login/oauth/authorize')),
     validateAuthorizationCode: vi.fn(),
   },
+  isGoogleOAuthConfigured: true,
+  isGithubOAuthConfigured: true,
 }));
 
 // Mock arctic

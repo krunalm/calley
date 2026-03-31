@@ -14,19 +14,18 @@ export function requestTimeout(
   timeoutMs: number = DEFAULT_TIMEOUT_MS,
 ): MiddlewareHandler<{ Variables: AppVariables }> {
   return async (c, next) => {
-    const controller = new AbortController();
-    const timer = setTimeout(() => {
-      controller.abort();
-    }, timeoutMs);
+    let timer: ReturnType<typeof setTimeout> | undefined;
 
     try {
-      // Race the request handler against the timeout
+      // Race the request handler against a timeout promise.
+      // The timeout promise resolves rejection via setTimeout directly,
+      // avoiding AbortController event listener leaks.
       const result = await Promise.race([
         next(),
         new Promise<never>((_, reject) => {
-          controller.signal.addEventListener('abort', () => {
+          timer = setTimeout(() => {
             reject(new AppError(408, 'REQUEST_TIMEOUT', 'Request timed out'));
-          });
+          }, timeoutMs);
         }),
       ]);
       return result;
@@ -40,7 +39,7 @@ export function requestTimeout(
       }
       throw err;
     } finally {
-      clearTimeout(timer);
+      if (timer !== undefined) clearTimeout(timer);
     }
   };
 }

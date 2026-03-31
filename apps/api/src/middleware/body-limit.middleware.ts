@@ -17,7 +17,11 @@ export function bodyLimit(
 
     if (contentLength) {
       const length = parseInt(contentLength, 10);
-      if (!Number.isNaN(length) && length > maxBytes) {
+      // Reject malformed Content-Length headers to prevent size check bypass
+      if (Number.isNaN(length)) {
+        throw new AppError(400, 'BAD_REQUEST', 'Invalid Content-Length header');
+      }
+      if (length > maxBytes) {
         throw new AppError(
           413,
           'PAYLOAD_TOO_LARGE',

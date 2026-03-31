@@ -17,7 +17,7 @@ export const createTaskSchema = z.object({
     .max(200, 'Title must be at most 200 characters'),
   description: z
     .string()
-    .max(2000, 'Description must be at most 2000 characters')
+    .max(5000, 'Description must be at most 5000 characters')
     .nullable()
     .optional(),
   dueAt: datetimeSchema.nullable().optional(),
@@ -46,7 +46,7 @@ export const updateTaskSchema = z.object({
     .optional(),
   description: z
     .string()
-    .max(2000, 'Description must be at most 2000 characters')
+    .max(5000, 'Description must be at most 5000 characters')
     .nullable()
     .optional(),
   dueAt: datetimeSchema.nullable().optional(),

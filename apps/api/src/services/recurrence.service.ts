@@ -55,6 +55,24 @@ const MAX_INSTANCES_PER_SERIES = 1000;
 
 export class RecurrenceService {
   /**
+   * Terminate a recurring series by adding an UNTIL clause just before splitDate.
+   * Removes any existing UNTIL or COUNT from the RRULE and appends a new UNTIL.
+   * Used by both event and task services when splitting a "following" series.
+   */
+  terminateSeriesAt(rrule: string, splitDate: Date): string {
+    const untilDate = new Date(splitDate.getTime() - 1);
+    const untilStr = untilDate
+      .toISOString()
+      .replace(/[-:]/g, '')
+      .replace(/\.\d{3}/, '');
+
+    let updated = rrule;
+    updated = updated.replace(/;?(UNTIL|COUNT)=[^;]*/g, '');
+    updated += `;UNTIL=${untilStr}`;
+    return updated;
+  }
+
+  /**
    * Expand recurring events into individual instances within a date range.
    *
    * Flow:

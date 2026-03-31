@@ -93,7 +93,16 @@ function mockSelectCountChain(countValue: number) {
     from: vi.fn().mockReturnThis(),
     where: vi.fn().mockResolvedValue([{ value: countValue }]),
   };
-  (db.select as ReturnType<typeof vi.fn>).mockReturnValue(chain);
+  (db.select as ReturnType<typeof vi.fn>).mockReturnValueOnce(chain);
+  return chain;
+}
+
+function mockSelectMaxSortOrderChain(maxSort: number) {
+  const chain = {
+    from: vi.fn().mockReturnThis(),
+    where: vi.fn().mockResolvedValue([{ maxSort }]),
+  };
+  (db.select as ReturnType<typeof vi.fn>).mockReturnValueOnce(chain);
   return chain;
 }
 
@@ -197,14 +206,8 @@ describe('CategoryService', () => {
       (db.query.calendarCategories.findFirst as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
         undefined,
       );
-      // findFirst for sort order check (last category exists)
-      (db.query.calendarCategories.findFirst as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
-        makeDefaultCategoryRow(),
-      );
-      // findMany for computing max sort order
-      (db.query.calendarCategories.findMany as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
-        makeDefaultCategoryRow({ sortOrder: 0 }),
-      ]);
+      // Max sort order query
+      mockSelectMaxSortOrderChain(0);
       // Insert returns the created row
       mockInsertChain([createdRow]);
 
@@ -271,18 +274,16 @@ describe('CategoryService', () => {
       });
     });
 
-    it('should set sortOrder to 1 when the user has no existing categories', async () => {
-      const createdRow = makeCategoryRow({ sortOrder: 1 });
+    it('should set sortOrder to 0 when the user has no existing categories', async () => {
+      const createdRow = makeCategoryRow({ sortOrder: 0 });
 
       mockSelectCountChain(0);
       // No duplicate name
       (db.query.calendarCategories.findFirst as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
         undefined,
       );
-      // No last category (user has none)
-      (db.query.calendarCategories.findFirst as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
-        undefined,
-      );
+      // Max sort order returns -1 (no existing categories)
+      mockSelectMaxSortOrderChain(-1);
       // Insert
       mockInsertChain([createdRow]);
 
@@ -291,7 +292,7 @@ describe('CategoryService', () => {
         color: '#c8522a',
       });
 
-      expect(result.sortOrder).toBe(1);
+      expect(result.sortOrder).toBe(0);
     });
 
     it('should compute the next sortOrder based on existing categories', async () => {
@@ -302,16 +303,8 @@ describe('CategoryService', () => {
       (db.query.calendarCategories.findFirst as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
         undefined,
       );
-      // Last category exists
-      (db.query.calendarCategories.findFirst as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
-        makeCategoryRow({ sortOrder: 3 }),
-      );
-      // findMany returns rows to compute max sort order
-      (db.query.calendarCategories.findMany as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
-        makeDefaultCategoryRow({ sortOrder: 0 }),
-        makeCategoryRow({ sortOrder: 1 }),
-        makeCategoryRow({ id: 'cat2_id123456789012345678', sortOrder: 3 }),
-      ]);
+      // Max sort order is 3 among existing categories
+      mockSelectMaxSortOrderChain(3);
       // Insert
       mockInsertChain([createdRow]);
 

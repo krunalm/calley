@@ -150,6 +150,11 @@ function foldIcsLine(line: string): string {
   return parts.join('\r\n');
 }
 
+// ─── Constants ─────────────────────────────────────────────────────
+
+/** Maximum number of exDates a recurring event can accumulate. */
+const MAX_EX_DATES = 500;
+
 // ─── Service ────────────────────────────────────────────────────────
 
 export class EventService {
@@ -694,19 +699,8 @@ export class EventService {
 
     const splitDate = new Date(instanceDate);
 
-    // Build the UNTIL clause for the original series
-    // UNTIL should be just before the split date
-    const untilDate = new Date(splitDate.getTime() - 1);
-    const untilStr = untilDate
-      .toISOString()
-      .replace(/[-:]/g, '')
-      .replace(/\.\d{3}/, '');
-
-    // Modify the parent's RRULE to add UNTIL
-    let updatedRrule = parentEvent.rrule!;
-    // Remove any existing UNTIL or COUNT
-    updatedRrule = updatedRrule.replace(/;?(UNTIL|COUNT)=[^;]*/g, '');
-    updatedRrule += `;UNTIL=${untilStr}`;
+    // Terminate the original series just before the split date
+    const updatedRrule = recurrenceService.terminateSeriesAt(parentEvent.rrule!, splitDate);
 
     // Create a new series starting from splitDate with updates
     const result = await db.transaction(async (tx) => {
@@ -808,6 +802,13 @@ export class EventService {
 
       if (parent) {
         const currentExDates = (parent.exDates as Date[] | null) ?? [];
+        if (currentExDates.length >= MAX_EX_DATES) {
+          throw new AppError(
+            422,
+            'VALIDATION_ERROR',
+            'Too many excluded dates on this recurring event. Consider deleting the series and creating a new one.',
+          );
+        }
         const newExDates = [...currentExDates, origDate];
 
         await tx
@@ -846,15 +847,8 @@ export class EventService {
 
       if (!parent || !parent.rrule) return;
 
-      // Modify RRULE to add UNTIL before splitDate
-      const untilDate = new Date(splitDate.getTime() - 1);
-      const untilStr = untilDate
-        .toISOString()
-        .replace(/[-:]/g, '')
-        .replace(/\.\d{3}/, '');
-      let updatedRrule = parent.rrule;
-      updatedRrule = updatedRrule.replace(/;?(UNTIL|COUNT)=[^;]*/g, '');
-      updatedRrule += `;UNTIL=${untilStr}`;
+      // Terminate the series just before the split date
+      const updatedRrule = recurrenceService.terminateSeriesAt(parent.rrule, splitDate);
 
       await tx
         .update(events)

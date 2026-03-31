@@ -17,10 +17,11 @@ const categoriesRouter = new Hono<{ Variables: AppVariables }>();
 // User-based rate limit key (consistent with other authenticated routes)
 const userKey = (c: Parameters<typeof authMiddleware>[0]) => c.get('userId') ?? 'anon';
 
+// authMiddleware must run before rateLimit so userKey can read userId from context
+categoriesRouter.use('/*', authMiddleware);
 categoriesRouter.use(
   '/*',
   rateLimit({ limit: 100, windowSeconds: 60, keyPrefix: 'categories', keyFn: userKey }),
-  authMiddleware,
 );
 
 // ─── GET /categories — List all categories ──────────────────────────

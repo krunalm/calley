@@ -1,4 +1,5 @@
 import { format } from 'date-fns';
+import { toZonedTime } from 'date-fns-tz';
 import { Calendar, CheckSquare, Clock, Search } from 'lucide-react';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
@@ -13,27 +14,29 @@ import {
 } from '@/components/ui/command';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { getRecentSearches, saveRecentSearch, useSearch } from '@/hooks/use-search';
+import { useUserTimezone } from '@/hooks/use-user-timezone';
 import { useCalendarStore } from '@/stores/calendar-store';
 import { useUIStore } from '@/stores/ui-store';
 
 import type { Event, Task } from '@calley/shared';
 
-function formatEventDate(event: Event): string {
-  const start = new Date(event.startAt);
+function formatEventDate(event: Event, timezone: string): string {
+  const start = toZonedTime(new Date(event.startAt), timezone);
   if (event.isAllDay) {
     return format(start, 'MMM d, yyyy');
   }
   return format(start, 'MMM d, yyyy h:mm a');
 }
 
-function formatTaskDate(task: Task): string {
+function formatTaskDate(task: Task, timezone: string): string {
   if (!task.dueAt) return 'No due date';
-  return format(new Date(task.dueAt), 'MMM d, yyyy');
+  return format(toZonedTime(new Date(task.dueAt), timezone), 'MMM d, yyyy');
 }
 
 export function SearchModal() {
   const { searchOpen, toggleSearch } = useUIStore();
   const { setDate, setView } = useCalendarStore();
+  const timezone = useUserTimezone();
   const [query, setQuery] = useState('');
   const { data, isLoading, isFetching } = useSearch(query);
 
@@ -162,7 +165,7 @@ export function SearchModal() {
                   )}
                   <span className="truncate">{event.title}</span>
                   <span className="ml-auto shrink-0 text-xs text-[var(--muted-foreground)]">
-                    {formatEventDate(event)}
+                    {formatEventDate(event, timezone)}
                   </span>
                 </div>
               </CommandItem>
@@ -186,7 +189,7 @@ export function SearchModal() {
                 <div className="flex flex-1 items-center gap-2 overflow-hidden">
                   <span className="truncate">{task.title}</span>
                   <span className="ml-auto shrink-0 text-xs text-[var(--muted-foreground)]">
-                    {formatTaskDate(task)}
+                    {formatTaskDate(task, timezone)}
                   </span>
                 </div>
               </CommandItem>

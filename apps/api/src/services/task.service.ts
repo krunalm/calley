@@ -647,7 +647,12 @@ export class TaskService {
           categoryId: data.categoryId ?? parentTask.categoryId,
           title: data.title ?? parentTask.title,
           description: data.description !== undefined ? data.description : parentTask.description,
-          dueAt: data.dueAt !== undefined ? (data.dueAt ? new Date(data.dueAt) : null) : splitDate,
+          dueAt:
+            data.dueAt !== undefined
+              ? data.dueAt
+                ? new Date(data.dueAt)
+                : null
+              : parentTask.dueAt,
           priority: data.priority ?? parentTask.priority,
           status: data.status ?? parentTask.status,
           rrule: data.rrule !== undefined ? data.rrule : parentTask.rrule,

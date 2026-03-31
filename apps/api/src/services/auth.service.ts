@@ -87,8 +87,9 @@ async function enforceMaxSessions(userId: string): Promise<void> {
   });
 
   if (userSessions.length >= MAX_SESSIONS_PER_USER) {
-    // Delete oldest sessions to make room
-    const sessionsToDelete = userSessions.slice(0, userSessions.length - MAX_SESSIONS_PER_USER + 1);
+    // Delete oldest sessions to make room for one new session
+    const excessCount = userSessions.length - MAX_SESSIONS_PER_USER + 1;
+    const sessionsToDelete = userSessions.slice(0, excessCount);
     for (const s of sessionsToDelete) {
       await lucia.invalidateSession(s.id);
     }

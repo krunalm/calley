@@ -5,7 +5,11 @@ import { cuid2Schema } from './common.schema';
 // ─── Create Push Subscription ──────────────────────────────────────
 
 export const createPushSubscriptionSchema = z.object({
-  endpoint: z.string().url().max(2048),
+  endpoint: z
+    .string()
+    .url()
+    .max(2048)
+    .refine((url) => url.startsWith('https://'), 'Push endpoint must use HTTPS'),
   p256dh: z.string().min(1).max(512),
   auth: z.string().min(1).max(512),
   userAgent: z.string().max(500).optional(),

@@ -154,14 +154,15 @@ export function startReminderWorker(): Worker {
         return;
       }
 
-      // 3. Send notification based on method
+      // 3. Send notification(s) in parallel when both channels are needed
+      const notifications: Promise<void>[] = [];
       if (method === 'email' || method === 'both') {
-        await sendReminderEmail(userId, itemType, itemInfo, reminder.minutesBefore);
+        notifications.push(sendReminderEmail(userId, itemType, itemInfo, reminder.minutesBefore));
       }
-
       if (method === 'push' || method === 'both') {
-        await sendReminderPush(userId, itemType, itemInfo);
+        notifications.push(sendReminderPush(userId, itemType, itemInfo));
       }
+      await Promise.all(notifications);
 
       // 4. Emit reminder:fired on SSE for in-app toast
       sseService.emit(userId, 'reminder:fired', {

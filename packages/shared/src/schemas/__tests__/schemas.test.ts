@@ -21,6 +21,7 @@ import {
   visibilitySchema,
 } from '../common.schema';
 import { createEventSchema, listEventsQuerySchema, updateEventSchema } from '../event.schema';
+import { createPushSubscriptionSchema } from '../push-subscription.schema';
 import { createReminderSchema, listRemindersQuerySchema } from '../reminder.schema';
 import { searchQuerySchema } from '../search.schema';
 import {
@@ -545,6 +546,24 @@ describe('Event Schemas', () => {
         }),
       ).toThrow();
     });
+
+    it('should reject when start is after end', () => {
+      expect(() =>
+        listEventsQuerySchema.parse({
+          start: '2026-03-31T00:00:00Z',
+          end: '2026-03-01T00:00:00Z',
+        }),
+      ).toThrow();
+    });
+
+    it('should reject when start equals end', () => {
+      expect(() =>
+        listEventsQuerySchema.parse({
+          start: '2026-03-15T10:00:00Z',
+          end: '2026-03-15T10:00:00Z',
+        }),
+      ).toThrow();
+    });
   });
 });
 
@@ -613,17 +632,17 @@ describe('Task Schemas', () => {
       expect(result.dueAt).toBe('2026-04-01T12:00:00Z');
     });
 
-    it('should accept description up to 2000 characters', () => {
+    it('should accept description up to 5000 characters', () => {
       const result = createTaskSchema.parse({
         ...validTask,
-        description: 'a'.repeat(2000),
+        description: 'a'.repeat(5000),
       });
-      expect(result.description).toHaveLength(2000);
+      expect(result.description).toHaveLength(5000);
     });
 
-    it('should reject description longer than 2000 characters', () => {
+    it('should reject description longer than 5000 characters', () => {
       expect(() =>
-        createTaskSchema.parse({ ...validTask, description: 'a'.repeat(2001) }),
+        createTaskSchema.parse({ ...validTask, description: 'a'.repeat(5001) }),
       ).toThrow();
     });
   });
@@ -865,6 +884,41 @@ describe('Search Schema', () => {
     it('should coerce string limit to number', () => {
       const result = searchQuerySchema.parse({ q: 'test', limit: '15' });
       expect(result.limit).toBe(15);
+    });
+  });
+});
+
+// ─── Push Subscription Schemas ─────────────────────────────────────
+
+describe('Push Subscription Schemas', () => {
+  describe('createPushSubscriptionSchema', () => {
+    const validSub = {
+      endpoint: 'https://push.example.com/subscription/123',
+      p256dh: 'BNcR...',
+      auth: 'tB...',
+    };
+
+    it('should accept valid HTTPS push subscription', () => {
+      const result = createPushSubscriptionSchema.parse(validSub);
+      expect(result.endpoint).toBe(validSub.endpoint);
+    });
+
+    it('should reject HTTP (non-HTTPS) push endpoints', () => {
+      expect(() =>
+        createPushSubscriptionSchema.parse({
+          ...validSub,
+          endpoint: 'http://push.example.com/subscription/123',
+        }),
+      ).toThrow();
+    });
+
+    it('should reject invalid URL endpoints', () => {
+      expect(() =>
+        createPushSubscriptionSchema.parse({
+          ...validSub,
+          endpoint: 'not-a-url',
+        }),
+      ).toThrow();
     });
   });
 });

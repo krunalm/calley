@@ -1,4 +1,4 @@
-import { and, asc, count, eq, isNull, ne } from 'drizzle-orm';
+import { and, asc, count, eq, isNull, ne, sql } from 'drizzle-orm';
 
 import { DEFAULT_CATEGORY_COLOR, MAX_CATEGORIES_PER_USER } from '@calley/shared';
 
@@ -95,19 +95,12 @@ export class CategoryService {
       throw new AppError(409, 'CONFLICT', 'A category with this name already exists');
     }
 
-    // Determine next sort order
-    const lastCategory = await db.query.calendarCategories.findFirst({
-      where: eq(calendarCategories.userId, userId),
-      orderBy: [asc(calendarCategories.sortOrder)],
-    });
-
-    const maxSortOrder = lastCategory
-      ? await db.query.calendarCategories
-          .findMany({
-            where: eq(calendarCategories.userId, userId),
-          })
-          .then((rows) => Math.max(...rows.map((r) => r.sortOrder), 0))
-      : 0;
+    // Determine next sort order in a single query instead of fetching all rows
+    const [maxResult] = await db
+      .select({ maxSort: sql<number>`COALESCE(MAX(${calendarCategories.sortOrder}), -1)` })
+      .from(calendarCategories)
+      .where(eq(calendarCategories.userId, userId));
+    const nextSortOrder = (maxResult?.maxSort ?? -1) + 1;
 
     const [created] = await db
       .insert(calendarCategories)
@@ -116,7 +109,7 @@ export class CategoryService {
         name: data.name,
         color: data.color,
         isDefault: false,
-        sortOrder: maxSortOrder + 1,
+        sortOrder: nextSortOrder,
       })
       .returning();
 

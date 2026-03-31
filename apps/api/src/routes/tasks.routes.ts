@@ -56,7 +56,7 @@ tasksRouter.patch(
 
 tasksRouter.patch(
   '/bulk-complete',
-  rateLimit({ limit: 20, windowSeconds: 3600, keyPrefix: 'tasks:bulk-ops' }),
+  rateLimit({ limit: 20, windowSeconds: 3600, keyPrefix: 'tasks:bulk-ops', keyFn: userKey }),
   doubleSubmitCsrf,
   validate('json', bulkCompleteTasksSchema),
   async (c) => {
@@ -72,7 +72,7 @@ tasksRouter.patch(
 
 tasksRouter.post(
   '/bulk-delete',
-  rateLimit({ limit: 20, windowSeconds: 3600, keyPrefix: 'tasks:bulk-ops' }),
+  rateLimit({ limit: 20, windowSeconds: 3600, keyPrefix: 'tasks:bulk-ops', keyFn: userKey }),
   doubleSubmitCsrf,
   validate('json', bulkDeleteTasksSchema),
   async (c) => {

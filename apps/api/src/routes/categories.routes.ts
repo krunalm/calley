@@ -14,9 +14,12 @@ import type { CreateCategoryInput, UpdateCategoryInput } from '@calley/shared';
 const categoriesRouter = new Hono<{ Variables: AppVariables }>();
 
 // All category routes require authentication and rate limiting
+// User-based rate limit key (consistent with other authenticated routes)
+const userKey = (c: Parameters<typeof authMiddleware>[0]) => c.get('userId') ?? 'anon';
+
 categoriesRouter.use(
   '/*',
-  rateLimit({ limit: 100, windowSeconds: 60, keyPrefix: 'categories' }),
+  rateLimit({ limit: 100, windowSeconds: 60, keyPrefix: 'categories', keyFn: userKey }),
   authMiddleware,
 );
 

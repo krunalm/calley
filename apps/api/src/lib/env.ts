@@ -10,6 +10,7 @@ const REQUIRED_VARS = [
   'SESSION_SECRET',
   'CORS_ORIGIN',
   'COOKIE_DOMAIN',
+  'FRONTEND_URL',
 ] as const;
 
 /**
@@ -27,6 +28,7 @@ const RECOMMENDED_VARS = [
   'GITHUB_CLIENT_ID',
   'GITHUB_CLIENT_SECRET',
   'GITHUB_REDIRECT_URI',
+  'TRUSTED_PROXIES',
 ] as const;
 
 /**
@@ -66,6 +68,11 @@ export function validateEnv(): boolean {
     missing.push('CORS_ORIGIN (must not be wildcard * in production)');
   }
 
+  // Validate FRONTEND_URL is not localhost in production
+  if (isProduction && process.env.FRONTEND_URL?.includes('localhost')) {
+    missing.push('FRONTEND_URL (must not be localhost in production)');
+  }
+
   // Log warnings for recommended variables
   if (warnings.length > 0) {
     logger.warn(
@@ -76,10 +83,7 @@ export function validateEnv(): boolean {
 
   // Log errors for required variables
   if (missing.length > 0) {
-    logger.error(
-      { variables: missing },
-      `Missing required environment variables`,
-    );
+    logger.error({ variables: missing }, `Missing required environment variables`);
 
     if (isProduction) {
       logger.fatal('Cannot start in production with missing required environment variables');

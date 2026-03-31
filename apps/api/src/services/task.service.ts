@@ -76,6 +76,11 @@ function toTaskResponse(row: TaskRow): TaskResponse {
   };
 }
 
+// ─── Constants ─────────────────────────────────────────────────────
+
+/** Maximum number of exDates a recurring task can accumulate. */
+const MAX_EX_DATES = 500;
+
 // ─── Service ────────────────────────────────────────────────────────
 
 export class TaskService {
@@ -555,6 +560,13 @@ export class TaskService {
     const result = await db.transaction(async (tx) => {
       // Add instance date to parent's exDates
       const currentExDates = (parentTask.exDates as Date[] | null) ?? [];
+      if (currentExDates.length >= MAX_EX_DATES) {
+        throw new AppError(
+          422,
+          'VALIDATION_ERROR',
+          'Too many excluded dates on this recurring task. Consider deleting the series and creating a new one.',
+        );
+      }
       const newExDates = [...currentExDates, origDate];
 
       await tx
@@ -615,19 +627,10 @@ export class TaskService {
 
     const splitDate = new Date(instanceDate);
 
-    // Build UNTIL clause for the original series
-    const untilDate = new Date(splitDate.getTime() - 1);
-    const untilStr = untilDate
-      .toISOString()
-      .replace(/[-:]/g, '')
-      .replace(/\.\d{3}/, '');
-
-    let updatedRrule = parentTask.rrule!;
-    updatedRrule = updatedRrule.replace(/;?(UNTIL|COUNT)=[^;]*/g, '');
-    updatedRrule += `;UNTIL=${untilStr}`;
+    // Terminate the original series just before the split date
+    const updatedRrule = recurrenceService.terminateSeriesAt(parentTask.rrule!, splitDate);
 
     const result = await db.transaction(async (tx) => {
-      // Update original series to end at UNTIL
       await tx
         .update(tasks)
         .set({ rrule: updatedRrule, updatedAt: new Date() })
@@ -722,6 +725,13 @@ export class TaskService {
 
       if (parent) {
         const currentExDates = (parent.exDates as Date[] | null) ?? [];
+        if (currentExDates.length >= MAX_EX_DATES) {
+          throw new AppError(
+            422,
+            'VALIDATION_ERROR',
+            'Too many excluded dates on this recurring task. Consider deleting the series and creating a new one.',
+          );
+        }
         const newExDates = [...currentExDates, origDate];
 
         await tx
@@ -759,14 +769,7 @@ export class TaskService {
 
       if (!parent || !parent.rrule) return;
 
-      const untilDate = new Date(splitDate.getTime() - 1);
-      const untilStr = untilDate
-        .toISOString()
-        .replace(/[-:]/g, '')
-        .replace(/\.\d{3}/, '');
-      let updatedRrule = parent.rrule;
-      updatedRrule = updatedRrule.replace(/;?(UNTIL|COUNT)=[^;]*/g, '');
-      updatedRrule += `;UNTIL=${untilStr}`;
+      const updatedRrule = recurrenceService.terminateSeriesAt(parent.rrule, splitDate);
 
       await tx
         .update(tasks)

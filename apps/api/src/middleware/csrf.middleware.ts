@@ -1,6 +1,7 @@
 import { getCookie } from 'hono/cookie';
 
 import { AppError } from '../lib/errors';
+import { lucia } from '../lib/lucia';
 
 import type { AppVariables } from '../types/hono';
 import type { MiddlewareHandler } from 'hono';
@@ -16,8 +17,10 @@ const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
  *
  * GET, HEAD, and OPTIONS requests are exempt per spec §4.7.
  *
- * If neither cookie nor header is present (unauthenticated pre-session request),
- * the request is allowed through — CSRF cookies are set on session creation.
+ * Pre-session requests (no session cookie AND no CSRF cookie/header) are
+ * allowed through — CSRF cookies are set on session creation. However, if
+ * a session cookie IS present, CSRF validation is always enforced to prevent
+ * cross-site attacks against authenticated users.
  */
 export const doubleSubmitCsrf: MiddlewareHandler<{ Variables: AppVariables }> = async (c, next) => {
   // Safe methods don't need CSRF protection
@@ -28,9 +31,12 @@ export const doubleSubmitCsrf: MiddlewareHandler<{ Variables: AppVariables }> = 
 
   const csrfCookie = getCookie(c, 'csrf_token') ?? null;
   const csrfHeader = c.req.header('x-csrf-token') ?? null;
+  const sessionCookie = getCookie(c, lucia.sessionCookieName) ?? null;
 
-  // No CSRF cookie and no header → pre-session request (e.g., signup/login)
-  if (!csrfCookie && !csrfHeader) {
+  // Only skip CSRF for truly pre-session requests: no session cookie AND no
+  // CSRF cookie/header. If a session cookie exists, the user is authenticated
+  // and CSRF must be validated to prevent cross-site attacks.
+  if (!csrfCookie && !csrfHeader && !sessionCookie) {
     await next();
     return;
   }

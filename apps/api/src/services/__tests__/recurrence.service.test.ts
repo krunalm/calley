@@ -1284,4 +1284,41 @@ describe('RecurrenceService', () => {
       expect(result).toHaveLength(3);
     });
   });
+
+  // ─── terminateSeriesAt ─────────────────────────────────────────────
+
+  describe('terminateSeriesAt', () => {
+    it('should add UNTIL clause just before splitDate', () => {
+      const rrule = 'FREQ=DAILY';
+      const splitDate = new Date('2026-03-20T10:00:00Z');
+
+      const result = service.terminateSeriesAt(rrule, splitDate);
+
+      expect(result).toContain('FREQ=DAILY');
+      expect(result).toContain('UNTIL=');
+      // UNTIL should be 1ms before the split date
+      expect(result).toContain('20260320T095959');
+    });
+
+    it('should remove existing UNTIL before adding new one', () => {
+      const rrule = 'FREQ=WEEKLY;UNTIL=20260401T000000Z';
+      const splitDate = new Date('2026-03-20T10:00:00Z');
+
+      const result = service.terminateSeriesAt(rrule, splitDate);
+
+      // Should not have the old UNTIL
+      expect(result).not.toContain('20260401');
+      expect(result).toContain('20260320T095959');
+    });
+
+    it('should remove existing COUNT before adding UNTIL', () => {
+      const rrule = 'FREQ=DAILY;COUNT=30';
+      const splitDate = new Date('2026-03-20T10:00:00Z');
+
+      const result = service.terminateSeriesAt(rrule, splitDate);
+
+      expect(result).not.toContain('COUNT=');
+      expect(result).toContain('UNTIL=');
+    });
+  });
 });

@@ -17,7 +17,12 @@ import {
 import { clearCsrfCookie, generateCsrfToken, setCsrfCookie } from '../lib/csrf';
 import { AppError } from '../lib/errors';
 import { logger } from '../lib/logger';
-import { githubOAuth, googleOAuth } from '../lib/oauth';
+import {
+  githubOAuth,
+  googleOAuth,
+  isGithubOAuthConfigured,
+  isGoogleOAuthConfigured,
+} from '../lib/oauth';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { doubleSubmitCsrf } from '../middleware/csrf.middleware';
 import { rateLimit } from '../middleware/rate-limit.middleware';
@@ -322,6 +327,10 @@ auth.get(
   '/auth/oauth/google',
   rateLimit({ limit: 10, windowSeconds: 900, keyPrefix: 'auth:oauth:google' }),
   async (c) => {
+    if (!isGoogleOAuthConfigured) {
+      throw new AppError(503, 'INTERNAL_ERROR', 'Google login is not configured');
+    }
+
     const state = generateState();
     const codeVerifier = generateCodeVerifier();
 
@@ -438,6 +447,10 @@ auth.get(
   '/auth/oauth/github',
   rateLimit({ limit: 10, windowSeconds: 900, keyPrefix: 'auth:oauth:github' }),
   async (c) => {
+    if (!isGithubOAuthConfigured) {
+      throw new AppError(503, 'INTERNAL_ERROR', 'GitHub login is not configured');
+    }
+
     const state = generateState();
 
     const url = githubOAuth.createAuthorizationURL(state, ['user:email']);

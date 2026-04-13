@@ -44,7 +44,7 @@ jobs:
 
       - name: Comment PR with Preview URL
         if: ${{ steps.vercel-deploy.outputs.preview-url }}
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             const url = '${{ steps.vercel-deploy.outputs.preview-url }}';

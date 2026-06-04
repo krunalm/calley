@@ -1,12 +1,11 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { useForm } from 'react-hook-form';
 
 import { signupSchema } from '@calley/shared';
 
 import { OAuthButtons } from '@/components/auth/OAuthButtons';
-import { PasswordStrengthMeter } from '@/components/auth/PasswordStrengthMeter';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,6 +14,14 @@ import { useSignup } from '@/hooks/use-auth';
 import { ApiError } from '@/lib/api-client';
 
 import type { SignupInput } from '@calley/shared';
+
+// Lazy-loaded so the heavy `zxcvbn` dictionaries stay out of the main bundle
+// and only load when the user starts typing a password.
+const PasswordStrengthMeter = lazy(() =>
+  import('@/components/auth/PasswordStrengthMeter').then((m) => ({
+    default: m.PasswordStrengthMeter,
+  })),
+);
 
 export function SignupForm() {
   const navigate = useNavigate();
@@ -90,7 +97,11 @@ export function SignupForm() {
             onChange: (e) => setPasswordValue(e.target.value),
           })}
         />
-        <PasswordStrengthMeter password={passwordValue} />
+        {passwordValue && (
+          <Suspense fallback={null}>
+            <PasswordStrengthMeter password={passwordValue} />
+          </Suspense>
+        )}
         {errors.password && (
           <p className="text-sm text-[var(--color-danger)]" role="alert">
             {errors.password.message}

@@ -185,13 +185,26 @@ Acceptance: ≥10% reduction in initial entry-chunk gzip, all tests still green.
   potential to lazy-load animations, but entangled with view rendering — not a
   clean, high-confidence win.
 
-## 10. Needs discussion (low-confidence / not worth it)
+## 10. Needs discussion → resolved (not worth it / not actionable)
 
-- **F3** (exception-overrides extra round-trip): the query depends on the parent
-  IDs produced by the prior query, so it is inherently sequential; merging it
-  would require a restructure with unclear payoff. Confidence in a net win < 90%.
-- **F4** (double `RRule` construction in expansion): micro-optimization; gain
-  almost certainly within noise. Skipped per "de-prioritize micro-optimizations".
+- **F2** (vendor `manualChunks`): **attempted and reverted.** A surgical split
+  (react / tanstack / radix into named chunks, leaving lazy-only deps like
+  `zxcvbn` on default chunking so F1 is preserved) was implemented and measured.
+  Result: eager first-load JS went from **264.22 kB gzip → 273.72 kB gzip
+  (+9.5 kB, +3.6%)** — chunk-boundary overhead makes initial load slightly
+  _worse_. The only upside is repeat-visit caching of stable vendor code, which
+  cannot be benchmarked in this environment. Per the loop rule "revert if gain
+  <10% / within noise", reverted. Recommend revisiting only with a real
+  caching/Lighthouse measurement on a deployed build.
+- **F3** (exception-overrides extra round-trip): **not actionable.** The query
+  depends on the parent IDs produced by the prior query, so it is inherently
+  sequential and already optimal — there is no behavior-preserving rewrite that
+  removes the round-trip. No change made.
+- **F4** (double `RRule` construction in expansion): **skipped.** The only
+  rewrite (`RRule.parseString` instead of `fromString` + rebuild) changes how
+  `origOptions` are derived inside rrule.js — a subtle behavior-preservation
+  risk on a micro-optimization whose gain is within noise. De-prioritized per
+  "don't risk behavior for noise"; confidence < 90%.
 
 ## 11. Awaiting approval (LARGE refactors)
 
@@ -210,3 +223,10 @@ Acceptance: ≥10% reduction in initial entry-chunk gzip, all tests still green.
   - **Initial JS payload reduced by 392.7 kB gzip (−59.8%)** for every visitor,
     including the login path. Verified `zxcvbn` no longer present in the main
     chunk. Full web suite: 147/147 passing; type-check + lint green.
+- [x] **F2** — attempted, **reverted** (initial load +3.6%; see §10).
+- [—] **F3** — not actionable (inherently sequential; see §10).
+- [—] **F4** — skipped (micro-opt, behavior risk; see §10).
+
+**Net result:** one change shipped (F1), one tried-and-reverted (F2), two
+correctly left alone (F3, F4). Initial JS payload cut by ~59.8% with zero
+behavior change and the full test suite (613 tests) green.

@@ -120,9 +120,12 @@ dist/assets/AgendaView-*.js               22.58 kB │ gzip:   7.35 kB
 
 ### SAFE — auto-execute
 
-- [ ] **F1** Defer `zxcvbn` out of the main bundle by `React.lazy`-loading
-      `PasswordStrengthMeter` at its two usage sites, rendering it only when the
-      password field is non-empty. Component file and its unit tests untouched.
+- [x] **F1** ✅ **DONE.** Deferred `zxcvbn` out of the main bundle by
+      `React.lazy`-loading `PasswordStrengthMeter` at its two usage sites,
+      rendering it only when the password field is non-empty. Component file and
+      its unit tests untouched. **Main entry chunk gzip 656.91 KB → 264.22 KB
+      (−392.7 KB, −59.8%)**; `zxcvbn` now in a lazily-loaded
+      `PasswordStrengthMeter` chunk. All tests green. Commit: see git log.
 
 ### MODERATE — auto-execute with guardrails
 
@@ -198,4 +201,12 @@ Acceptance: ≥10% reduction in initial entry-chunk gzip, all tests still green.
 
 ## 12. Execution log
 
-- [ ] F1 — pending (see §5)
+- [x] **F1** — complete. `React.lazy` the password strength meter in
+      `SignupForm.tsx` + `ResetPasswordForm.tsx`.
+  - Baseline: main entry `index-*.js` = 1,667.27 kB / **656.91 kB gzip**.
+  - After: main entry `index-*.js` = 847.54 kB / **264.22 kB gzip**; new lazy
+    `PasswordStrengthMeter-*.js` = 819.78 kB / 392.69 kB gzip (loads only on a
+    password keystroke at signup/reset).
+  - **Initial JS payload reduced by 392.7 kB gzip (−59.8%)** for every visitor,
+    including the login path. Verified `zxcvbn` no longer present in the main
+    chunk. Full web suite: 147/147 passing; type-check + lint green.

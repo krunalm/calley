@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
       - uses: actions/setup-node@v6
         with:
@@ -35,7 +35,7 @@ jobs:
         id: vercel-deploy
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        uses: amondnet/vercel-action@v25
+        uses: amondnet/vercel-action@v42
         with:
           vercel-token: ${{ secrets.VERCEL_TOKEN }}
           vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
@@ -44,7 +44,7 @@ jobs:
 
       - name: Comment PR with Preview URL
         if: ${{ steps.vercel-deploy.outputs.preview-url }}
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             const url = '${{ steps.vercel-deploy.outputs.preview-url }}';

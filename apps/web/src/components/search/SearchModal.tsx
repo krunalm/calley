@@ -1,7 +1,7 @@
 import { format } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz';
 import { Calendar, CheckSquare, Clock, Search } from 'lucide-react';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import {
   CommandDialog,
@@ -40,17 +40,21 @@ export function SearchModal() {
   const [query, setQuery] = useState('');
   const { data, isLoading, isFetching } = useSearch(query);
 
-  // Track when dialog was last opened to refresh recent searches
-  const openCountRef = useRef(0);
-  const prevOpenRef = useRef(false);
-  if (searchOpen && !prevOpenRef.current) {
-    openCountRef.current += 1;
+  // Track when dialog was last opened to refresh recent searches.
+  // Adjusting state during render (rather than mutating a ref) keeps the
+  // component pure — see https://react.dev/reference/react/useState#storing-information-from-previous-renders
+  const [prevOpen, setPrevOpen] = useState(false);
+  const [openCount, setOpenCount] = useState(0);
+  if (searchOpen !== prevOpen) {
+    setPrevOpen(searchOpen);
+    if (searchOpen) {
+      setOpenCount((count) => count + 1);
+    }
   }
-  prevOpenRef.current = searchOpen;
 
   // Load recent searches — recomputed each time dialog opens
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const recentSearches = useMemo(() => getRecentSearches(), [openCountRef.current]);
+  const recentSearches = useMemo(() => getRecentSearches(), [openCount]);
 
   const handleOpenChange = useCallback(
     (open: boolean) => {

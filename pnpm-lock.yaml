@@ -63,8 +63,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/shared
       '@hono/node-server':
-        specifier: ^1.13.0
-        version: 1.19.9(hono@4.12.23)
+        specifier: ^2.0.12
+        version: 2.0.12(hono@4.12.23)
       '@lucia-auth/adapter-drizzle':
         specifier: ^1.1.0
         version: 1.1.0(drizzle-orm@0.45.2(postgres@3.4.9))(lucia@3.2.2)
@@ -1128,9 +1128,9 @@ packages:
   '@floating-ui/utils@0.2.11':
     resolution: {integrity: sha512-RiB/yIh78pcIxl6lLMG0CgBXAZ2Y0eVHqMPYugu+9U0AeT6YBeiJpf7lbdJNIugFP5SIjwNRgo4DhR1Qxi26Gg==}
 
-  '@hono/node-server@1.19.9':
-    resolution: {integrity: sha512-vHL6w3ecZsky+8P5MD+eFfaGTyCeOHUIFYMGpQGbrBTSmNNoxv0if69rEZ5giu36weC5saFuznL411gRX7bJDw==}
-    engines: {node: '>=18.14.1'}
+  '@hono/node-server@2.0.12':
+    resolution: {integrity: sha512-eWpQYr67tqJLeaSUl0Q+TquuYfUdTibpOJlUMV2FfUP7+KqCC5TufnwnlXL6mobZBJbGAYRd7ZvEBDCbLInjhg==}
+    engines: {node: '>=20'}
     peerDependencies:
       hono: ^4
 
@@ -5562,7 +5562,7 @@ snapshots:
 
   '@floating-ui/utils@0.2.11': {}
 
-  '@hono/node-server@1.19.9(hono@4.12.23)':
+  '@hono/node-server@2.0.12(hono@4.12.23)':
     dependencies:
       hono: 4.12.23
 

@@ -113,7 +113,7 @@ calley/
 
 ## Prerequisites
 
-- [Node.js](https://nodejs.org/) 22+ (LTS)
+- [Node.js](https://nodejs.org/) 22.22.1+ (LTS)
 - [pnpm](https://pnpm.io/) 9+
 - [Docker](https://www.docker.com/) + Docker Compose (for local PostgreSQL + Redis)
 - Git

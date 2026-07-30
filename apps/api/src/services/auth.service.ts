@@ -42,7 +42,7 @@ const PASSWORD_RESET_TOKEN_EXPIRY_MS = 60 * 60 * 1000; // 1 hour
 const PASSWORD_RESET_TOKEN_EXPIRY_MINUTES = 60;
 
 /** Argon2id parameters per spec §4.1 */
-const ARGON2_OPTIONS: argon2.Options & { raw?: false } = {
+const ARGON2_OPTIONS: argon2.HashOptions & { raw?: false } = {
   type: argon2.argon2id,
   memoryCost: 65536, // 64 MB in KiB
   timeCost: 3,

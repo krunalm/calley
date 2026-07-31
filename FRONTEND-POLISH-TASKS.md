@@ -5,8 +5,8 @@ Companion to `FRONTEND-AUDIT.md`. Named `FRONTEND-POLISH-TASKS.md` rather than `
 ## Resume anchor
 
 - **Current batch:** 9 — Signature pass
-- **Last commit SHA:** `d5e1f37`
-- **Next unchecked task:** Batch 9 › the now-line
+- **Last commit SHA:** `9f2a4c1`
+- **Next unchecked task:** Wrap-up › write `PR.md`
 - **Baseline to hold:** build PASS · type-check PASS · lint PASS · web 147/147 · api 337/337
 
 ---
@@ -101,8 +101,8 @@ Companion to `FRONTEND-AUDIT.md`. Named `FRONTEND-POLISH-TASKS.md` rather than `
 
 ## Batch 9 — Signature pass
 
-- [ ] The now-line: Ember hairline replacing `bg-red-500`, plus a live mono `tabular-nums` time chip in the hour gutter
-- [ ] Confirm nothing else in the diff gained decoration
+- [x] The now-line: the Ember rule replaces `bg-red-500`, and a live `h:mm a` chip in the numeric face sits in the hour gutter. The chip is formatted from the same `Date` the line's position is derived from, so it can never label the wrong line.
+- [x] Confirm nothing else in the diff gained decoration — no gradients, no blur, no glass, no emoji, no new animation. The only other colour change in this batch removes raw Tailwind reds/ambers/blues from the agenda's priority dots, which disagreed with the task panel's mapping for the same three priorities.
 - [ ] build + type-check + lint + test
 
 ## Wrap-up

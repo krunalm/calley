@@ -230,15 +230,29 @@ function TimeSlot({ date, hour, isHalfHour }: { date: Date; hour: number; isHalf
 
 // ─── Current Time Indicator ───────────────────────────────────────────
 
+/**
+ * The now-line.
+ *
+ * This is the one element in the app that gets to be loud, and the accent
+ * is reserved for it and for primary actions. A calendar is read against
+ * the present moment, so the present moment is anchored by a live clock
+ * set in the numeric face, sitting in the hour gutter where the rest of
+ * the day's figures live.
+ *
+ * The label is formatted from the same `Date` the position is derived
+ * from, so the chip can never disagree with the line it labels.
+ */
 function CurrentTimeIndicator() {
-  const [position, setPosition] = useState(() => getCurrentTimePosition());
+  const [now, setNow] = useState(() => new Date());
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setPosition(getCurrentTimePosition());
+      setNow(new Date());
     }, 60_000);
     return () => clearInterval(interval);
   }, []);
+
+  const position = getCurrentTimePosition(now);
 
   if (position < 0) return null;
 
@@ -249,15 +263,16 @@ function CurrentTimeIndicator() {
       aria-hidden="true"
     >
       <div className="relative flex items-center">
-        <div className="h-2.5 w-2.5 shrink-0 rounded-full bg-red-500" />
-        <div className="h-[2px] flex-1 bg-red-500" />
+        <span className="numeric absolute right-full mr-1 rounded-[var(--radius-sm)] bg-[var(--color-accent)] px-1 py-px text-[10px] leading-none text-[var(--primary-foreground)] shadow-[var(--shadow-sm)]">
+          {format(now, 'h:mm a')}
+        </span>
+        <div className="h-[2px] flex-1 bg-[var(--color-accent)]" />
       </div>
     </div>
   );
 }
 
-function getCurrentTimePosition(): number {
-  const now = new Date();
+function getCurrentTimePosition(now: Date): number {
   const hours = getHours(now);
   const minutes = getMinutes(now);
   const minutesSinceMidnight = hours * 60 + minutes;

@@ -133,7 +133,9 @@ function ProfileForm() {
     <div className="space-y-6">
       <div>
         <h2 className="text-lg font-semibold">Profile</h2>
-        <p className="text-sm text-[var(--muted-foreground)]">Manage your personal information</p>
+        <p className="text-sm text-[var(--muted-foreground)]">
+          Your name and how Calley shows dates and times to you.
+        </p>
       </div>
 
       {/* Avatar */}
@@ -302,8 +304,10 @@ function ChangePasswordForm() {
     <div className="space-y-6">
       <Separator />
       <div>
-        <h2 className="text-lg font-semibold">Change Password</h2>
-        <p className="text-sm text-[var(--muted-foreground)]">Update your password</p>
+        <h2 className="text-lg font-semibold">Change password</h2>
+        <p className="text-sm text-[var(--muted-foreground)]">
+          Signing out of other devices is handled separately, under Sessions.
+        </p>
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -411,8 +415,10 @@ function ConnectedAccounts() {
     <div className="space-y-6">
       <Separator />
       <div>
-        <h2 className="text-lg font-semibold">Connected Accounts</h2>
-        <p className="text-sm text-[var(--muted-foreground)]">Manage your linked login providers</p>
+        <h2 className="text-lg font-semibold">Connected accounts</h2>
+        <p className="text-sm text-[var(--muted-foreground)]">
+          Sign-in providers linked to this account.
+        </p>
       </div>
 
       {accounts.length === 0 ? (
@@ -465,9 +471,9 @@ function DeleteAccountSection() {
     <div className="space-y-6">
       <Separator />
       <div>
-        <h2 className="text-lg font-semibold text-[var(--color-danger)]">Danger Zone</h2>
+        <h2 className="text-lg font-semibold text-[var(--color-danger)]">Delete account</h2>
         <p className="text-sm text-[var(--muted-foreground)]">
-          Permanently delete your account and all data
+          Deleting your account removes every event, task and calendar. This cannot be undone.
         </p>
       </div>
 
@@ -478,7 +484,7 @@ function DeleteAccountSection() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
-            <DialogTitle>Delete Account</DialogTitle>
+            <DialogTitle>Delete account</DialogTitle>
             <DialogDescription>
               This action is permanent and cannot be undone. All your events, tasks, and settings
               will be deleted.

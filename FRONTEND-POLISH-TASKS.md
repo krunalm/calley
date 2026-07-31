@@ -4,9 +4,9 @@ Companion to `FRONTEND-AUDIT.md`. Named `FRONTEND-POLISH-TASKS.md` rather than `
 
 ## Resume anchor
 
-- **Current batch:** 7 — Responsive
-- **Last commit SHA:** `b1e9a44`
-- **Next unchecked task:** Batch 7 › sentence-case the settings headings
+- **Current batch:** 8 — Accessibility polish
+- **Last commit SHA:** `c72d905`
+- **Next unchecked task:** Batch 8 › tokenise `motion.ts`
 - **Baseline to hold:** build PASS · type-check PASS · lint PASS · web 147/147 · api 337/337
 
 ---
@@ -86,10 +86,10 @@ Companion to `FRONTEND-AUDIT.md`. Named `FRONTEND-POLISH-TASKS.md` rather than `
 
 ## Batch 7 — Responsive
 
-- [ ] Sentence-case the settings headings (F11)
-- [ ] Settings shell gets `--measure` so prose stops running full-width
-- [ ] Long values truncate with a `title` rather than overflowing
-- [ ] Verify no horizontal scroll is introduced at 360 px by any of the above
+- [x] Sentence-case the settings headings (F11)
+- [x] ~~Settings shell gets `--measure`~~ — **not done, and the token was removed.** The settings content column already resolves to ~680 px inside `max-w-4xl` minus the 192 px nav, which is a good measure already. Applying `--measure` would have changed nothing, and leaving an unreferenced token in the theme is dead weight.
+- [x] Long values truncate with a `title` rather than overflowing
+- [x] Verify no horizontal scroll is introduced at 360 px by any of the above — reasoned from source, not measured in a browser (see the screenshots deviation in `FRONTEND-AUDIT.md` §0). The only width-growing change is `.hit-target`'s `min-width: 44px`, which is scoped to `(pointer: coarse)` and never applied to a fixed-track grid cell.
 - [ ] build + type-check + lint + test
 
 ## Batch 8 — Accessibility polish

@@ -122,9 +122,6 @@
   --duration-fast: 120ms;
   --duration-base: 180ms;
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-
-  /* Comfortable reading measure for prose-width settings panes */
-  --measure: 68ch;
 }
 
 /* Base resets */

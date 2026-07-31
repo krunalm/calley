@@ -20,9 +20,7 @@ export const SettingsLayout = memo(function SettingsLayout({ children }: Setting
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6 lg:px-8">
-      <h1 className="mb-6 font-[var(--font-display)] text-2xl font-bold text-[var(--foreground)]">
-        Settings
-      </h1>
+      <h1 className="mb-6 font-display text-2xl text-[var(--foreground)]">Settings</h1>
 
       <div className="flex flex-col gap-6 sm:flex-row">
         {/* Sidebar Navigation */}
@@ -34,14 +32,15 @@ export const SettingsLayout = memo(function SettingsLayout({ children }: Setting
                 <li key={to}>
                   <Link
                     to={to}
+                    aria-current={isActive ? 'page' : undefined}
                     className={cn(
-                      'flex items-center gap-2 whitespace-nowrap rounded-[var(--radius)] px-3 py-2 text-sm font-medium transition-colors',
+                      'hit-target flex items-center gap-2 whitespace-nowrap rounded-[var(--radius)] px-3 py-2 text-sm font-medium transition-colors duration-[var(--duration-fast)]',
                       isActive
                         ? 'bg-[var(--accent-ui)] text-[var(--foreground)]'
                         : 'text-[var(--muted-foreground)] hover:bg-[var(--accent-ui)] hover:text-[var(--foreground)]',
                     )}
                   >
-                    <Icon className="h-4 w-4" />
+                    <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
                     {label}
                   </Link>
                 </li>

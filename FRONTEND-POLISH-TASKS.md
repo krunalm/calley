@@ -4,40 +4,40 @@ Companion to `FRONTEND-AUDIT.md`. Named `FRONTEND-POLISH-TASKS.md` rather than `
 
 ## Resume anchor
 
-- **Current batch:** 1 — Tokens
+- **Current batch:** 3 — Layout & navigation
 - **Last commit SHA:** _(none yet — audit + plan is the first commit)_
-- **Next unchecked task:** Batch 1 › alias the two undefined tokens
+- **Next unchecked task:** Batch 3 › `Topbar` real surface + 44 px hit areas
 - **Baseline to hold:** build PASS · type-check PASS · lint PASS · web 147/147 · api 337/337
 
 ---
 
 ## Batch 1 — Tokens
 
-- [ ] Alias the two undefined tokens (`--surface`, `--text-muted`) so F1 resolves everywhere at once
-- [ ] Darken `--color-text-muted` → `#716c68` (AA on paper, card, and `--muted`)
-- [ ] Darken `--color-accent` → `#bd4c26`, `--color-accent-hover` → `#a44322`
-- [ ] Add `--color-border-strong` `#918b84` for interactive edges; keep `--color-border` as hairline
-- [ ] Add `--color-warning-foreground` (ink) so amber surfaces stop carrying white text
-- [ ] Add tint ramp tokens via `color-mix()` (`--tint-accent`, `--tint-danger`, `--tint-primary-strong`)
-- [ ] Add 4/8 spacing scale `--space-1` … `--space-8`
-- [ ] Add `clamp()` type scale `--text-xs` … `--text-2xl` with paired line-heights
-- [ ] Add `--radius-full`
-- [ ] Add motion tokens `--duration-fast/base/slow` + `--ease-out`
-- [ ] Add `--focus-ring-width` / `--focus-ring-offset` / `--focus-ring-color`
-- [ ] Add `--measure` for prose max-width
-- [ ] Verify every ratio in the audit table with a computed check
+- [x] Alias the two undefined tokens (`--surface`, `--text-muted`) so F1 resolves everywhere at once
+- [x] Darken `--color-text-muted` → `#716c68` (AA on paper, card, and `--muted`)
+- [x] Darken `--color-accent` → `#bd4c26`, `--color-accent-hover` → `#a44322`
+- [x] Add `--color-border-strong` `#918b84` for interactive edges; keep `--color-border` as hairline
+- [x] Add `--color-warning-foreground` (ink) so amber surfaces stop carrying white text
+- [x] Add tint ramp tokens via `color-mix()` (`--tint-accent`, `--tint-danger`, `--tint-primary-strong`)
+- [x] ~~Add 4/8 spacing scale~~ — **not done, deliberately.** Tailwind v4's `--spacing` base is already 4 px, so every `p-2`/`gap-3` in the app is on the scale. Parallel `--space-*` tokens would be a second vocabulary for the same thing.
+- [x] Add `clamp()` type scale `--text-xs` … `--text-2xl` (line-heights left on Tailwind defaults — the paired `--text-*--line-height` form fails the repo's stylelint `custom-property-pattern`)
+- [x] ~~Add `--radius-full`~~ — **not done, deliberately.** `rounded-full` already exists; a token duplicating it is an accessory.
+- [x] Add motion tokens `--duration-fast/base/slow` + `--ease-out`
+- [x] Add `--focus-ring-width` / `--focus-ring-offset` / `--focus-ring-color`
+- [x] Add `--measure` for prose max-width
+- [x] Verify every ratio in the audit table with a computed check
 - [ ] build + type-check + lint + test
 
 ## Batch 2 — Global CSS
 
-- [ ] Global `:focus-visible` ring keyed off the focus tokens (fixes F3 across all 13 files without touching them)
-- [ ] Kill the default UA `:focus` outline only where `:focus-visible` replaces it — never bare `outline: none`
-- [ ] Base typography: body size/leading from the scale, `text-wrap: balance` on headings, `text-wrap: pretty` on paragraphs
-- [ ] `tabular-nums` utility class for the numeric role (F8)
-- [ ] Numeric-face utility binding DM Mono + tabular figures
-- [ ] Selection colour drawn from the accent tint
-- [ ] Scrollbar styling in the ink family (thin, no gradient)
-- [ ] Extend the `prefers-reduced-motion` block to zero out transforms, not just durations
+- [x] Global `:focus-visible` ring keyed off the focus tokens (fixes F3 across all 13 files without touching them)
+- [x] Kill the default UA `:focus` outline only where `:focus-visible` replaces it — never bare `outline: none`
+- [x] Base typography: body size/leading from the scale, `text-wrap: balance` on headings, `text-wrap: pretty` on paragraphs
+- [x] `tabular-nums` utility class for the numeric role (F8)
+- [x] Numeric-face utility binding DM Mono + tabular figures
+- [x] Selection colour drawn from the accent tint
+- [x] Scrollbar styling in the ink family (thin, no gradient)
+- [x] ~~Extend `prefers-reduced-motion` to zero out transforms~~ — **not done, deliberately.** @dnd-kit drags with `transform` and the sidebar uses it for its off-canvas state; zeroing it would break dragging. Durations/animations only, as before.
 - [ ] build + type-check + lint + test
 
 ## Batch 3 — Layout & navigation

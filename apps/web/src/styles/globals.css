@@ -5,24 +5,49 @@
  * Using Tailwind CSS v4 @theme directive for custom tokens.
  * Tailwind directives (@theme, @tailwind, etc.) are allowlisted in
  * .stylelintrc.json via the at-rule-no-unknown ignore list.
+ *
+ * Palette roles — six named values plus two derived edges:
+ *   Paper   #f8f7f4  page ground
+ *   Card    #ffffff  raised surface
+ *   Ink     #1a1916  primary text, and the hue the modal scrim is built from
+ *   Graphite #716c68  secondary text (4.84:1 on Paper, 4.51:1 on --muted)
+ *   Ember   #bd4c26  action and "now" — nothing else earns it
+ *   Rule    #e4e2dd  hairline separators only
+ * Anything a user can click or type into uses --color-border-strong
+ * instead, because a 1.29:1 hairline is not a visible control boundary.
  */
 @theme {
   /* Colors — Light Theme */
   --color-bg: #f8f7f4;
   --color-surface: #fff;
   --color-border: #e4e2dd;
+  --color-border-strong: #918b84;
   --color-text: #1a1916;
-  --color-text-muted: #7a7570;
-  --color-accent: #c8522a;
-  --color-accent-hover: #b5461f;
+  --color-text-muted: #716c68;
+  --color-accent: #bd4c26;
+  --color-accent-hover: #a44322;
   --color-success: #3a6b5c;
   --color-danger: #c0392b;
   --color-warning: #d4a017;
+  --color-warning-foreground: #1a1916;
 
   /* Typography */
   --font-display: 'DM Serif Display', serif;
   --font-body: 'Outfit', sans-serif;
   --font-mono: 'DM Mono', monospace;
+
+  /*
+   * Type scale — fluid, ratio ~1.2, clamped tight around the sizes the app
+   * already ships so the scale can be adopted without re-flowing every screen.
+   * Line heights stay on Tailwind's defaults; overriding them here needs the
+   * `--text-*--line-height` form, which the repo's stylelint config rejects.
+   */
+  --text-xs: clamp(0.75rem, 0.735rem + 0.06vw, 0.8125rem);
+  --text-sm: clamp(0.875rem, 0.855rem + 0.08vw, 0.9375rem);
+  --text-base: clamp(1rem, 0.97rem + 0.1vw, 1.0625rem);
+  --text-lg: clamp(1.125rem, 1.08rem + 0.16vw, 1.25rem);
+  --text-xl: clamp(1.3125rem, 1.24rem + 0.3vw, 1.5rem);
+  --text-2xl: clamp(1.625rem, 1.5rem + 0.5vw, 2rem);
 
   /* Border Radius */
   --radius-sm: 4px;
@@ -65,9 +90,40 @@
   --destructive: var(--color-danger);
   --destructive-foreground: #fff;
   --border: var(--color-border);
-  --input: var(--color-border);
+  --border-strong: var(--color-border-strong);
+  --input: var(--color-border-strong);
   --ring: var(--color-accent);
   --radius: var(--radius-md);
+
+  /*
+   * Aliases for the short names components already reference. Without these,
+   * `var(--surface)` and `var(--text-muted)` resolve to nothing — which left
+   * the topbar, sidebar, hour gutter, kbd chips and drag ghosts unpainted,
+   * and silently invalidated the color-mix() that tints event blocks.
+   */
+  --surface: var(--color-surface);
+  --text-muted: var(--color-text-muted);
+
+  /* Tints — derived, so components stop inventing their own */
+  --accent-soft: color-mix(in srgb, var(--color-accent) 10%, transparent);
+  --accent-soft-strong: color-mix(in srgb, var(--color-accent) 18%, transparent);
+  --danger-soft: color-mix(in srgb, var(--color-danger) 10%, transparent);
+
+  /* Scrim — ink, not pure black, so the warm palette stays warm behind it */
+  --scrim: color-mix(in srgb, var(--color-text) 55%, transparent);
+
+  /* Focus ring — one definition, applied globally below */
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+  --focus-ring-color: var(--color-accent);
+
+  /* Motion — budget is 120–200ms, ease-out, colour and transform only */
+  --duration-fast: 120ms;
+  --duration-base: 180ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Comfortable reading measure for prose-width settings panes */
+  --measure: 68ch;
 }
 
 /* Base resets */
@@ -79,13 +135,69 @@
 
 body {
   font-family: var(--font-body);
+  font-size: var(--text-base);
+  line-height: 1.55;
   background-color: var(--background);
   color: var(--foreground);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Reduced motion preference */
+/* Headings set tight and balanced; body copy avoids orphans */
+h1,
+h2,
+h3,
+h4 {
+  text-wrap: balance;
+}
+
+p {
+  text-wrap: pretty;
+}
+
+/*
+ * Focus ring, defined once.
+ *
+ * Wrapped in :where() so it carries zero specificity — any component that
+ * needs a different treatment overrides it without !important. This is what
+ * gives every date cell, task row, event pill and view tab a visible focus
+ * state; none of those files declare one themselves.
+ */
+:where(a, button, input, select, textarea, summary, [tabindex]:not([tabindex='-1'])):focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* Numeric role — a calendar is scanned as figures, so figures get a face */
+.numeric {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+::selection {
+  background-color: var(--accent-soft-strong);
+  color: var(--color-text);
+}
+
+/* Scrollbars in the ink family rather than the OS default blue-grey */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--color-text) 22%, transparent) transparent;
+}
+
+/*
+ * Reduced motion preference.
+ *
+ * Durations and animations only — `transform` is deliberately left alone
+ * because @dnd-kit positions dragged items with it, and the sidebar uses it
+ * for its off-canvas state. Zeroing transforms here would break dragging
+ * and strand the sidebar on screen.
+ */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

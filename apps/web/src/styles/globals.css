@@ -168,6 +168,24 @@ p {
   outline-offset: var(--focus-ring-offset);
 }
 
+/*
+ * Touch pointers get a 44px minimum target. Precise pointers keep the
+ * compact chrome the calendar's density is designed around — inflating a
+ * 32px toolbar button to 44px on a mouse would push the neighbouring hit
+ * areas into each other.
+ */
+@media (pointer: coarse) {
+  .hit-target {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* Grid cells can only grow vertically without overflowing their track */
+  .hit-target-row {
+    min-height: 44px;
+  }
+}
+
 /* Numeric role — a calendar is scanned as figures, so figures get a face */
 .numeric {
   font-family: var(--font-mono);

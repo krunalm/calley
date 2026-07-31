@@ -108,7 +108,7 @@ export default function AppLayout() {
       {/* Skip navigation link for accessibility */}
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:fixed focus:left-2 focus:top-2 focus:z-[var(--z-toast)] focus:rounded-[var(--radius)] focus:bg-[var(--surface)] focus:px-4 focus:py-2 focus:shadow-[var(--shadow-md)]"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-2 focus:top-2 focus:z-[var(--z-toast)] focus:rounded-[var(--radius)] focus:border focus:border-[var(--border-strong)] focus:bg-[var(--surface)] focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:shadow-[var(--shadow-md)]"
       >
         Skip to main content
       </a>

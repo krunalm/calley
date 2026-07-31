@@ -44,9 +44,7 @@ export default function AuthLayout() {
     <div className="flex min-h-screen items-center justify-center bg-[var(--background)] p-4">
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
-          <h1 className="font-[var(--font-display)] text-3xl font-bold text-[var(--foreground)]">
-            Calley
-          </h1>
+          <h1 className="font-display text-2xl text-[var(--foreground)]">Calley</h1>
         </div>
         <div className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--card)] p-6 shadow-[var(--shadow-sm)]">
           <Outlet />

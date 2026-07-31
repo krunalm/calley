@@ -4,9 +4,9 @@ Companion to `FRONTEND-AUDIT.md`. Named `FRONTEND-POLISH-TASKS.md` rather than `
 
 ## Resume anchor
 
-- **Current batch:** 3 — Layout & navigation
-- **Last commit SHA:** _(none yet — audit + plan is the first commit)_
-- **Next unchecked task:** Batch 3 › `Topbar` real surface + 44 px hit areas
+- **Current batch:** 4 — Forms
+- **Last commit SHA:** `80d0c49`
+- **Next unchecked task:** Batch 4 › `input.tsx` interactive border
 - **Baseline to hold:** build PASS · type-check PASS · lint PASS · web 147/147 · api 337/337
 
 ---
@@ -42,13 +42,13 @@ Companion to `FRONTEND-AUDIT.md`. Named `FRONTEND-POLISH-TASKS.md` rather than `
 
 ## Batch 3 — Layout & navigation
 
-- [ ] `Topbar` — real surface (F1), 44 px hit areas on icon buttons (F5), tokenised gutters
-- [ ] `Sidebar` — real surface, tokenised motion duration
-- [ ] `ViewSwitcher` — real surface, 44 px targets, `aria-selected` styling that isn't colour-only
-- [ ] `DateNavigator` — display face + 44 px targets; title gets `text-wrap: balance`
-- [ ] `MiniCalendar` — numeric face + tabular figures on the day grid, 40 px targets with visual density preserved
-- [ ] `_app.tsx` skip link — fix the invisible-surface bug (F1)
-- [ ] `_auth.tsx` — fix `font-[var(--font-display)]` (F10), tokenise the shell
+- [x] `Topbar` — real surface (F1), 44 px hit areas on icon buttons (F5), tokenised gutters
+- [x] `Sidebar` — real surface (fixed in batch 1 by the token alias; its 200 ms duration was already inside budget, left alone)
+- [x] `ViewSwitcher` — real surface, 44 px targets, `aria-selected` styling that isn't colour-only
+- [x] `DateNavigator` — display face + 44 px targets; title gets `text-wrap: balance`
+- [x] `MiniCalendar` — numeric face + tabular figures on the day grid; `hit-target-row` gives 44 px row height on touch. Width stays on the grid track (7 × 44 px would overflow the 240 px sidebar) — logged as residual in `PR.md`.
+- [x] `_app.tsx` skip link — fix the invisible-surface bug (F1)
+- [x] `_auth.tsx` — fix `font-[var(--font-display)]` (F10), tokenise the shell
 - [ ] build + type-check + lint + test
 
 ## Batch 4 — Forms

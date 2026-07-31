@@ -28,6 +28,7 @@
   --color-accent-hover: #a44322;
   --color-success: #3a6b5c;
   --color-danger: #c0392b;
+  --color-danger-hover: #a63125;
   --color-warning: #d4a017;
   --color-warning-foreground: #1a1916;
 
@@ -184,6 +185,36 @@ p {
   .hit-target-row {
     min-height: 44px;
   }
+
+  /*
+   * For controls whose visual size is load-bearing — a 16px checkbox in a
+   * dense task row — grow the hit area with an invisible overlay instead,
+   * so the layout around it doesn't move.
+   */
+  .hit-target-overlay {
+    position: relative;
+  }
+
+  .hit-target-overlay::after {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 44px;
+    height: 44px;
+    content: '';
+    transform: translate(-50%, -50%);
+  }
+}
+
+/*
+ * Field errors carry a shape cue as well as a colour one — the rule on the
+ * left reads as "something is wrong here" without relying on seeing red.
+ */
+.field-error {
+  border-left: 2px solid var(--color-danger);
+  padding-left: 0.5rem;
+  color: var(--color-danger);
+  font-weight: 500;
 }
 
 /* Numeric role — a calendar is scanned as figures, so figures get a face */

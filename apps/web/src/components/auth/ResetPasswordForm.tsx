@@ -106,6 +106,8 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
           type="password"
           placeholder="Enter new password"
           autoComplete="new-password"
+          aria-invalid={errors.password ? true : undefined}
+          aria-describedby={errors.password ? 'password-error' : undefined}
           {...register('password', {
             onChange: (e) => setPasswordValue(e.target.value),
           })}
@@ -116,7 +118,7 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
           </Suspense>
         )}
         {errors.password && (
-          <p className="text-sm text-[var(--color-danger)]" role="alert">
+          <p id="password-error" className="field-error text-sm" role="alert">
             {errors.password.message}
           </p>
         )}
@@ -129,17 +131,19 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
           type="password"
           placeholder="Confirm new password"
           autoComplete="new-password"
+          aria-invalid={errors.confirmPassword ? true : undefined}
+          aria-describedby={errors.confirmPassword ? 'confirmPassword-error' : undefined}
           {...register('confirmPassword')}
         />
         {errors.confirmPassword && (
-          <p className="text-sm text-[var(--color-danger)]" role="alert">
+          <p id="confirmPassword-error" className="field-error text-sm" role="alert">
             {errors.confirmPassword.message}
           </p>
         )}
       </div>
 
       {errors.root && (
-        <p className="text-sm text-[var(--color-danger)]" role="alert">
+        <p id="root-error" className="field-error text-sm" role="alert">
           {errors.root.message}
         </p>
       )}

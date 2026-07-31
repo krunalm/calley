@@ -4,9 +4,9 @@ Companion to `FRONTEND-AUDIT.md`. Named `FRONTEND-POLISH-TASKS.md` rather than `
 
 ## Resume anchor
 
-- **Current batch:** 4 — Forms
-- **Last commit SHA:** `80d0c49`
-- **Next unchecked task:** Batch 4 › `input.tsx` interactive border
+- **Current batch:** 5 — Tables & lists
+- **Last commit SHA:** `f8b57b9`
+- **Next unchecked task:** Batch 5 › `TaskItem` fallback cleanup
 - **Baseline to hold:** build PASS · type-check PASS · lint PASS · web 147/147 · api 337/337
 
 ---
@@ -53,13 +53,13 @@ Companion to `FRONTEND-AUDIT.md`. Named `FRONTEND-POLISH-TASKS.md` rather than `
 
 ## Batch 4 — Forms
 
-- [ ] `input.tsx` — interactive border (F2), `aria-invalid` styling hook, 44 px height on coarse pointers
-- [ ] `label.tsx` — scale token, consistent spacing
-- [ ] `button.tsx` — tokenised focus ring, motion token, min touch target, `aria-busy` affordance
-- [ ] `checkbox.tsx` / `select.tsx` — interactive border, `focus-visible` (F4)
-- [ ] Wire `aria-describedby` + `aria-invalid` on all auth form fields (F9)
-- [ ] Wire the same on `ProfileSettings` fields
-- [ ] Errors stop being colour-only — add an icon-marked error row component built from existing primitives
+- [x] `input.tsx` — interactive border (F2), `aria-invalid` styling hook, 44 px height on coarse pointers
+- [x] `label.tsx` — scale token, consistent spacing
+- [x] `button.tsx` — drops its bespoke ring in favour of the global outline, gains motion tokens, `hit-target`, an `aria-busy` cursor, and a real `--color-danger-hover` (destructive previously hovered to a translucent overlay)
+- [x] `checkbox.tsx` / `select.tsx` — interactive border, `focus-visible` (F4)
+- [x] Wire `aria-describedby` + `aria-invalid` on all auth form fields (F9)
+- [x] Wire the same on `ProfileSettings` fields
+- [x] Errors stop being colour-only — a `.field-error` rule in the global stylesheet gives every error message a left rule and heavier weight. Done as a class rather than a new component so no new export is added to the app's public surface.
 - [ ] build + type-check + lint + test
 
 ## Batch 5 — Tables & lists

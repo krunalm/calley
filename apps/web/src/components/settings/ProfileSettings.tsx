@@ -157,9 +157,15 @@ function ProfileForm() {
         {/* Name */}
         <div className="space-y-2">
           <Label htmlFor="name">Name</Label>
-          <Input id="name" {...register('name')} maxLength={100} />
+          <Input
+            id="name"
+            aria-invalid={errors.name ? true : undefined}
+            aria-describedby={errors.name ? 'name-error' : undefined}
+            {...register('name')}
+            maxLength={100}
+          />
           {errors.name && (
-            <p className="text-sm text-[var(--color-danger)]" role="alert">
+            <p id="name-error" className="field-error text-sm" role="alert">
               {errors.name.message}
             </p>
           )}
@@ -168,8 +174,16 @@ function ProfileForm() {
         {/* Email (read-only) */}
         <div className="space-y-2">
           <Label htmlFor="email">Email</Label>
-          <Input id="email" value={user.email} disabled className="bg-[var(--muted)]" />
-          <p className="text-xs text-[var(--muted-foreground)]">Email cannot be changed</p>
+          <Input
+            id="email"
+            value={user.email}
+            disabled
+            aria-describedby="email-help"
+            className="bg-[var(--muted)]"
+          />
+          <p id="email-help" className="text-xs text-[var(--muted-foreground)]">
+            Your email is your sign-in identity and can’t be changed here.
+          </p>
         </div>
 
         {/* Timezone */}
@@ -299,10 +313,12 @@ function ChangePasswordForm() {
             id="currentPassword"
             type="password"
             autoComplete="current-password"
+            aria-invalid={errors.currentPassword ? true : undefined}
+            aria-describedby={errors.currentPassword ? 'currentPassword-error' : undefined}
             {...register('currentPassword')}
           />
           {errors.currentPassword && (
-            <p className="text-sm text-[var(--color-danger)]" role="alert">
+            <p id="currentPassword-error" className="field-error text-sm" role="alert">
               {errors.currentPassword.message}
             </p>
           )}
@@ -314,10 +330,12 @@ function ChangePasswordForm() {
             id="newPassword"
             type="password"
             autoComplete="new-password"
+            aria-invalid={errors.newPassword ? true : undefined}
+            aria-describedby={errors.newPassword ? 'newPassword-error' : undefined}
             {...register('newPassword')}
           />
           {errors.newPassword && (
-            <p className="text-sm text-[var(--color-danger)]" role="alert">
+            <p id="newPassword-error" className="field-error text-sm" role="alert">
               {errors.newPassword.message}
             </p>
           )}

@@ -76,17 +76,19 @@ export function ForgotPasswordForm() {
           type="email"
           placeholder="you@example.com"
           autoComplete="email"
+          aria-invalid={errors.email ? true : undefined}
+          aria-describedby={errors.email ? 'email-error' : undefined}
           {...register('email')}
         />
         {errors.email && (
-          <p className="text-sm text-[var(--color-danger)]" role="alert">
+          <p id="email-error" className="field-error text-sm" role="alert">
             {errors.email.message}
           </p>
         )}
       </div>
 
       {errors.root && (
-        <p className="text-sm text-[var(--color-danger)]" role="alert">
+        <p id="root-error" className="field-error text-sm" role="alert">
           {errors.root.message}
         </p>
       )}

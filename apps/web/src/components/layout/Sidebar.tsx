@@ -2,6 +2,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { Calendar } from 'lucide-react';
 
 import { Separator } from '@/components/ui/separator';
+import { DURATION_BASE, EASE_OUT } from '@/lib/motion';
 import { cn } from '@/lib/utils';
 import { useCalendarStore } from '@/stores/calendar-store';
 
@@ -39,7 +40,7 @@ export function Sidebar({
             initial={prefersReducedMotion ? false : { opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={prefersReducedMotion ? undefined : { opacity: 0 }}
-            transition={{ duration: 0.2 }}
+            transition={{ duration: DURATION_BASE }}
           />
         )}
       </AnimatePresence>
@@ -59,7 +60,7 @@ export function Sidebar({
               : 0,
         }}
         transition={
-          prefersReducedMotion ? { duration: 0 } : { duration: 0.2, ease: [0.16, 1, 0.3, 1] }
+          prefersReducedMotion ? { duration: 0 } : { duration: DURATION_BASE, ease: EASE_OUT }
         }
         aria-label="Sidebar"
       >

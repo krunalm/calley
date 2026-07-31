@@ -4,9 +4,9 @@ Companion to `FRONTEND-AUDIT.md`. Named `FRONTEND-POLISH-TASKS.md` rather than `
 
 ## Resume anchor
 
-- **Current batch:** 8 — Accessibility polish
-- **Last commit SHA:** `c72d905`
-- **Next unchecked task:** Batch 8 › tokenise `motion.ts`
+- **Current batch:** 9 — Signature pass
+- **Last commit SHA:** `d5e1f37`
+- **Next unchecked task:** Batch 9 › the now-line
 - **Baseline to hold:** build PASS · type-check PASS · lint PASS · web 147/147 · api 337/337
 
 ---
@@ -94,9 +94,9 @@ Companion to `FRONTEND-AUDIT.md`. Named `FRONTEND-POLISH-TASKS.md` rather than `
 
 ## Batch 8 — Accessibility polish
 
-- [ ] `motion.ts` — tokenised durations/easing, reduced-motion-safe view-switch variants (F7)
-- [ ] Confirm heading hierarchy on settings (h2 under a page h1)
-- [ ] Confirm dialog focus return + Esc (Radix default, verified not overridden)
+- [x] `motion.ts` — tokenised durations/easing, reduced-motion-safe view-switch variants (F7)
+- [x] Confirm heading hierarchy on settings (h1 → h2 → h3, correct). Fixed an h1 → h3 skip in the two auth success panels. **Residual:** the calendar route has no `h1` at all — the only page-level heading is the `DateNavigator`'s `h2`, and promoting it would give the settings pages two `h1`s since the topbar renders there too. Logged in `PR.md`.
+- [x] Confirm dialog focus return + Esc — verified by grep: nothing in the app overrides `onEscapeKeyDown`, `onCloseAutoFocus`, `onOpenAutoFocus` or `onInteractOutside`, so Radix's defaults (Esc closes, focus returns to the trigger) are intact
 - [ ] build + type-check + lint + test
 
 ## Batch 9 — Signature pass

@@ -2,6 +2,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { WifiOff } from 'lucide-react';
 
 import { useOnlineStatus } from '@/hooks/use-online-status';
+import { DURATION_BASE } from '@/lib/motion';
 
 /**
  * Banner displayed at the top of the app when the browser goes offline.
@@ -24,7 +25,7 @@ export function OfflineBanner() {
           initial={prefersReducedMotion ? false : { height: 0, opacity: 0 }}
           animate={{ height: 'auto', opacity: 1 }}
           exit={prefersReducedMotion ? undefined : { height: 0, opacity: 0 }}
-          transition={{ duration: 0.2 }}
+          transition={{ duration: DURATION_BASE }}
         >
           <WifiOff className="h-4 w-4 shrink-0" />
           No connection. Your changes are saved here and will sync when you reconnect.

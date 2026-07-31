@@ -81,7 +81,7 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
           </svg>
         </div>
-        <h3 className="text-lg font-medium">Password reset successful</h3>
+        <h2 className="text-lg font-medium">Password reset successful</h2>
         <p className="text-sm text-[var(--muted-foreground)]">
           Your password has been updated. You can now sign in with your new password.
         </p>

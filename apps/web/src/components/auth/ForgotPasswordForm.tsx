@@ -48,7 +48,7 @@ export function ForgotPasswordForm() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
           </svg>
         </div>
-        <h3 className="text-lg font-medium">Check your email</h3>
+        <h2 className="text-lg font-medium">Check your email</h2>
         <p className="text-sm text-[var(--muted-foreground)]">
           If an account exists with that email, we&apos;ve sent a password reset link.
         </p>

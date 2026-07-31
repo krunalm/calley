@@ -101,7 +101,7 @@ const TimeGutter = memo(function TimeGutter({ userTimezone }: { userTimezone: st
           style={{ height: SLOT_HEIGHT * 2 }}
         >
           {hour > 0 && (
-            <span className="absolute -top-2.5 right-2 text-[10px] text-[var(--muted-foreground)]">
+            <span className="numeric absolute -top-2.5 right-2 text-[10px] text-[var(--muted-foreground)]">
               {formatHourLabel(hour, userTimezone, now)}
             </span>
           )}

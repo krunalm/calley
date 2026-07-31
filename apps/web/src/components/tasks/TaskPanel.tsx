@@ -225,7 +225,7 @@ export function TaskPanel() {
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 text-[var(--color-success,#3a6b5c)]"
+              className="h-7 w-7 text-[var(--color-success)]"
               onClick={handleBulkComplete}
               disabled={selectedIds.size === 0}
               aria-label="Complete selected tasks"
@@ -235,7 +235,7 @@ export function TaskPanel() {
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 text-[var(--color-danger,#c0392b)]"
+              className="h-7 w-7 text-[var(--color-danger)]"
               onClick={() => setShowDeleteConfirm(true)}
               disabled={selectedIds.size === 0}
               aria-label="Delete selected tasks"

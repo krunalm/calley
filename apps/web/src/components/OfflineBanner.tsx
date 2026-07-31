@@ -18,7 +18,7 @@ export function OfflineBanner() {
     <AnimatePresence>
       {!isOnline && (
         <motion.div
-          className="flex items-center justify-center gap-2 bg-[var(--color-warning,#d4a017)] px-4 py-1.5 text-sm font-medium text-white"
+          className="flex items-center justify-center gap-2 bg-[var(--color-warning)] px-4 py-1.5 text-sm font-medium text-white"
           role="alert"
           aria-live="assertive"
           initial={prefersReducedMotion ? false : { height: 0, opacity: 0 }}

@@ -13,9 +13,9 @@ import { useUIStore } from '@/stores/ui-store';
 import type { Task } from '@calley/shared';
 
 const PRIORITY_COLORS: Record<string, string> = {
-  high: 'var(--color-danger, #c0392b)',
-  medium: 'var(--color-warning, #d4a017)',
-  low: 'var(--color-success, #3a6b5c)',
+  high: 'var(--color-danger)',
+  medium: 'var(--color-warning)',
+  low: 'var(--color-success)',
   none: 'transparent',
 };
 
@@ -100,7 +100,7 @@ export const TaskItem = memo(function TaskItem({
     <div
       ref={setNodeRef}
       className={`group flex items-start gap-2.5 rounded-[var(--radius)] px-2 py-1.5 transition-colors hover:bg-[var(--accent-ui)] ${
-        isSelected ? 'bg-[color-mix(in_srgb,var(--primary)_8%,transparent)]' : ''
+        isSelected ? 'bg-[var(--accent-soft)]' : ''
       } ${isDragging ? 'opacity-40' : ''}`}
       {...(draggableToCalendar && !isSelecting ? { ...attributes, ...listeners } : {})}
       role="listitem"
@@ -167,9 +167,9 @@ export const TaskItem = memo(function TaskItem({
         {/* Due date badge */}
         {dueDateLabel && (
           <span
-            className={`mt-0.5 inline-block text-xs ${
+            className={`tabular mt-0.5 inline-block text-xs ${
               isOverdue
-                ? 'font-medium text-[var(--color-danger,#c0392b)]'
+                ? 'font-medium text-[var(--color-danger)]'
                 : 'text-[var(--muted-foreground)]'
             }`}
           >

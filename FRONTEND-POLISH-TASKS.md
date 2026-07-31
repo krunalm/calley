@@ -4,9 +4,9 @@ Companion to `FRONTEND-AUDIT.md`. Named `FRONTEND-POLISH-TASKS.md` rather than `
 
 ## Resume anchor
 
-- **Current batch:** 5 — Tables & lists
-- **Last commit SHA:** `f8b57b9`
-- **Next unchecked task:** Batch 5 › `TaskItem` fallback cleanup
+- **Current batch:** 6 — Feedback states
+- **Last commit SHA:** `3ac6e10`
+- **Next unchecked task:** Batch 6 › `OfflineBanner` ink on amber
 - **Baseline to hold:** build PASS · type-check PASS · lint PASS · web 147/147 · api 337/337
 
 ---
@@ -64,12 +64,12 @@ Companion to `FRONTEND-AUDIT.md`. Named `FRONTEND-POLISH-TASKS.md` rather than `
 
 ## Batch 5 — Tables & lists
 
-- [ ] `TaskItem` — drop dead `var(--x, #hex)` fallbacks (F12), numeric due-date, tokenised radius
-- [ ] `TaskGroup` / `TaskPanel` — same fallback cleanup, count badges in the numeric face
-- [ ] `DayCell` — date numeral in the numeric face with tabular figures, today = ink-filled numeral
-- [ ] `TimeGrid` gutter — real surface (F1), hour labels in the numeric face
-- [ ] `EventBlock` — fix the broken `color-mix` (F1)
-- [ ] `KeyboardShortcutsHelp` — fix `kbd` chips (F1, both undefined tokens)
+- [x] `TaskItem` — drop dead `var(--x, #hex)` fallbacks (F12), numeric due-date, tokenised radius
+- [x] `TaskGroup` / `TaskPanel` — same fallback cleanup, count badges in the numeric face
+- [x] `DayCell` — date numeral in the numeric face with tabular figures. **Today stays Ember-filled**, not ink as first planned: Ember's stated role is "action and now", and today is the same idea as the now-line, not a competing one. Drop-target tint moves onto the `--accent-soft` token.
+- [x] `TimeGrid` gutter — surface restored by the batch-1 token alias; hour labels adopt the numeric face
+- [x] `EventBlock` — `color-mix` tint restored by the batch-1 token alias; its `border-white/20` hairline (invisible against a pale tint) moves to the border token, and `hover:shadow-md` to the shadow token
+- [x] `KeyboardShortcutsHelp` — fix `kbd` chips (F1, both undefined tokens)
 - [ ] build + type-check + lint + test
 
 ## Batch 6 — Feedback states

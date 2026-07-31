@@ -241,7 +241,7 @@ export const CalendarList = memo(function CalendarList({
                       <>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
-                          className="text-[var(--color-danger,#c0392b)]"
+                          className="text-[var(--color-danger)]"
                           onClick={() => handleRequestDelete(cat)}
                         >
                           <Trash2 className="mr-2 h-3.5 w-3.5" />

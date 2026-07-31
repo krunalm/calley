@@ -18,7 +18,7 @@ export function OfflineBanner() {
     <AnimatePresence>
       {!isOnline && (
         <motion.div
-          className="flex items-center justify-center gap-2 bg-[var(--color-warning)] px-4 py-1.5 text-sm font-medium text-white"
+          className="flex items-center justify-center gap-2 bg-[var(--color-warning)] px-4 py-1.5 text-sm font-medium text-[var(--color-warning-foreground)]"
           role="alert"
           aria-live="assertive"
           initial={prefersReducedMotion ? false : { height: 0, opacity: 0 }}
@@ -26,8 +26,8 @@ export function OfflineBanner() {
           exit={prefersReducedMotion ? undefined : { height: 0, opacity: 0 }}
           transition={{ duration: 0.2 }}
         >
-          <WifiOff className="h-4 w-4" />
-          You are offline. Changes will sync when you reconnect.
+          <WifiOff className="h-4 w-4 shrink-0" />
+          No connection. Your changes are saved here and will sync when you reconnect.
         </motion.div>
       )}
     </AnimatePresence>

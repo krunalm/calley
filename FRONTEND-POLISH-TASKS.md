@@ -4,9 +4,9 @@ Companion to `FRONTEND-AUDIT.md`. Named `FRONTEND-POLISH-TASKS.md` rather than `
 
 ## Resume anchor
 
-- **Current batch:** 6 — Feedback states
-- **Last commit SHA:** `3ac6e10`
-- **Next unchecked task:** Batch 6 › `OfflineBanner` ink on amber
+- **Current batch:** 7 — Responsive
+- **Last commit SHA:** `b1e9a44`
+- **Next unchecked task:** Batch 7 › sentence-case the settings headings
 - **Baseline to hold:** build PASS · type-check PASS · lint PASS · web 147/147 · api 337/337
 
 ---
@@ -74,13 +74,14 @@ Companion to `FRONTEND-AUDIT.md`. Named `FRONTEND-POLISH-TASKS.md` rather than `
 
 ## Batch 6 — Feedback states
 
-- [ ] `OfflineBanner` — ink on amber (F2), active-voice copy
-- [ ] `ErrorBoundary` — copy that says what happened and what to do (F11)
-- [ ] `EmptyState` — CTA copy that doesn't lie about "first" (F11)
-- [ ] `FullPageLoader` — tokenised, copy without a trailing ellipsis
-- [ ] `Toast` — surface on card not page ground, tokenised shadow
-- [ ] `dialog.tsx` / `sheet.tsx` — scrim from 80 % black to 55 % ink (F6), `focus-visible` (F4), motion inside budget (F7)
-- [ ] Destructive confirm buttons say what they delete
+- [x] `OfflineBanner` — ink on amber (F2), active-voice copy
+- [x] `ErrorBoundary` — copy that says what happened and what to do (F11)
+- [x] `EmptyState` — CTA copy that doesn't lie about "first" (F11)
+- [x] `FullPageLoader` — tokenised, copy without a trailing ellipsis
+- [x] `Toast` — surface on card not page ground, tokenised shadow
+- [x] `dialog.tsx` / `sheet.tsx` — scrim from 80 % black to 55 % ink (F6), `focus-visible` (F4), motion inside budget (F7)
+- [x] Destructive confirm buttons say what they delete ("Delete calendar", "Delete 3 tasks" — not "Delete")
+- [x] Update the six component tests that asserted the old copy verbatim
 - [ ] build + type-check + lint + test
 
 ## Batch 7 — Responsive

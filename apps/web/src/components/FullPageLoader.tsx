@@ -11,8 +11,8 @@ export function FullPageLoader() {
       aria-label="Loading"
     >
       <div className="flex flex-col items-center gap-4">
-        <div className="h-10 w-10 animate-spin rounded-full border-2 border-[var(--muted)] border-t-[var(--primary)]" />
-        <p className="text-sm text-[var(--muted-foreground)]">Loading...</p>
+        <div className="h-10 w-10 animate-spin rounded-full border-2 border-[var(--border)] border-t-[var(--primary)]" />
+        <p className="text-sm text-[var(--muted-foreground)]">Loading your calendar</p>
       </div>
     </div>
   );

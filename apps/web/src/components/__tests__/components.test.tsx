@@ -78,11 +78,11 @@ describe('NoEventsEmptyState', () => {
     cleanup();
   });
 
-  it('renders "No events" title and a create button', () => {
+  it('renders the empty-calendar title and a create button', () => {
     const onCreateEvent = vi.fn();
     render(<NoEventsEmptyState onCreateEvent={onCreateEvent} />);
-    expect(screen.getByText('No events')).toBeDefined();
-    expect(screen.getByRole('button', { name: 'Create your first event' })).toBeDefined();
+    expect(screen.getByText('Nothing scheduled')).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Create an event' })).toBeDefined();
   });
 
   it('calls onCreateEvent when the create button is clicked', async () => {
@@ -90,7 +90,7 @@ describe('NoEventsEmptyState', () => {
     const onCreateEvent = vi.fn();
     render(<NoEventsEmptyState onCreateEvent={onCreateEvent} />);
 
-    await user.click(screen.getByRole('button', { name: 'Create your first event' }));
+    await user.click(screen.getByRole('button', { name: 'Create an event' }));
     expect(onCreateEvent).toHaveBeenCalledOnce();
   });
 });
@@ -100,10 +100,10 @@ describe('NoTasksEmptyState', () => {
     cleanup();
   });
 
-  it('renders "No tasks" title and an add button', () => {
+  it('renders the empty-task-list title and an add button', () => {
     const onCreateTask = vi.fn();
     render(<NoTasksEmptyState onCreateTask={onCreateTask} />);
-    expect(screen.getByText('No tasks')).toBeDefined();
+    expect(screen.getByText('No tasks here')).toBeDefined();
     expect(screen.getByRole('button', { name: 'Add a task' })).toBeDefined();
   });
 });
@@ -120,7 +120,11 @@ describe('NoSearchResultsEmptyState', () => {
 
   it('renders a helpful description about trying different terms', () => {
     render(<NoSearchResultsEmptyState query="test" />);
-    expect(screen.getByText('Try a different search term or check your spelling.')).toBeDefined();
+    expect(
+      screen.getByText(
+        'Nothing in your events or tasks matches. Try fewer words, or check the spelling.',
+      ),
+    ).toBeDefined();
   });
 });
 
@@ -165,8 +169,12 @@ describe('ErrorBoundary', () => {
       </ErrorBoundary>,
     );
 
-    expect(screen.getByText('Something went wrong')).toBeDefined();
-    expect(screen.getByText('An unexpected error occurred. Please try again.')).toBeDefined();
+    expect(screen.getByText('This view stopped responding')).toBeDefined();
+    expect(
+      screen.getByText(
+        'Nothing you saved was lost. Reload this view to carry on; if it keeps happening, reload the page.',
+      ),
+    ).toBeDefined();
   });
 
   it('displays the error message in the default error UI', () => {
@@ -179,14 +187,14 @@ describe('ErrorBoundary', () => {
     expect(screen.getByText('Specific error message')).toBeDefined();
   });
 
-  it('shows a "Try again" button in the default error UI', () => {
+  it('shows a reload button in the default error UI', () => {
     render(
       <ErrorBoundary>
         <ThrowingComponent message="Test error" />
       </ErrorBoundary>,
     );
 
-    expect(screen.getByRole('button', { name: /try again/i })).toBeDefined();
+    expect(screen.getByRole('button', { name: /reload this view/i })).toBeDefined();
   });
 
   it('renders custom fallback UI when provided and error occurs', () => {
@@ -198,7 +206,7 @@ describe('ErrorBoundary', () => {
 
     expect(screen.getByText('Custom fallback')).toBeDefined();
     // Default UI should NOT be shown
-    expect(screen.queryByText('Something went wrong')).toBeNull();
+    expect(screen.queryByText('This view stopped responding')).toBeNull();
   });
 });
 

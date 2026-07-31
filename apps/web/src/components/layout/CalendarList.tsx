@@ -308,7 +308,7 @@ export const CalendarList = memo(function CalendarList({
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent className="sm:max-w-[380px]">
           <DialogHeader>
-            <DialogTitle>Delete Calendar</DialogTitle>
+            <DialogTitle>Delete calendar</DialogTitle>
             <DialogDescription>
               Are you sure you want to delete &ldquo;{categoryToDelete?.name}&rdquo;? All events and
               tasks in this calendar will be moved to your default calendar.
@@ -319,7 +319,7 @@ export const CalendarList = memo(function CalendarList({
               Cancel
             </Button>
             <Button variant="destructive" onClick={handleConfirmDelete}>
-              Delete
+              Delete calendar
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -354,7 +354,7 @@ export function TaskPanel() {
               Cancel
             </Button>
             <Button variant="destructive" onClick={handleBulkDeleteConfirm}>
-              Delete
+              Delete {selectedIds.size} task{selectedIds.size !== 1 ? 's' : ''}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -47,9 +47,9 @@ export function NoEventsEmptyState({ onCreateEvent }: { onCreateEvent: () => voi
   return (
     <EmptyState
       icon={<Calendar className="h-7 w-7 text-[var(--muted-foreground)]" />}
-      title="No events"
-      description="Your calendar is clear. Create an event to get started."
-      action={{ label: 'Create your first event', onClick: onCreateEvent }}
+      title="Nothing scheduled"
+      description="This stretch of your calendar is clear."
+      action={{ label: 'Create an event', onClick: onCreateEvent }}
     />
   );
 }
@@ -59,8 +59,8 @@ export function NoTasksEmptyState({ onCreateTask }: { onCreateTask: () => void }
   return (
     <EmptyState
       icon={<CheckSquare className="h-7 w-7 text-[var(--muted-foreground)]" />}
-      title="No tasks"
-      description="Stay organized by adding your first task."
+      title="No tasks here"
+      description="Tasks you add show up in this list and on the days they're due."
       action={{ label: 'Add a task', onClick: onCreateTask }}
     />
   );
@@ -72,7 +72,7 @@ export function NoSearchResultsEmptyState({ query }: { query: string }) {
     <EmptyState
       icon={<Search className="h-7 w-7 text-[var(--muted-foreground)]" />}
       title={`No results for "${query}"`}
-      description="Try a different search term or check your spelling."
+      description="Nothing in your events or tasks matches. Try fewer words, or check the spelling."
     />
   );
 }

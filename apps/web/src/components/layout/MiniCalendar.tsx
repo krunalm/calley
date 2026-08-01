@@ -98,7 +98,7 @@ export const MiniCalendar = memo(function MiniCalendar() {
               onClick={() => handleDayClick(day)}
               className={cn(
                 'numeric hit-target-row mx-auto flex h-6 w-6 items-center justify-center rounded-full text-[11px] transition-colors duration-[var(--duration-fast)]',
-                !inMonth && 'text-[var(--muted-foreground)] opacity-50',
+                !inMonth && 'text-[var(--muted-foreground)]',
                 inMonth && !selected && !today && 'hover:bg-[var(--accent-ui)]',
                 today && !selected && 'font-medium text-[var(--primary)]',
                 selected && 'bg-[var(--primary)] text-[var(--primary-foreground)]',

@@ -353,7 +353,11 @@ export function TaskPanel() {
             <Button variant="outline" onClick={() => setShowDeleteConfirm(false)}>
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleBulkDeleteConfirm}>
+            <Button
+              variant="destructive"
+              onClick={handleBulkDeleteConfirm}
+              disabled={bulkDelete.isPending}
+            >
               Delete {selectedIds.size} task{selectedIds.size !== 1 ? 's' : ''}
             </Button>
           </DialogFooter>

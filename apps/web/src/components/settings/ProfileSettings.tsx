@@ -473,7 +473,8 @@ function DeleteAccountSection() {
       <div>
         <h2 className="text-lg font-semibold text-[var(--color-danger)]">Delete account</h2>
         <p className="text-sm text-[var(--muted-foreground)]">
-          Deleting your account removes every event, task and calendar. This cannot be undone.
+          Deleting your account removes every event, task, calendar and setting. This cannot be
+          undone.
         </p>
       </div>
 
@@ -486,7 +487,7 @@ function DeleteAccountSection() {
           <DialogHeader>
             <DialogTitle>Delete account</DialogTitle>
             <DialogDescription>
-              This action is permanent and cannot be undone. All your events, tasks, and settings
+              This action is permanent and cannot be undone. Every event, task, calendar and setting
               will be deleted.
             </DialogDescription>
           </DialogHeader>

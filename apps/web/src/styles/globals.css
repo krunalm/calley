@@ -167,12 +167,13 @@ p {
 }
 
 /*
- * Touch pointers get a 44px minimum target. Precise pointers keep the
- * compact chrome the calendar's density is designed around — inflating a
- * 32px toolbar button to 44px on a mouse would push the neighbouring hit
- * areas into each other.
+ * Any touch-capable pointer gets a 44px minimum target — `any-pointer`
+ * rather than `pointer`, so a touchscreen laptop driven mainly by a mouse
+ * still gets finger-sized targets for the times it is actually touched.
+ * Mouse-only machines keep the compact chrome the calendar is designed
+ * around.
  */
-@media (pointer: coarse) {
+@media (any-pointer: coarse) {
   .hit-target {
     min-width: 44px;
     min-height: 44px;

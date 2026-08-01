@@ -318,7 +318,11 @@ export const CalendarList = memo(function CalendarList({
             <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleConfirmDelete}>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmDelete}
+              disabled={!categoryToDelete}
+            >
               Delete calendar
             </Button>
           </DialogFooter>

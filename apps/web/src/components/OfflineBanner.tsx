@@ -28,7 +28,8 @@ export function OfflineBanner() {
           transition={{ duration: DURATION_BASE }}
         >
           <WifiOff className="h-4 w-4 shrink-0" />
-          No connection. Your changes are saved here and will sync when you reconnect.
+          No connection. You can keep reading your calendar, but changes won’t save until you’re
+          back online.
         </motion.div>
       )}
     </AnimatePresence>

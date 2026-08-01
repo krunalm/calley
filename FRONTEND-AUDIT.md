@@ -203,7 +203,7 @@ Nothing else gains a gradient, a glow, or an animation.
 
 Recorded on `pnpm install --frozen-lockfile`, before any edit:
 
-```
+```text
 build       PASS  (3/3 tasks; pre-existing warning: index chunk 694 kB, PasswordStrengthMeter 819 kB)
 type-check  PASS  (4/4)
 lint        PASS  (4/4, zero warnings)

@@ -25,7 +25,7 @@ export function ViewSwitcher() {
           role="tab"
           aria-selected={view === v.value}
           className={cn(
-            'rounded-[var(--radius-sm)] px-3 py-1 text-xs font-medium transition-colors',
+            'hit-target rounded-[var(--radius-sm)] px-3 py-1.5 text-xs font-medium transition-colors duration-[var(--duration-fast)]',
             // Hide month/week on small tablets (show only day + agenda on mobile)
             (v.value === 'month' || v.value === 'week') && 'hidden lg:block',
             view === v.value

@@ -50,14 +50,15 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       return (
         <div className="flex h-full min-h-[300px] items-center justify-center p-6">
           <div className="flex max-w-md flex-col items-center text-center">
-            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--destructive)_10%,transparent)]">
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--danger-soft)]">
               <AlertTriangle className="h-6 w-6 text-[var(--destructive)]" />
             </div>
             <h2 className="mb-2 text-lg font-semibold text-[var(--foreground)]">
-              Something went wrong
+              This view stopped responding
             </h2>
             <p className="mb-4 text-sm text-[var(--muted-foreground)]">
-              An unexpected error occurred. Please try again.
+              Nothing you saved was lost. Reload this view to carry on; if it keeps happening,
+              reload the page.
             </p>
             {this.state.error && (
               <p className="mb-4 max-w-full truncate rounded-[var(--radius)] bg-[var(--muted)] px-3 py-1.5 font-mono text-xs text-[var(--muted-foreground)]">
@@ -66,7 +67,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
             )}
             <Button onClick={this.handleRetry} variant="outline" className="gap-2">
               <RefreshCw className="h-4 w-4" />
-              Try again
+              Reload this view
             </Button>
           </div>
         </div>

@@ -98,7 +98,7 @@ export const EventBlock = memo(function EventBlock({
     <div
       ref={setMoveRef}
       className={cn(
-        'absolute z-10 flex cursor-grab flex-col overflow-hidden rounded-[var(--radius-sm)] border border-white/20 text-left transition-shadow hover:shadow-md',
+        'absolute z-10 flex cursor-grab flex-col overflow-hidden rounded-[var(--radius-sm)] border border-[var(--border)] text-left transition-shadow duration-[var(--duration-fast)] hover:shadow-[var(--shadow-md)]',
         isCompact ? 'py-0' : 'py-1',
         isDragging && 'opacity-50',
       )}

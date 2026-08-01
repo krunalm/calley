@@ -81,7 +81,7 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
           </svg>
         </div>
-        <h3 className="text-lg font-medium">Password reset successful</h3>
+        <h2 className="text-lg font-medium">Password reset successful</h2>
         <p className="text-sm text-[var(--muted-foreground)]">
           Your password has been updated. You can now sign in with your new password.
         </p>
@@ -106,6 +106,8 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
           type="password"
           placeholder="Enter new password"
           autoComplete="new-password"
+          aria-invalid={errors.password ? true : undefined}
+          aria-describedby={errors.password ? 'password-error' : undefined}
           {...register('password', {
             onChange: (e) => setPasswordValue(e.target.value),
           })}
@@ -116,7 +118,7 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
           </Suspense>
         )}
         {errors.password && (
-          <p className="text-sm text-[var(--color-danger)]" role="alert">
+          <p id="password-error" className="field-error text-sm" role="alert">
             {errors.password.message}
           </p>
         )}
@@ -129,17 +131,19 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
           type="password"
           placeholder="Confirm new password"
           autoComplete="new-password"
+          aria-invalid={errors.confirmPassword ? true : undefined}
+          aria-describedby={errors.confirmPassword ? 'confirmPassword-error' : undefined}
           {...register('confirmPassword')}
         />
         {errors.confirmPassword && (
-          <p className="text-sm text-[var(--color-danger)]" role="alert">
+          <p id="confirmPassword-error" className="field-error text-sm" role="alert">
             {errors.confirmPassword.message}
           </p>
         )}
       </div>
 
       {errors.root && (
-        <p className="text-sm text-[var(--color-danger)]" role="alert">
+        <p id="root-error" className="field-error text-sm" role="alert">
           {errors.root.message}
         </p>
       )}

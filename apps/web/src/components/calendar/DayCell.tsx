@@ -72,7 +72,7 @@ export const DayCell = memo(function DayCell({
       className={cn(
         'flex min-h-[100px] flex-col border-b border-r border-[var(--border)] p-1 sm:min-h-[120px]',
         !isCurrentMonth && 'bg-[var(--muted)]/30',
-        isOver && 'bg-[var(--primary)]/10',
+        isOver && 'bg-[var(--accent-soft)]',
       )}
       role="gridcell"
       aria-label={format(date, 'EEEE, MMMM d, yyyy')}
@@ -82,7 +82,7 @@ export const DayCell = memo(function DayCell({
         type="button"
         onClick={handleDateClick}
         className={cn(
-          'mb-0.5 flex h-6 w-6 items-center justify-center self-end rounded-full text-xs font-medium transition-colors hover:bg-[var(--accent-ui)]',
+          'numeric hit-target-row mb-0.5 flex h-6 w-6 items-center justify-center self-end rounded-full text-xs transition-colors duration-[var(--duration-fast)] hover:bg-[var(--accent-ui)]',
           !isCurrentMonth && 'text-[var(--muted-foreground)]',
           today &&
             'bg-[var(--primary)] text-[var(--primary-foreground)] hover:bg-[var(--color-accent-hover)]',

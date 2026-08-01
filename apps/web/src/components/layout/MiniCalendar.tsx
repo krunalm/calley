@@ -55,7 +55,7 @@ export const MiniCalendar = memo(function MiniCalendar() {
         <Button
           variant="ghost"
           size="icon"
-          className="h-6 w-6"
+          className="hit-target h-6 w-6"
           onClick={handlePrev}
           aria-label="Previous month"
         >
@@ -65,7 +65,7 @@ export const MiniCalendar = memo(function MiniCalendar() {
         <Button
           variant="ghost"
           size="icon"
-          className="h-6 w-6"
+          className="hit-target h-6 w-6"
           onClick={handleNext}
           aria-label="Next month"
         >
@@ -76,7 +76,10 @@ export const MiniCalendar = memo(function MiniCalendar() {
       {/* Day labels */}
       <div className="grid grid-cols-7 text-center">
         {DAY_LABELS.map((label) => (
-          <span key={label} className="text-[10px] font-medium text-[var(--muted-foreground)]">
+          <span
+            key={label}
+            className="text-[10px] font-medium uppercase tracking-wide text-[var(--muted-foreground)]"
+          >
             {label}
           </span>
         ))}
@@ -94,11 +97,11 @@ export const MiniCalendar = memo(function MiniCalendar() {
               key={day.toISOString()}
               onClick={() => handleDayClick(day)}
               className={cn(
-                'mx-auto flex h-6 w-6 items-center justify-center rounded-full text-[11px] transition-colors',
-                !inMonth && 'text-[var(--muted-foreground)] opacity-40',
+                'numeric hit-target-row mx-auto flex h-6 w-6 items-center justify-center rounded-full text-[11px] transition-colors duration-[var(--duration-fast)]',
+                !inMonth && 'text-[var(--muted-foreground)]',
                 inMonth && !selected && !today && 'hover:bg-[var(--accent-ui)]',
-                today && !selected && 'font-semibold text-[var(--primary)]',
-                selected && 'bg-[var(--primary)] font-semibold text-[var(--primary-foreground)]',
+                today && !selected && 'font-medium text-[var(--primary)]',
+                selected && 'bg-[var(--primary)] text-[var(--primary-foreground)]',
               )}
               aria-label={format(day, 'EEEE, MMMM d, yyyy')}
               aria-current={today ? 'date' : undefined}

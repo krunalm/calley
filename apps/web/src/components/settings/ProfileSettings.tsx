@@ -133,7 +133,9 @@ function ProfileForm() {
     <div className="space-y-6">
       <div>
         <h2 className="text-lg font-semibold">Profile</h2>
-        <p className="text-sm text-[var(--muted-foreground)]">Manage your personal information</p>
+        <p className="text-sm text-[var(--muted-foreground)]">
+          Your name and how Calley shows dates and times to you.
+        </p>
       </div>
 
       {/* Avatar */}
@@ -157,9 +159,15 @@ function ProfileForm() {
         {/* Name */}
         <div className="space-y-2">
           <Label htmlFor="name">Name</Label>
-          <Input id="name" {...register('name')} maxLength={100} />
+          <Input
+            id="name"
+            aria-invalid={errors.name ? true : undefined}
+            aria-describedby={errors.name ? 'name-error' : undefined}
+            {...register('name')}
+            maxLength={100}
+          />
           {errors.name && (
-            <p className="text-sm text-[var(--color-danger)]" role="alert">
+            <p id="name-error" className="field-error text-sm" role="alert">
               {errors.name.message}
             </p>
           )}
@@ -168,8 +176,16 @@ function ProfileForm() {
         {/* Email (read-only) */}
         <div className="space-y-2">
           <Label htmlFor="email">Email</Label>
-          <Input id="email" value={user.email} disabled className="bg-[var(--muted)]" />
-          <p className="text-xs text-[var(--muted-foreground)]">Email cannot be changed</p>
+          <Input
+            id="email"
+            value={user.email}
+            disabled
+            aria-describedby="email-help"
+            className="bg-[var(--muted)]"
+          />
+          <p id="email-help" className="text-xs text-[var(--muted-foreground)]">
+            Your email is your sign-in identity and can’t be changed here.
+          </p>
         </div>
 
         {/* Timezone */}
@@ -288,8 +304,10 @@ function ChangePasswordForm() {
     <div className="space-y-6">
       <Separator />
       <div>
-        <h2 className="text-lg font-semibold">Change Password</h2>
-        <p className="text-sm text-[var(--muted-foreground)]">Update your password</p>
+        <h2 className="text-lg font-semibold">Change password</h2>
+        <p className="text-sm text-[var(--muted-foreground)]">
+          Signing out of other devices is handled separately, under Sessions.
+        </p>
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -299,10 +317,12 @@ function ChangePasswordForm() {
             id="currentPassword"
             type="password"
             autoComplete="current-password"
+            aria-invalid={errors.currentPassword ? true : undefined}
+            aria-describedby={errors.currentPassword ? 'currentPassword-error' : undefined}
             {...register('currentPassword')}
           />
           {errors.currentPassword && (
-            <p className="text-sm text-[var(--color-danger)]" role="alert">
+            <p id="currentPassword-error" className="field-error text-sm" role="alert">
               {errors.currentPassword.message}
             </p>
           )}
@@ -314,10 +334,12 @@ function ChangePasswordForm() {
             id="newPassword"
             type="password"
             autoComplete="new-password"
+            aria-invalid={errors.newPassword ? true : undefined}
+            aria-describedby={errors.newPassword ? 'newPassword-error' : undefined}
             {...register('newPassword')}
           />
           {errors.newPassword && (
-            <p className="text-sm text-[var(--color-danger)]" role="alert">
+            <p id="newPassword-error" className="field-error text-sm" role="alert">
               {errors.newPassword.message}
             </p>
           )}
@@ -393,8 +415,10 @@ function ConnectedAccounts() {
     <div className="space-y-6">
       <Separator />
       <div>
-        <h2 className="text-lg font-semibold">Connected Accounts</h2>
-        <p className="text-sm text-[var(--muted-foreground)]">Manage your linked login providers</p>
+        <h2 className="text-lg font-semibold">Connected accounts</h2>
+        <p className="text-sm text-[var(--muted-foreground)]">
+          Sign-in providers linked to this account.
+        </p>
       </div>
 
       {accounts.length === 0 ? (
@@ -447,9 +471,10 @@ function DeleteAccountSection() {
     <div className="space-y-6">
       <Separator />
       <div>
-        <h2 className="text-lg font-semibold text-[var(--color-danger)]">Danger Zone</h2>
+        <h2 className="text-lg font-semibold text-[var(--color-danger)]">Delete account</h2>
         <p className="text-sm text-[var(--muted-foreground)]">
-          Permanently delete your account and all data
+          Deleting your account removes every event, task, calendar and setting. This cannot be
+          undone.
         </p>
       </div>
 
@@ -460,9 +485,9 @@ function DeleteAccountSection() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
-            <DialogTitle>Delete Account</DialogTitle>
+            <DialogTitle>Delete account</DialogTitle>
             <DialogDescription>
-              This action is permanent and cannot be undone. All your events, tasks, and settings
+              This action is permanent and cannot be undone. Every event, task, calendar and setting
               will be deleted.
             </DialogDescription>
           </DialogHeader>

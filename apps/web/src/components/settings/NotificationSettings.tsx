@@ -148,7 +148,7 @@ export const NotificationSettings = memo(function NotificationSettings() {
 
       {/* Default Reminder Preferences */}
       <div className="space-y-4">
-        <h3 className="text-sm font-semibold">Default Reminder</h3>
+        <h3 className="text-sm font-semibold">Default reminder</h3>
         <p className="text-sm text-[var(--muted-foreground)]">
           These defaults apply when creating new events
         </p>
@@ -196,7 +196,7 @@ export const NotificationSettings = memo(function NotificationSettings() {
 
       {/* Push Notifications */}
       <div className="space-y-4">
-        <h3 className="text-sm font-semibold">Push Notifications</h3>
+        <h3 className="text-sm font-semibold">Push notifications</h3>
         {permissionStatus()}
 
         <Button
@@ -225,7 +225,7 @@ export const NotificationSettings = memo(function NotificationSettings() {
 
       {/* Email Notifications */}
       <div className="space-y-4">
-        <h3 className="text-sm font-semibold">Email Notifications</h3>
+        <h3 className="text-sm font-semibold">Email notifications</h3>
         <div className="flex items-center justify-between rounded-[var(--radius)] border border-[var(--border)] px-4 py-3">
           <div className="flex items-center gap-3">
             <Mail className="h-4 w-4 text-[var(--muted-foreground)]" />

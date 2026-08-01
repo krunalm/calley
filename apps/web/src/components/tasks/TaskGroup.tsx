@@ -42,7 +42,7 @@ export const TaskGroup = memo(function TaskGroup({
 
   const labelColorClass =
     variant === 'overdue'
-      ? 'text-[var(--color-danger,#c0392b)]'
+      ? 'text-[var(--color-danger)]'
       : variant === 'completed'
         ? 'text-[var(--muted-foreground)]'
         : 'text-[var(--foreground)]';
@@ -64,7 +64,7 @@ export const TaskGroup = memo(function TaskGroup({
         <span className={`text-xs font-semibold uppercase tracking-wide ${labelColorClass}`}>
           {label}
         </span>
-        <span className="text-xs text-[var(--muted-foreground)]">{tasks.length}</span>
+        <span className="numeric text-xs text-[var(--muted-foreground)]">{tasks.length}</span>
       </button>
 
       {/* Task List */}

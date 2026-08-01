@@ -61,7 +61,7 @@ const SHORTCUT_GROUPS: { title: string; shortcuts: ShortcutEntry[] }[] = [
 
 function ShortcutKey({ children }: { children: string }) {
   return (
-    <kbd className="inline-flex h-6 min-w-6 items-center justify-center rounded border border-[var(--border)] bg-[var(--surface)] px-1.5 font-mono text-xs text-[var(--text-muted)]">
+    <kbd className="numeric inline-flex h-6 min-w-6 items-center justify-center rounded border border-[var(--border-strong)] bg-[var(--surface)] px-1.5 text-xs text-[var(--text-muted)]">
       {children}
     </kbd>
   );

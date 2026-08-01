@@ -7,16 +7,16 @@ import { cn } from '@/lib/utils';
 import type { VariantProps } from 'class-variance-authority';
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-[var(--radius)] text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
+  'hit-target inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-[var(--radius)] text-sm font-medium transition-colors duration-[var(--duration-fast)] ease-[var(--ease-out)] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
   {
     variants: {
       variant: {
         default:
           'bg-[var(--primary)] text-[var(--primary-foreground)] hover:bg-[var(--color-accent-hover)]',
         destructive:
-          'bg-[var(--destructive)] text-[var(--destructive-foreground)] hover:bg-[var(--destructive)]/90',
+          'bg-[var(--destructive)] text-[var(--destructive-foreground)] hover:bg-[var(--color-danger-hover)] focus-visible:outline-[var(--destructive)]',
         outline:
-          'border border-[var(--input)] bg-[var(--background)] hover:bg-[var(--accent-ui)] hover:text-[var(--accent-ui-foreground)]',
+          'border border-[var(--border-strong)] bg-[var(--background)] hover:bg-[var(--accent-ui)] hover:text-[var(--accent-ui-foreground)]',
         secondary:
           'bg-[var(--secondary)] text-[var(--secondary-foreground)] hover:bg-[var(--secondary)]/80',
         ghost: 'hover:bg-[var(--accent-ui)] hover:text-[var(--accent-ui-foreground)]',

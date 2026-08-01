@@ -77,10 +77,13 @@ interface AgendaTaskItemProps {
   onClick?: (task: Task) => void;
 }
 
+// Same mapping the task panel uses — a high-priority task should not be red
+// in one list and a different red in another, nor low-priority blue here and
+// green there.
 const PRIORITY_COLORS: Record<string, string> = {
-  high: 'text-red-500',
-  medium: 'text-amber-500',
-  low: 'text-blue-500',
+  high: 'text-[var(--color-danger)]',
+  medium: 'text-[var(--color-warning)]',
+  low: 'text-[var(--color-success)]',
   none: 'text-[var(--muted-foreground)]',
 };
 

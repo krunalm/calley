@@ -20,7 +20,7 @@ function Toaster({ ...props }: ToasterProps) {
       toastOptions={{
         classNames: {
           toast:
-            'group toast group-[.toaster]:bg-[var(--background)] group-[.toaster]:text-[var(--foreground)] group-[.toaster]:border-[var(--border)] group-[.toaster]:shadow-[var(--shadow-lg)]',
+            'group toast group-[.toaster]:bg-[var(--surface)] group-[.toaster]:text-[var(--foreground)] group-[.toaster]:border-[var(--border-strong)] group-[.toaster]:shadow-[var(--shadow-lg)]',
           description: 'group-[.toast]:text-[var(--muted-foreground)]',
           actionButton:
             'group-[.toast]:bg-[var(--primary)] group-[.toast]:text-[var(--primary-foreground)]',

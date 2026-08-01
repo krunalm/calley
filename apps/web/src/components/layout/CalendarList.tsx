@@ -241,7 +241,7 @@ export const CalendarList = memo(function CalendarList({
                       <>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
-                          className="text-[var(--color-danger,#c0392b)]"
+                          className="text-[var(--color-danger)]"
                           onClick={() => handleRequestDelete(cat)}
                         >
                           <Trash2 className="mr-2 h-3.5 w-3.5" />
@@ -308,7 +308,7 @@ export const CalendarList = memo(function CalendarList({
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent className="sm:max-w-[380px]">
           <DialogHeader>
-            <DialogTitle>Delete Calendar</DialogTitle>
+            <DialogTitle>Delete calendar</DialogTitle>
             <DialogDescription>
               Are you sure you want to delete &ldquo;{categoryToDelete?.name}&rdquo;? All events and
               tasks in this calendar will be moved to your default calendar.
@@ -318,8 +318,12 @@ export const CalendarList = memo(function CalendarList({
             <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleConfirmDelete}>
-              Delete
+            <Button
+              variant="destructive"
+              onClick={handleConfirmDelete}
+              disabled={!categoryToDelete}
+            >
+              Delete calendar
             </Button>
           </DialogFooter>
         </DialogContent>

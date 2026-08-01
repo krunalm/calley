@@ -19,7 +19,7 @@ export function Topbar() {
       <Button
         variant="ghost"
         size="icon"
-        className="h-8 w-8 lg:hidden"
+        className="hit-target h-8 w-8 lg:hidden"
         onClick={toggleSidebar}
         aria-label="Toggle sidebar"
       >
@@ -29,14 +29,14 @@ export function Topbar() {
       <Button
         variant="ghost"
         size="icon"
-        className="hidden h-8 w-8 lg:flex"
+        className="hit-target hidden h-8 w-8 lg:flex"
         onClick={toggleSidebar}
         aria-label="Toggle sidebar"
       >
         <Menu className="h-5 w-5" />
       </Button>
 
-      <span className="hidden font-display text-xl font-semibold text-[var(--primary)] sm:inline select-none">
+      <span className="hidden select-none font-display text-xl text-[var(--primary)] sm:inline">
         Calley
       </span>
 
@@ -51,7 +51,7 @@ export function Topbar() {
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8"
+          className="hit-target h-8 w-8"
           onClick={toggleSearch}
           aria-label="Search (Cmd+K)"
         >
@@ -63,7 +63,7 @@ export function Topbar() {
         <Button
           variant="ghost"
           size="icon"
-          className="hidden h-8 w-8 sm:flex"
+          className="hit-target hidden h-8 w-8 sm:flex"
           onClick={toggleTaskPanel}
           aria-label="Toggle task panel"
           data-active={isTaskPanelOpen || undefined}

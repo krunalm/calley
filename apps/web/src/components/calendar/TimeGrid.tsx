@@ -1,5 +1,5 @@
 import { useDroppable } from '@dnd-kit/core';
-import { format, getHours, getMinutes } from 'date-fns';
+import { format } from 'date-fns';
 import { formatInTimeZone } from 'date-fns-tz';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -49,13 +49,9 @@ export const TimeGrid = memo(function TimeGrid({
   // Auto-scroll to current time on mount
   useEffect(() => {
     if (!scrollRef.current) return;
-    const now = new Date();
-    const hours = getHours(now);
-    const minutes = getMinutes(now);
-    const minutesSinceMidnight = hours * 60 + minutes;
-    const scrollTarget = (minutesSinceMidnight / (24 * 60)) * GRID_HEIGHT - 200;
+    const scrollTarget = getCurrentTimePosition(new Date(), userTimezone) - 200;
     scrollRef.current.scrollTop = Math.max(0, scrollTarget);
-  }, []);
+  }, [userTimezone]);
 
   return (
     <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden">
@@ -78,7 +74,7 @@ export const TimeGrid = memo(function TimeGrid({
           ))}
 
           {/* Current time indicator */}
-          <CurrentTimeIndicator />
+          <CurrentTimeIndicator userTimezone={userTimezone} />
         </div>
       </div>
     </div>
@@ -101,7 +97,7 @@ const TimeGutter = memo(function TimeGutter({ userTimezone }: { userTimezone: st
           style={{ height: SLOT_HEIGHT * 2 }}
         >
           {hour > 0 && (
-            <span className="absolute -top-2.5 right-2 text-[10px] text-[var(--muted-foreground)]">
+            <span className="numeric absolute -top-2.5 right-2 text-[10px] text-[var(--muted-foreground)]">
               {formatHourLabel(hour, userTimezone, now)}
             </span>
           )}
@@ -230,15 +226,41 @@ function TimeSlot({ date, hour, isHalfHour }: { date: Date; hour: number; isHalf
 
 // ─── Current Time Indicator ───────────────────────────────────────────
 
-function CurrentTimeIndicator() {
-  const [position, setPosition] = useState(() => getCurrentTimePosition());
+/**
+ * The now-line.
+ *
+ * This is the one element in the app that gets to be loud, and the accent
+ * is reserved for it and for primary actions. A calendar is read against
+ * the present moment, so the present moment is anchored by a live clock
+ * set in the numeric face, sitting in the hour gutter where the rest of
+ * the day's figures live.
+ *
+ * Label and position share one `Date` and one timezone — the user's, the
+ * same basis the hour gutter and the event blocks use — so the chip cannot
+ * disagree with the line it labels, and neither can drift from the grid.
+ */
+function CurrentTimeIndicator({ userTimezone }: { userTimezone: string }) {
+  const [now, setNow] = useState(() => new Date());
 
+  // Tick on the minute boundary, not on whatever second we happened to mount.
+  // A plain 60s interval started at :50 would leave a minute-resolution clock
+  // showing the previous minute for 50 of every 60 seconds.
   useEffect(() => {
-    const interval = setInterval(() => {
-      setPosition(getCurrentTimePosition());
-    }, 60_000);
-    return () => clearInterval(interval);
+    let interval: ReturnType<typeof setInterval> | undefined;
+    const timeout = setTimeout(
+      () => {
+        setNow(new Date());
+        interval = setInterval(() => setNow(new Date()), 60_000);
+      },
+      60_000 - (Date.now() % 60_000),
+    );
+    return () => {
+      clearTimeout(timeout);
+      if (interval) clearInterval(interval);
+    };
   }, []);
+
+  const position = getCurrentTimePosition(now, userTimezone);
 
   if (position < 0) return null;
 
@@ -249,17 +271,17 @@ function CurrentTimeIndicator() {
       aria-hidden="true"
     >
       <div className="relative flex items-center">
-        <div className="h-2.5 w-2.5 shrink-0 rounded-full bg-red-500" />
-        <div className="h-[2px] flex-1 bg-red-500" />
+        <span className="numeric absolute right-full mr-1 rounded-[var(--radius-sm)] bg-[var(--color-accent)] px-1 py-px text-[10px] leading-none text-[var(--primary-foreground)] shadow-[var(--shadow-sm)]">
+          {formatInTimeZone(now, userTimezone, 'h:mm a')}
+        </span>
+        <div className="h-[2px] flex-1 bg-[var(--color-accent)]" />
       </div>
     </div>
   );
 }
 
-function getCurrentTimePosition(): number {
-  const now = new Date();
-  const hours = getHours(now);
-  const minutes = getMinutes(now);
+function getCurrentTimePosition(now: Date, timezone: string): number {
+  const [hours, minutes] = formatInTimeZone(now, timezone, 'HH:mm').split(':').map(Number);
   const minutesSinceMidnight = hours * 60 + minutes;
   return (minutesSinceMidnight / (24 * 60)) * GRID_HEIGHT;
 }

@@ -61,10 +61,12 @@ export function SignupForm() {
           type="text"
           placeholder="Your name"
           autoComplete="name"
+          aria-invalid={errors.name ? true : undefined}
+          aria-describedby={errors.name ? 'name-error' : undefined}
           {...register('name')}
         />
         {errors.name && (
-          <p className="text-sm text-[var(--color-danger)]" role="alert">
+          <p id="name-error" className="field-error text-sm" role="alert">
             {errors.name.message}
           </p>
         )}
@@ -77,10 +79,12 @@ export function SignupForm() {
           type="email"
           placeholder="you@example.com"
           autoComplete="email"
+          aria-invalid={errors.email ? true : undefined}
+          aria-describedby={errors.email ? 'email-error' : undefined}
           {...register('email')}
         />
         {errors.email && (
-          <p className="text-sm text-[var(--color-danger)]" role="alert">
+          <p id="email-error" className="field-error text-sm" role="alert">
             {errors.email.message}
           </p>
         )}
@@ -93,6 +97,8 @@ export function SignupForm() {
           type="password"
           placeholder="Create a password"
           autoComplete="new-password"
+          aria-invalid={errors.password ? true : undefined}
+          aria-describedby={errors.password ? 'password-error' : undefined}
           {...register('password', {
             onChange: (e) => setPasswordValue(e.target.value),
           })}
@@ -103,14 +109,14 @@ export function SignupForm() {
           </Suspense>
         )}
         {errors.password && (
-          <p className="text-sm text-[var(--color-danger)]" role="alert">
+          <p id="password-error" className="field-error text-sm" role="alert">
             {errors.password.message}
           </p>
         )}
       </div>
 
       {errors.root && (
-        <p className="text-sm text-[var(--color-danger)]" role="alert">
+        <p id="root-error" className="field-error text-sm" role="alert">
           {errors.root.message}
         </p>
       )}

@@ -48,7 +48,7 @@ export function ForgotPasswordForm() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
           </svg>
         </div>
-        <h3 className="text-lg font-medium">Check your email</h3>
+        <h2 className="text-lg font-medium">Check your email</h2>
         <p className="text-sm text-[var(--muted-foreground)]">
           If an account exists with that email, we&apos;ve sent a password reset link.
         </p>
@@ -76,17 +76,19 @@ export function ForgotPasswordForm() {
           type="email"
           placeholder="you@example.com"
           autoComplete="email"
+          aria-invalid={errors.email ? true : undefined}
+          aria-describedby={errors.email ? 'email-error' : undefined}
           {...register('email')}
         />
         {errors.email && (
-          <p className="text-sm text-[var(--color-danger)]" role="alert">
+          <p id="email-error" className="field-error text-sm" role="alert">
             {errors.email.message}
           </p>
         )}
       </div>
 
       {errors.root && (
-        <p className="text-sm text-[var(--color-danger)]" role="alert">
+        <p id="root-error" className="field-error text-sm" role="alert">
           {errors.root.message}
         </p>
       )}

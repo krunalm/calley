@@ -2,6 +2,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { WifiOff } from 'lucide-react';
 
 import { useOnlineStatus } from '@/hooks/use-online-status';
+import { DURATION_BASE } from '@/lib/motion';
 
 /**
  * Banner displayed at the top of the app when the browser goes offline.
@@ -18,16 +19,17 @@ export function OfflineBanner() {
     <AnimatePresence>
       {!isOnline && (
         <motion.div
-          className="flex items-center justify-center gap-2 bg-[var(--color-warning,#d4a017)] px-4 py-1.5 text-sm font-medium text-white"
+          className="flex items-center justify-center gap-2 bg-[var(--color-warning)] px-4 py-1.5 text-sm font-medium text-[var(--color-warning-foreground)]"
           role="alert"
           aria-live="assertive"
           initial={prefersReducedMotion ? false : { height: 0, opacity: 0 }}
           animate={{ height: 'auto', opacity: 1 }}
           exit={prefersReducedMotion ? undefined : { height: 0, opacity: 0 }}
-          transition={{ duration: 0.2 }}
+          transition={{ duration: DURATION_BASE }}
         >
-          <WifiOff className="h-4 w-4" />
-          You are offline. Changes will sync when you reconnect.
+          <WifiOff className="h-4 w-4 shrink-0" />
+          No connection. You can keep reading your calendar, but changes won’t save until you’re
+          back online.
         </motion.div>
       )}
     </AnimatePresence>

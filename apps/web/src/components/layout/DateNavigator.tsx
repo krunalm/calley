@@ -36,21 +36,21 @@ export function DateNavigator() {
       <Button
         variant="ghost"
         size="icon"
-        className="h-8 w-8"
+        className="hit-target h-8 w-8"
         onClick={() => navigate('prev')}
         aria-label="Previous"
       >
         <ChevronLeft className="h-4 w-4" />
       </Button>
 
-      <h2 className="min-w-[120px] text-center font-display text-lg font-medium select-none sm:min-w-[160px]">
+      <h2 className="tabular min-w-[120px] select-none text-center font-display text-xl sm:min-w-[160px]">
         {getTitle()}
       </h2>
 
       <Button
         variant="ghost"
         size="icon"
-        className="h-8 w-8"
+        className="hit-target h-8 w-8"
         onClick={() => navigate('next')}
         aria-label="Next"
       >
@@ -60,7 +60,7 @@ export function DateNavigator() {
       <Button
         variant="outline"
         size="sm"
-        className="ml-1 hidden h-8 text-xs sm:inline-flex"
+        className="hit-target ml-1 hidden h-8 text-xs sm:inline-flex"
         onClick={() => navigate('today')}
       >
         Today

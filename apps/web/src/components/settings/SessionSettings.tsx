@@ -78,11 +78,11 @@ const SessionItem = memo(function SessionItem({ session, onRevoke, isRevoking }:
   const lastActive = formatDistanceToNow(new Date(session.lastActiveAt), { addSuffix: true });
 
   return (
-    <div className="flex items-center justify-between rounded-[var(--radius)] border border-[var(--border)] px-4 py-3">
-      <div className="flex items-center gap-3">
+    <div className="flex items-center justify-between gap-3 rounded-[var(--radius)] border border-[var(--border)] px-4 py-3">
+      <div className="flex min-w-0 items-center gap-3">
         <DeviceIcon device={device} />
-        <div>
-          <p className="text-sm font-medium">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium" title={`${browser} on ${os}`}>
             {browser} on {os}
             {session.isCurrent && (
               <span className="ml-2 rounded-full bg-[var(--primary)] px-2 py-0.5 text-xs text-[var(--primary-foreground)]">
@@ -99,7 +99,7 @@ const SessionItem = memo(function SessionItem({ session, onRevoke, isRevoking }:
           size="sm"
           onClick={() => onRevoke(session.id)}
           disabled={isRevoking}
-          className="text-[var(--color-danger)]"
+          className="shrink-0 text-[var(--color-danger)]"
         >
           <LogOut className="mr-1 h-3.5 w-3.5" />
           Revoke

@@ -171,21 +171,45 @@ export function startCleanupWorker(): Worker {
 
 // ─── Schedule ──────────────────────────────────────────────────────
 
+const CLEANUP_SCHEDULER_ID = 'daily-cleanup';
+
 /**
- * Register the cleanup job as a BullMQ repeatable cron job.
+ * Register the cleanup job as a BullMQ job scheduler.
  * Runs daily at 3:00 AM UTC.
+ *
+ * BullMQ 6 dropped the `repeat` option on `Queue.add` — repeating work is
+ * declared via `upsertJobScheduler`, which is idempotent across restarts.
  */
 export async function scheduleCleanupJob(): Promise<void> {
-  await cleanupQueue.add(
-    'daily-cleanup',
-    {},
-    {
-      repeat: {
-        pattern: '0 3 * * *',
-        tz: 'UTC',
-      },
-    },
+  await cleanupQueue.upsertJobScheduler(
+    CLEANUP_SCHEDULER_ID,
+    { pattern: '0 3 * * *', tz: 'UTC' },
+    { name: CLEANUP_SCHEDULER_ID },
   );
 
+  await removeStaleCleanupSchedulers();
+
   logger.info('Scheduled daily cleanup job at 3:00 AM UTC');
+}
+
+/**
+ * Drop any cleanup scheduler other than the current one.
+ *
+ * Repeatables registered by BullMQ 5 carry a generated key, so an upgraded
+ * deployment would otherwise keep firing the old schedule alongside the new
+ * one. Failures here are non-critical — the current schedule is already set.
+ */
+async function removeStaleCleanupSchedulers(): Promise<void> {
+  try {
+    const schedulers = await cleanupQueue.getJobSchedulers();
+
+    for (const scheduler of schedulers) {
+      if (scheduler.key === CLEANUP_SCHEDULER_ID) continue;
+
+      await cleanupQueue.removeJobScheduler(scheduler.key);
+      logger.info({ schedulerKey: scheduler.key }, 'Removed stale cleanup scheduler');
+    }
+  } catch (err) {
+    logger.warn({ err }, 'Failed to prune stale cleanup schedulers');
+  }
 }

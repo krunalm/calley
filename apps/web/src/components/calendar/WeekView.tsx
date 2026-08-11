@@ -82,17 +82,10 @@ export function WeekView() {
       <WeekHeader days={days} />
 
       {/* All-day events row */}
-      <AllDayRow
-        days={days}
-        allDayEventsByDate={allDayEventsByDate}
-        categories={categoryMap}
-      />
+      <AllDayRow days={days} allDayEventsByDate={allDayEventsByDate} categories={categoryMap} />
 
       {/* Time grid */}
-      <TimeGrid
-        columns={columns}
-        categories={categoryMap}
-      />
+      <TimeGrid columns={columns} categories={categoryMap} />
     </div>
   );
 }
@@ -156,7 +149,10 @@ function WeekViewSkeleton() {
       <div className="flex shrink-0 border-b border-[var(--border)]">
         <div className="w-14 shrink-0 border-r border-[var(--border)]" />
         {Array.from({ length: 7 }).map((_, i) => (
-          <div key={i} className="flex flex-1 flex-col items-center border-r border-[var(--border)] py-2">
+          <div
+            key={i}
+            className="flex flex-1 flex-col items-center border-r border-[var(--border)] py-2"
+          >
             <div className="h-3 w-6 animate-pulse rounded bg-[var(--muted)]" />
             <div className="mt-1 h-8 w-8 animate-pulse rounded-full bg-[var(--muted)]" />
           </div>

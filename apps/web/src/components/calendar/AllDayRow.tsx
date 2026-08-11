@@ -21,10 +21,7 @@ export const AllDayRow = memo(function AllDayRow({
   onEventClick,
 }: AllDayRowProps) {
   // Check if there are any all-day events at all
-  const hasAllDayEvents = useMemo(
-    () => allDayEventsByDate.size > 0,
-    [allDayEventsByDate],
-  );
+  const hasAllDayEvents = useMemo(() => allDayEventsByDate.size > 0, [allDayEventsByDate]);
 
   if (!hasAllDayEvents) return null;
 

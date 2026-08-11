@@ -10,7 +10,18 @@ import { defineConfig } from 'vite';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
-  plugins: [TanStackRouterVite({ routesDirectory: './src/routes' }), react(), tailwindcss()],
+  plugins: [
+    // `semicolons` / `quoteStyle` keep the generated route tree byte-identical to
+    // what Prettier (semi: true, singleQuote: true) produces, so a build never
+    // leaves `routeTree.gen.ts` dirty and lint-staged never reformats it back.
+    TanStackRouterVite({
+      routesDirectory: './src/routes',
+      semicolons: true,
+      quoteStyle: 'single',
+    }),
+    react(),
+    tailwindcss(),
+  ],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

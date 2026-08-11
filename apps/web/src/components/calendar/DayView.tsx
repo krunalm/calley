@@ -69,15 +69,11 @@ export function DayView() {
         {/* Empty cell for time gutter alignment */}
         <div className="w-14 shrink-0 border-r border-[var(--border)]" />
 
-        <div
-          className="flex flex-1 items-center gap-3 px-4 py-3"
-          role="columnheader"
-        >
+        <div className="flex flex-1 items-center gap-3 px-4 py-3" role="columnheader">
           <div
             className={cn(
               'flex h-12 w-12 items-center justify-center rounded-full text-xl font-semibold',
-              today &&
-                'bg-[var(--primary)] text-[var(--primary-foreground)]',
+              today && 'bg-[var(--primary)] text-[var(--primary-foreground)]',
             )}
             aria-current={today ? 'date' : undefined}
           >
@@ -100,17 +96,10 @@ export function DayView() {
       </div>
 
       {/* All-day events row */}
-      <AllDayRow
-        days={days}
-        allDayEventsByDate={allDayEventsByDate}
-        categories={categoryMap}
-      />
+      <AllDayRow days={days} allDayEventsByDate={allDayEventsByDate} categories={categoryMap} />
 
       {/* Time grid — single column gets full width for detailed event blocks */}
-      <TimeGrid
-        columns={columns}
-        categories={categoryMap}
-      />
+      <TimeGrid columns={columns} categories={categoryMap} />
     </div>
   );
 }

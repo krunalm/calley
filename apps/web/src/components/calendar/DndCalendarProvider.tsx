@@ -90,8 +90,7 @@ export function DndCalendarProvider({ children }: DndCalendarProviderProps) {
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
     const data = event.active.data.current as
-      | { event?: Event; task?: Task; type: string }
-      | undefined;
+      { event?: Event; task?: Task; type: string } | undefined;
     if (data?.type === 'task-to-calendar' && data.task) {
       setActiveTask(data.task);
     } else if (data?.event) {
@@ -105,11 +104,9 @@ export function DndCalendarProvider({ children }: DndCalendarProviderProps) {
       setActiveTask(null);
 
       const activeData = event.active.data.current as
-        | { event?: Event; task?: Task; type: string }
-        | undefined;
+        { event?: Event; task?: Task; type: string } | undefined;
       const overData = event.over?.data.current as
-        | { date: Date; hour?: number; minutes?: number; type: 'time-slot' | 'day-cell' }
-        | undefined;
+        { date: Date; hour?: number; minutes?: number; type: 'time-slot' | 'day-cell' } | undefined;
 
       if (!activeData || !overData) return;
 

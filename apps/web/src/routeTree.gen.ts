@@ -70,22 +70,31 @@ const AppSettingsCalendarsRoute = AppSettingsCalendarsRouteImport.update({
   id: '/settings/calendars',
   path: '/settings/calendars',
   getParentRoute: () => AppRoute,
-} as any).lazy(() => import('./routes/_app/settings/calendars.lazy').then((d) => d.Route));
-const AppSettingsNotificationsRoute = AppSettingsNotificationsRouteImport.update({
-  id: '/settings/notifications',
-  path: '/settings/notifications',
-  getParentRoute: () => AppRoute,
-} as any).lazy(() => import('./routes/_app/settings/notifications.lazy').then((d) => d.Route));
+} as any).lazy(() =>
+  import('./routes/_app/settings/calendars.lazy').then((d) => d.Route),
+);
+const AppSettingsNotificationsRoute =
+  AppSettingsNotificationsRouteImport.update({
+    id: '/settings/notifications',
+    path: '/settings/notifications',
+    getParentRoute: () => AppRoute,
+  } as any).lazy(() =>
+    import('./routes/_app/settings/notifications.lazy').then((d) => d.Route),
+  );
 const AppSettingsProfileRoute = AppSettingsProfileRouteImport.update({
   id: '/settings/profile',
   path: '/settings/profile',
   getParentRoute: () => AppRoute,
-} as any).lazy(() => import('./routes/_app/settings/profile.lazy').then((d) => d.Route));
+} as any).lazy(() =>
+  import('./routes/_app/settings/profile.lazy').then((d) => d.Route),
+);
 const AppSettingsSessionsRoute = AppSettingsSessionsRouteImport.update({
   id: '/settings/sessions',
   path: '/settings/sessions',
   getParentRoute: () => AppRoute,
-} as any).lazy(() => import('./routes/_app/settings/sessions.lazy').then((d) => d.Route));
+} as any).lazy(() =>
+  import('./routes/_app/settings/sessions.lazy').then((d) => d.Route),
+);
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute;

@@ -31,5 +31,7 @@ Section 9 of `DESIGN-SYSTEM.md` lists exactly what we're asking for back.
 ## Notes for whoever runs this next
 
 The screenshots are reproducible rather than hand-curated — rerun `tools/` after any UI change and
-the whole set refreshes. Two environment gotchas are documented at the end of
-`SCREEN-INVENTORY.md`; both are worth reading before trying.
+the whole set refreshes. The seed script clears the demo account before re-seeding, and the capture
+script starts from an empty output directory and exits non-zero if any plate is missing, so a run
+either produces the whole set or fails loudly. Three environment notes are documented at the end of
+`SCREEN-INVENTORY.md`; all three are worth reading before trying.

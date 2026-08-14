@@ -9,7 +9,17 @@ import tseslint from 'typescript-eslint';
 export default tseslint.config(
   // Global ignores
   {
-    ignores: ['**/dist/**', '**/node_modules/**', '**/.turbo/**', '**/coverage/**'],
+    ignores: [
+      '**/dist/**',
+      '**/node_modules/**',
+      '**/.turbo/**',
+      '**/coverage/**',
+      // Standalone Node scripts that regenerate the design handoff. They are not
+      // part of any workspace package, so `turbo lint` never reaches them; this
+      // keeps a repo-wide `eslint .` from flagging Node and browser globals that
+      // no config here declares.
+      'design/tools/**',
+    ],
   },
 
   // Base JS recommended rules

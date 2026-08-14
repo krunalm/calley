@@ -81,6 +81,41 @@ function dayOnly(day) {
   return d.toISOString();
 }
 
+/**
+ * Clear every event and task on the demo account before re-seeding.
+ *
+ * Without this, a second run adds a second copy of everything: the calendar
+ * drifts from the 32 events / 14 tasks the inventory documents to 64/28, then
+ * 96/42, and the screenshots stop matching their own captions. Categories are
+ * left alone — `ensureCategory` already reuses them by name.
+ */
+async function resetDemoData() {
+  // Wide enough to cover every seeded date, including recurring parents whose
+  // dtstart sits outside the current week.
+  const from = new Date(Date.UTC(now.getUTCFullYear() - 2, 0, 1)).toISOString();
+  const to = new Date(Date.UTC(now.getUTCFullYear() + 2, 0, 1)).toISOString();
+
+  const events = await api(`/events?start=${from}&end=${to}`);
+  // Expanded recurring instances carry their parent's id, so dedupe before
+  // deleting — and use scope=all so a series goes in one call.
+  const eventIds = [...new Set((events ?? []).map((e) => e.id))];
+  for (const id of eventIds) {
+    await api(`/events/${id}?scope=all`, { method: 'DELETE' });
+  }
+
+  const tasks = await api('/tasks');
+  const taskIds = [...new Set((tasks ?? []).map((t) => t.id))];
+  for (const id of taskIds) {
+    await api(`/tasks/${id}?scope=all`, { method: 'DELETE' });
+  }
+
+  if (eventIds.length || taskIds.length) {
+    console.log(`reset: deleted ${eventIds.length} events, ${taskIds.length} tasks`);
+  } else {
+    console.log('reset: account was already empty');
+  }
+}
+
 async function main() {
   // ── Account ──
   try {
@@ -101,6 +136,8 @@ async function main() {
 
   const me = await api('/auth/me');
   console.log('me:', me.email ?? JSON.stringify(me).slice(0, 120));
+
+  await resetDemoData();
 
   // ── Categories ──
   const existing = await api('/categories');

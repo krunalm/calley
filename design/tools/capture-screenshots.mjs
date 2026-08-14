@@ -2,8 +2,9 @@
  * Capture screenshots of every meaningful Calley UI surface against the
  * real app (real API, real seeded data) for the design-agency handoff.
  */
+import { mkdir, readdir, unlink } from 'node:fs/promises';
+
 import { chromium, devices } from '@playwright/test';
-import { mkdir } from 'node:fs/promises';
 
 const BASE = 'http://localhost:5173';
 const OUT = process.env.SHOT_DIR ?? new URL('../screenshots/', import.meta.url).pathname;
@@ -14,6 +15,52 @@ const PASSWORD = 'designreview2026';
 const DESKTOP = { width: 1440, height: 900 };
 const MOBILE = devices['iPhone 12'];
 
+/**
+ * Every plate this run is expected to produce. The set is the contract with
+ * design/SCREEN-INVENTORY.md: if a selector moves or the seed is missing, the
+ * run must fail rather than quietly hand over a short or mixed-age set.
+ */
+const EXPECTED = [
+  '01-auth-login',
+  '02-auth-login-validation-errors',
+  '03-auth-signup',
+  '04-auth-signup-password-strength',
+  '05-auth-forgot-password',
+  '06-auth-reset-password',
+  '10-calendar-month-view',
+  '11-calendar-week-view',
+  '12-calendar-day-view',
+  '13-calendar-agenda-view',
+  '14-task-panel-open',
+  '15-week-view-with-task-panel',
+  '16-task-drawer-edit',
+  '17-event-detail-popover',
+  '18-event-drawer-create',
+  '18b-event-drawer-create-filled',
+  '18c-event-drawer-scrolled-footer',
+  '19-recurrence-builder-modal',
+  '20-search-modal',
+  '21-keyboard-shortcuts-help',
+  '22-user-menu',
+  '23-sidebar-collapsed',
+  '24-quick-create-popover',
+  '25-month-more-link-opens-day-view',
+  '26-task-filter-menu',
+  '27-task-panel-showing-done',
+  '30-settings-profile',
+  '31-settings-calendars',
+  '32-settings-notifications',
+  '33-settings-sessions',
+  '40-month-sparse-recurring-only',
+  '41-search-no-results',
+  '50-mobile-login',
+  '51-mobile-month-view',
+  '52-mobile-sidebar-drawer-default-open',
+  '53-mobile-day-view',
+  '54-mobile-agenda-view',
+  '57-mobile-settings-profile',
+];
+
 const shots = [];
 
 async function shoot(page, name, opts = {}) {
@@ -22,6 +69,14 @@ async function shoot(page, name, opts = {}) {
   await page.screenshot({ path: file, fullPage: opts.fullPage ?? false });
   shots.push(name);
   console.log('  ✓', name);
+}
+
+/** Start from an empty directory so a short run can never mix in stale plates. */
+async function clearOutput() {
+  await mkdir(OUT, { recursive: true });
+  for (const f of await readdir(OUT)) {
+    if (f.endsWith('.png')) await unlink(`${OUT}/${f}`);
+  }
 }
 
 /**
@@ -61,14 +116,15 @@ async function login(page) {
 }
 
 async function main() {
-  await mkdir(OUT, { recursive: true });
+  await clearOutput();
 
-  // The sandbox exports HTTPS_PROXY; without bypassing it Chromium MITMs
-  // localhost and Vite's lazy view chunks fail with ERR_CERT_AUTHORITY_INVALID,
-  // leaving every calendar view stuck on its loading spinner.
+  // If HTTPS_PROXY is set in the environment, Chromium MITMs localhost and
+  // Vite's lazy view chunks fail with ERR_CERT_AUTHORITY_INVALID, leaving every
+  // calendar view stuck on its loading spinner. --no-proxy-server disables the
+  // proxy outright, which is all that's needed here.
   const browser = await chromium.launch({
     ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}),
-    args: ['--no-proxy-server', '--proxy-bypass-list=<-loopback>'],
+    args: ['--no-proxy-server'],
   });
 
   // ─────────────────────────────────────────────────────────────
@@ -403,7 +459,27 @@ async function main() {
   }
 
   await browser.close();
-  console.log(`\nCaptured ${shots.length} screenshots into ${OUT}`);
+
+  // The set is the deliverable — a short run is a failure, not a partial success.
+  const missing = EXPECTED.filter((name) => !shots.includes(name));
+  const unexpected = shots.filter((name) => !EXPECTED.includes(name));
+
+  console.log(`\nCaptured ${shots.length}/${EXPECTED.length} screenshots into ${OUT}`);
+
+  if (unexpected.length) {
+    console.log(`\nNot in the expected set (update EXPECTED and SCREEN-INVENTORY.md):`);
+    for (const name of unexpected) console.log('  ?', name);
+  }
+
+  if (missing.length) {
+    console.error(`\n${missing.length} plate(s) were not captured:`);
+    for (const name of missing) console.error('  ✗', name);
+    console.error(
+      '\nThe output directory is deliberately incomplete rather than mixed-age.\n' +
+        'Fix the selector or the seed data and rerun — do not ship a partial set.',
+    );
+    process.exitCode = 1;
+  }
 }
 
 main().catch((err) => {

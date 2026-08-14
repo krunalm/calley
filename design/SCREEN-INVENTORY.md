@@ -101,9 +101,11 @@ The capture is scripted end to end. From a clean checkout:
 # 1. Infrastructure
 docker compose -f docker/docker-compose.dev.yml up -d     # or a local postgres:16 + redis:7
 
-# 2. Schema
+# 2. Schema and env
 cp apps/api/.env.example apps/api/.env
 cp apps/web/.env.example apps/web/.env
+# The shipped example points at /api/v1, which the API does not serve — see below
+sed -i 's|^VITE_API_URL=.*|VITE_API_URL=http://localhost:4000|' apps/web/.env
 pnpm --filter api exec drizzle-kit push --force
 
 # 3. Dev servers  (the API reads env from the shell, it has no dotenv loader)

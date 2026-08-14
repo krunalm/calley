@@ -66,11 +66,13 @@ Status colours:
 
 Derived tints (defined once, in `:root`, so components stop inventing their own):
 
-```
---accent-soft:        color-mix(in srgb, var(--color-accent) 10%, transparent)
---accent-soft-strong: color-mix(in srgb, var(--color-accent) 18%, transparent)
---danger-soft:        color-mix(in srgb, var(--color-danger) 10%, transparent)
---scrim:              color-mix(in srgb, var(--color-text) 55%, transparent)
+```css
+:root {
+  --accent-soft: color-mix(in srgb, var(--color-accent) 10%, transparent);
+  --accent-soft-strong: color-mix(in srgb, var(--color-accent) 18%, transparent);
+  --danger-soft: color-mix(in srgb, var(--color-danger) 10%, transparent);
+  --scrim: color-mix(in srgb, var(--color-text) 55%, transparent);
+}
 ```
 
 The scrim is mixed from Ink rather than pure black so that dimmed content stays warm.

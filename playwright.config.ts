@@ -17,14 +17,23 @@ import { defineConfig, devices } from '@playwright/test';
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://localhost:5173';
 const API_URL = process.env.E2E_API_URL ?? 'http://localhost:4000';
 
+/**
+ * Optional escape hatch for sandboxes that ship a pre-installed Chromium and
+ * cannot download Playwright's pinned build. Unset in CI, where
+ * `playwright install` provides the matching browser.
+ */
+const chromiumExecutable = process.env.PLAYWRIGHT_CHROMIUM_PATH;
+const launchOverride = chromiumExecutable ? { executablePath: chromiumExecutable } : undefined;
+
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  // The suite is >200 tests; a single worker cannot finish inside the CI budget.
+  workers: process.env.CI ? 4 : undefined,
   reporter: process.env.CI ? [['html'], ['github']] : [['html'], ['list']],
-  globalTimeout: process.env.CI ? 600_000 : undefined, // 10 min max in CI
+  globalTimeout: process.env.CI ? 1_800_000 : undefined, // 30 min max in CI
   timeout: 60_000,
   expect: {
     timeout: 15_000,
@@ -35,18 +44,25 @@ export default defineConfig({
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'on-first-retry',
+    // New accounts default to a UTC profile timezone; pinning the browser to
+    // UTC too keeps rendered date headers deterministic wherever the suite runs.
+    timezoneId: 'UTC',
+    locale: 'en-US',
   },
 
   // ─── Cross-Browser Testing (§9.5) ─────────────────────────────
-  // In CI, only run chromium to keep pipeline fast (<10 min).
+  // In CI, only run chromium to keep pipeline fast.
   // Locally, run all browsers for thorough testing.
   projects: [
     // Desktop browsers
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: {
+        ...devices['Desktop Chrome'],
+        ...(launchOverride ? { launchOptions: launchOverride } : {}),
+      },
     },
-    ...(!process.env.CI
+    ...(!process.env.CI && !chromiumExecutable
       ? [
           {
             name: 'firefox',
@@ -75,13 +91,13 @@ export default defineConfig({
       command: 'pnpm --filter api dev',
       url: API_URL + '/health',
       reuseExistingServer: !process.env.CI,
-      timeout: 60_000,
+      timeout: 120_000,
     },
     {
       command: 'pnpm --filter web dev',
       url: BASE_URL,
       reuseExistingServer: !process.env.CI,
-      timeout: 60_000,
+      timeout: 120_000,
     },
   ],
 });

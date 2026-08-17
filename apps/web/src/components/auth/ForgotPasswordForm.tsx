@@ -64,7 +64,7 @@ export function ForgotPasswordForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
       <p className="text-sm text-[var(--muted-foreground)]">
         Enter your email address and we&apos;ll send you a link to reset your password.
       </p>

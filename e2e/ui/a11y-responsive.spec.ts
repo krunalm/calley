@@ -120,8 +120,10 @@ test.describe('UI — keyboard reachability', () => {
     await authedPage.locator('body').click({ position: { x: 4, y: 4 }, force: true });
     await authedPage.keyboard.press('Tab');
 
-    const active = await authedPage.evaluate(() => document.activeElement?.tagName ?? '');
-    expect(['A', 'BUTTON', 'INPUT']).toContain(active);
+    // Poll rather than snapshot: focus can settle a frame after the keypress.
+    await expect
+      .poll(() => authedPage.evaluate(() => document.activeElement?.tagName ?? ''))
+      .toMatch(/^(A|BUTTON|INPUT)$/);
   });
 
   test('the event drawer traps focus in its form', async ({ authedPage }) => {
@@ -130,10 +132,9 @@ test.describe('UI — keyboard reachability', () => {
     await expect(authedPage.getByLabel(/^title$/i)).toBeFocused();
 
     await authedPage.keyboard.press('Tab');
-    const inDialog = await authedPage.evaluate(
-      () => !!document.activeElement?.closest('[role="dialog"]'),
-    );
-    expect(inDialog).toBe(true);
+    await expect
+      .poll(() => authedPage.evaluate(() => !!document.activeElement?.closest('[role="dialog"]')))
+      .toBe(true);
   });
 
   test('a dialog can be dismissed entirely from the keyboard', async ({ authedPage }) => {
@@ -176,25 +177,43 @@ test.describe('UI — responsive layout', () => {
     expect(box.x).toBe(0);
   });
 
-  test('the backdrop closes the mobile sidebar and the hamburger reopens it', async ({
-    authedPage,
-  }) => {
+  test('the backdrop closes the mobile sidebar', async ({ authedPage }) => {
     await authedPage.setViewportSize({ width: 390, height: 844 });
     await authedPage.reload();
 
     const contents = authedPage.locator('[aria-label="Sidebar"]').getByText('Personal');
     await expect(contents).toBeVisible({ timeout: 20_000 });
 
-    // While the overlay is open the backdrop covers the topbar, so it is the
-    // backdrop — not the hamburger — that dismisses it.
     await authedPage.mouse.click(370, 500);
     await expect(contents).toBeHidden({ timeout: 20_000 });
+  });
 
-    await authedPage
-      .getByRole('button', { name: /toggle sidebar/i })
-      .first()
-      .click();
+  test('the hamburger toggles the mobile sidebar both ways', async ({ authedPage }) => {
+    await authedPage.setViewportSize({ width: 390, height: 844 });
+    await authedPage.reload();
+
+    const contents = authedPage.locator('[aria-label="Sidebar"]').getByText('Personal');
+    const hamburger = authedPage.getByRole('button', { name: /toggle sidebar/i }).first();
     await expect(contents).toBeVisible({ timeout: 20_000 });
+
+    // The backdrop starts below the topbar, so the hamburger stays reachable
+    // while the overlay is open.
+    await hamburger.click();
+    await expect(contents).toBeHidden({ timeout: 20_000 });
+
+    await hamburger.click();
+    await expect(contents).toBeVisible({ timeout: 20_000 });
+  });
+
+  test('the topbar stays usable while the mobile sidebar is open', async ({ authedPage }) => {
+    await authedPage.setViewportSize({ width: 390, height: 844 });
+    await authedPage.reload();
+    await expect(authedPage.locator('[aria-label="Sidebar"]').getByText('Personal')).toBeVisible({
+      timeout: 20_000,
+    });
+
+    await authedPage.getByRole('button', { name: /user menu/i }).click();
+    await expect(authedPage.getByRole('menuitem', { name: /^settings$/i })).toBeVisible();
   });
 
   test('day and agenda views remain available on mobile', async ({ authedPage }) => {

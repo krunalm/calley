@@ -40,13 +40,34 @@ export class ApiError extends Error {
 }
 
 /**
+ * Endpoints where a 401 means "those credentials were wrong", not "your
+ * session expired".
+ *
+ * On these routes the caller renders the error inline on its own form, so the
+ * global session-expiry redirect must stay out of the way — otherwise a
+ * mistyped password bounces the user to /login with a misleading message.
+ */
+const CREDENTIAL_CHECK_PATHS = [
+  '/auth/login',
+  '/auth/signup',
+  '/auth/forgot-password',
+  '/auth/reset-password',
+  '/auth/me/password',
+];
+
+function isCredentialCheck(path: string): boolean {
+  const withoutQuery = path.split('?')[0];
+  return CREDENTIAL_CHECK_PATHS.includes(withoutQuery);
+}
+
+/**
  * API client wrapping fetch with:
  * - Base URL from environment
  * - Credentials: include (for session cookies)
  * - Auto-attach CSRF token header on state-changing requests
  * - Auto-parse JSON responses
  * - Error handling (throw on non-2xx, extract error body)
- * - 401 handling → redirect to login
+ * - 401 handling → redirect to login, except on credential-check endpoints
  * - 429 handling → show rate limit warning toast with Retry-After
  */
 class ApiClient {
@@ -90,7 +111,7 @@ class ApiClient {
       });
     }
 
-    if (res.status === 401) {
+    if (res.status === 401 && !isCredentialCheck(path)) {
       // Session expired mid-session — redirect with informative message
       toast.error('Your session has expired. Please sign in again.');
       window.location.href = '/login';

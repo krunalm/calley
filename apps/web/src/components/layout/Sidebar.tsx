@@ -34,7 +34,9 @@ export function Sidebar({
       <AnimatePresence>
         {isSidebarOpen && (
           <motion.div
-            className="fixed inset-0 z-[var(--z-modal-backdrop)] bg-black/20 lg:hidden"
+            // Starts below the topbar so the hamburger that opened the sidebar
+            // stays clickable and can close it again.
+            className="fixed inset-x-0 bottom-0 top-[60px] z-[var(--z-modal-backdrop)] bg-black/20 lg:hidden"
             onClick={toggleSidebar}
             aria-hidden="true"
             initial={prefersReducedMotion ? false : { opacity: 0 }}

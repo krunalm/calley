@@ -5,6 +5,16 @@ All notable changes to the Calley project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **Login errors**: a wrong password now shows "Invalid email or password" on the form instead of "Your session has expired" followed by a page reload. The global 401 handler no longer intercepts responses from credential-check endpoints.
+- **Change password**: a wrong current password now shows an inline field error instead of signing the user out.
+- **Task descriptions** are sanitized with DOMPurify on create and update, matching event descriptions.
+- **Mobile sidebar**: the overlay backdrop no longer covers the topbar, so the hamburger can close the sidebar it opened.
+- **Auth form validation**: the login, signup, forgot-password and reset-password forms show their own field errors for a malformed email instead of a native browser tooltip.
+
 ## [1.0.0] - 2026-02-17
 
 ### Added

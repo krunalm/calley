@@ -53,21 +53,31 @@ test.describe('API — create task', () => {
     expect(task.description).toBe('Cover Q3 numbers');
   });
 
-  // Note: unlike event descriptions, task descriptions are stored verbatim —
-  // the backend does not run them through DOMPurify. Nothing renders them as
-  // raw HTML today, so this pins the current behaviour rather than asserting
-  // sanitization that does not happen.
-  test('stores the description verbatim, and returns it as JSON text', async ({
-    api,
-    category,
-  }) => {
-    const raw = 'plan<script>evil()</script>';
-    const task = await api.createTask(taskPayload(category.id, { description: raw }));
+  test('strips script tags out of the description', async ({ api, category }) => {
+    const task = await api.createTask(
+      taskPayload(category.id, { description: 'plan<script>evil()</script>' }),
+    );
 
-    expect(task.description).toBe(raw);
+    expect(task.description).not.toContain('<script');
+    expect(task.description).not.toContain('evil(');
+    expect(task.description).toContain('plan');
+  });
 
-    const res = await api.get(`/tasks/${task.id}`);
-    expect(res.headers()['content-type']).toContain('application/json');
+  test('strips inline event handlers out of the description', async ({ api, category }) => {
+    const task = await api.createTask(
+      taskPayload(category.id, { description: '<img src=x onerror="alert(1)">caption' }),
+    );
+
+    expect(task.description).not.toContain('onerror');
+  });
+
+  test('keeps allowed formatting tags in the description', async ({ api, category }) => {
+    const task = await api.createTask(
+      taskPayload(category.id, { description: '<b>bold</b> and <i>italic</i>' }),
+    );
+
+    expect(task.description).toContain('bold');
+    expect(task.description).toContain('italic');
   });
 
   test('rejects an empty title', async ({ api, category }) => {
@@ -331,6 +341,18 @@ test.describe('API — update task', () => {
     };
     expect(after.priority).toBe('high');
     expect(after.description).toBe('Keep me');
+  });
+
+  test('sanitizes HTML on update too', async ({ api, category }) => {
+    const created = await api.createTask(taskPayload(category.id));
+
+    const res = await api.patch(`/tasks/${created.id}`, {
+      description: '<script>steal()</script>ok',
+    });
+    const updated = (await res.json()) as { description: string };
+
+    expect(updated.description).not.toContain('<script');
+    expect(updated.description).toContain('ok');
   });
 
   test('rejects an unknown status', async ({ api, category }) => {

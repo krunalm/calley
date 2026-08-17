@@ -131,13 +131,35 @@ test.describe('UI — profile settings', () => {
     await expect(authedPage.getByLabel(/new password/i)).toBeVisible();
   });
 
-  test('rejects a wrong current password', async ({ authedPage }) => {
+  test('rejects a wrong current password with an inline error', async ({ authedPage }) => {
     await gotoSettings(authedPage);
     await authedPage.getByLabel(/current password/i).fill('WrongPassword1!');
     await authedPage.getByLabel(/new password/i).fill('BrandNewP@ss456!');
     await authedPage.getByRole('button', { name: /change password/i }).click();
 
-    await expect(authedPage.getByLabel(/current password/i)).toBeVisible();
+    // A rejected password is a credential answer, not an expired session:
+    // the user stays on the settings page and sees the error on the field.
+    await expect(authedPage.locator('#currentPassword-error')).toContainText(
+      /current password is incorrect/i,
+      { timeout: 20_000 },
+    );
+    await expect(authedPage).toHaveURL(/\/settings/);
+  });
+
+  test('changes the password with the correct current password', async ({
+    authedPage,
+    credentials,
+  }) => {
+    await gotoSettings(authedPage);
+    await authedPage.getByLabel(/current password/i).fill(credentials.password);
+    await authedPage.getByLabel(/new password/i).fill('BrandNewP@ss456!');
+    await authedPage.getByRole('button', { name: /change password/i }).click();
+
+    // The form resets on success and the user is not bounced to login.
+    await expect(authedPage.getByLabel(/current password/i)).toHaveValue('', {
+      timeout: 20_000,
+    });
+    await expect(authedPage).toHaveURL(/\/settings/);
   });
 
   test('rejects a too-short new password', async ({ authedPage, credentials }) => {

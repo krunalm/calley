@@ -20,15 +20,12 @@ test.describe('UI — login page', () => {
     await expect(page.getByRole('button', { name: /sign in/i })).toBeVisible();
   });
 
-  test('blocks submission of a malformed email', async ({ page }) => {
-    const email = page.getByLabel(/email/i);
-    await email.fill('not-an-email');
+  test('shows a validation error for a malformed email', async ({ page }) => {
+    await page.getByLabel(/email/i).fill('not-an-email');
     await page.getByLabel(/password/i).fill('somepassword');
     await page.getByRole('button', { name: /sign in/i }).click();
 
-    // The field is type="email", so the browser's constraint validation
-    // stops the submit before the form handler ever runs.
-    expect(await email.evaluate((el: HTMLInputElement) => el.checkValidity())).toBe(false);
+    await expect(page.locator('#email-error')).toContainText(/invalid email/i);
     await expect(page).toHaveURL(/\/login/);
   });
 
@@ -55,9 +52,11 @@ test.describe('UI — login page', () => {
     await page.getByLabel(/password/i).fill('TotallyWrong123!');
     await page.getByRole('button', { name: /sign in/i }).click();
 
-    // A rejected login never reaches the app shell — the user is left on the
-    // login page with no session.
-    await expect(page.getByRole('button', { name: /sign in/i })).toBeVisible({ timeout: 20_000 });
+    // The error is rendered inline on the form — a rejected login is a
+    // credential answer, not an expired session, so there is no redirect.
+    await expect(page.locator('#root-error')).toContainText(/invalid email or password/i, {
+      timeout: 20_000,
+    });
     await expect(page).toHaveURL(/\/login/);
     await expect(page.getByRole('button', { name: /user menu/i })).toHaveCount(0);
   });
@@ -113,14 +112,13 @@ test.describe('UI — signup page', () => {
     await expect(page.locator('#password-error')).toBeVisible();
   });
 
-  test('blocks submission of a malformed email', async ({ page }) => {
-    const email = page.getByLabel(/email/i);
+  test('shows a validation error for a malformed email', async ({ page }) => {
     await page.getByLabel(/name/i).fill('Someone');
-    await email.fill('nope');
+    await page.getByLabel(/email/i).fill('nope');
     await page.getByLabel(/^password$/i).fill('LongEnough123!');
     await page.getByRole('button', { name: /sign up|create account/i }).click();
 
-    expect(await email.evaluate((el: HTMLInputElement) => el.checkValidity())).toBe(false);
+    await expect(page.locator('#email-error')).toContainText(/invalid email/i);
     await expect(page).toHaveURL(/\/signup/);
   });
 
@@ -167,16 +165,15 @@ test.describe('UI — forgot password', () => {
     await expect(page.getByLabel(/email/i)).toBeVisible();
   });
 
-  test('blocks submission of a malformed email', async ({ page }) => {
+  test('shows a validation error for a malformed email', async ({ page }) => {
     await page.goto('/forgot-password');
-    const email = page.getByLabel(/email/i);
-    await email.fill('nope');
+    await page.getByLabel(/email/i).fill('nope');
     await page
       .getByRole('button', { name: /send|reset/i })
       .first()
       .click();
 
-    expect(await email.evaluate((el: HTMLInputElement) => el.checkValidity())).toBe(false);
+    await expect(page.locator('#email-error')).toContainText(/invalid email/i);
     await expect(page.getByText(/if that email is registered/i)).toHaveCount(0);
   });
 

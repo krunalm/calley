@@ -130,7 +130,9 @@ export class TaskService {
         break;
       }
       case 'created_at':
-        orderBy = [desc(tasks.createdAt)];
+        // `id` breaks ties: two tasks created in the same tick would otherwise
+        // come back in an undefined order.
+        orderBy = [desc(tasks.createdAt), desc(tasks.id)];
         break;
       case 'sort_order':
       default:

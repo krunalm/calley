@@ -27,6 +27,21 @@ async function openTaskDrawer(page: Page) {
   return drawer;
 }
 
+/**
+ * Open an existing task for editing, waiting for the stored title to land in
+ * the form. The drawer mounts before its prefill resolves, so filling too
+ * early appends to an empty field and then gets the stored value written in
+ * front of it.
+ */
+async function openTaskForEdit(page: Page, title: string) {
+  await page.getByRole('button', { name: `Edit task: ${title}` }).click();
+
+  const drawer = page.getByRole('dialog').first();
+  await expect(drawer).toBeVisible();
+  await expect(page.getByLabel(/^title$/i)).toHaveValue(title, { timeout: 20_000 });
+  return drawer;
+}
+
 async function createTaskViaDrawer(page: Page, title: string) {
   const drawer = await openTaskDrawer(page);
   await page.getByLabel(/^title$/i).fill(title);
@@ -179,8 +194,8 @@ test.describe('UI — task drawer', () => {
     await authedPage.reload();
     await openTaskPanel(authedPage);
 
-    await authedPage.getByRole('button', { name: /edit task: editable task/i }).click();
-    await expect(authedPage.getByRole('dialog').first().getByText('Edit Task')).toBeVisible();
+    const drawer = await openTaskForEdit(authedPage, 'Editable task');
+    await expect(drawer.getByText('Edit Task')).toBeVisible();
   });
 
   test('prefills the drawer when editing', async ({ authedPage, api, category }) => {
@@ -188,7 +203,7 @@ test.describe('UI — task drawer', () => {
     await authedPage.reload();
     await openTaskPanel(authedPage);
 
-    await authedPage.getByRole('button', { name: /edit task: prefilled task/i }).click();
+    await openTaskForEdit(authedPage, 'Prefilled task');
     await expect(authedPage.getByLabel(/^title$/i)).toHaveValue('Prefilled task');
   });
 
@@ -197,7 +212,7 @@ test.describe('UI — task drawer', () => {
     await authedPage.reload();
     await openTaskPanel(authedPage);
 
-    await authedPage.getByRole('button', { name: /edit task: old name/i }).click();
+    await openTaskForEdit(authedPage, 'Old name');
     await authedPage.getByLabel(/^title$/i).fill('New name');
     await authedPage.getByRole('button', { name: /^save$/i }).click();
 
@@ -211,7 +226,7 @@ test.describe('UI — task drawer', () => {
     await authedPage.reload();
     await openTaskPanel(authedPage);
 
-    await authedPage.getByRole('button', { name: /edit task: doomed task/i }).click();
+    await openTaskForEdit(authedPage, 'Doomed task');
     await authedPage.getByRole('button', { name: /^delete$/i }).click();
 
     await expect(async () => {

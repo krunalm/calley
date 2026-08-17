@@ -34,7 +34,7 @@ import {
   useUnlinkOAuthAccount,
   useUpdateProfile,
 } from '@/hooks/use-settings';
-import { ApiError } from '@/lib/api-client';
+import { isInvalidCredentials } from '@/lib/api-client';
 
 import type { ChangePasswordInput, UpdateProfileInput } from '@calley/shared';
 
@@ -288,7 +288,7 @@ function ChangePasswordForm() {
       await changePassword.mutateAsync(data);
       reset();
     } catch (err) {
-      if (err instanceof ApiError && err.status === 401) {
+      if (isInvalidCredentials(err)) {
         setError('currentPassword', { message: 'Current password is incorrect' });
       }
     }

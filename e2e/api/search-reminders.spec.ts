@@ -148,9 +148,29 @@ test.describe('API — search', () => {
       });
     }
 
+    // The limit is a combined budget: the service gives each of events and
+    // tasks ceil(limit / 2), so limit=2 caps events at 1 even though 6 match.
     const res = await api.get('/search', { q: token, limit: 2 });
+    expect(res.status()).toBe(200);
+
     const results = (await res.json()) as SearchResults;
-    expect(results.events.length).toBeLessThanOrEqual(1 + 1);
+    expect(results.events).toHaveLength(1);
+  });
+
+  test('returns more results as the limit grows', async ({ api, category }) => {
+    const token = 'grow' + Date.now().toString(36);
+    for (let i = 0; i < 6; i += 1) {
+      await api.createEvent({
+        title: `${token} item ${i}`,
+        startAt: isoPlusHours(ANCHOR, i),
+        endAt: isoPlusHours(ANCHOR, i + 1),
+        categoryId: category.id,
+      });
+    }
+
+    const res = await api.get('/search', { q: token, limit: 8 });
+    const results = (await res.json()) as SearchResults;
+    expect(results.events).toHaveLength(4);
   });
 
   test('rejects a query shorter than two characters', async ({ api }) => {

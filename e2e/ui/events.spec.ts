@@ -20,13 +20,21 @@ async function openEventDrawer(page: Page) {
 /**
  * Open an existing event for editing: clicking a pill opens the detail
  * popover, whose Edit action opens the drawer.
+ *
+ * Waits for the stored title to land in the form. The drawer mounts before
+ * its prefill resolves, so filling too early appends to an empty field and
+ * then gets the stored value written in front of it.
  */
-async function openEventForEdit(page: Page, title: RegExp) {
-  await page.getByRole('button', { name: title }).first().click();
+async function openEventForEdit(page: Page, title: string) {
+  await page
+    .getByRole('button', { name: new RegExp(title, 'i') })
+    .first()
+    .click();
   await page.getByRole('button', { name: /edit event/i }).click();
 
   const drawer = page.getByRole('dialog').first();
   await expect(drawer).toBeVisible();
+  await expect(page.getByLabel(/^title$/i)).toHaveValue(title, { timeout: 20_000 });
   return drawer;
 }
 
@@ -204,7 +212,7 @@ test.describe('UI — create and edit an event', () => {
 
   test('opens an existing event for editing', async ({ authedPage }) => {
     await createEventViaDrawer(authedPage, 'Editable event');
-    const drawer = await openEventForEdit(authedPage, /editable event/i);
+    const drawer = await openEventForEdit(authedPage, 'Editable event');
 
     await expect(drawer.getByText('Edit Event')).toBeVisible();
   });
@@ -228,14 +236,14 @@ test.describe('UI — create and edit an event', () => {
 
   test('prefills the drawer with the stored values', async ({ authedPage }) => {
     await createEventViaDrawer(authedPage, 'Prefilled event');
-    await openEventForEdit(authedPage, /prefilled event/i);
+    await openEventForEdit(authedPage, 'Prefilled event');
 
     await expect(authedPage.getByLabel(/^title$/i)).toHaveValue('Prefilled event');
   });
 
   test('renames an event', async ({ authedPage }) => {
     await createEventViaDrawer(authedPage, 'Before rename');
-    await openEventForEdit(authedPage, /before rename/i);
+    await openEventForEdit(authedPage, 'Before rename');
 
     await authedPage.getByLabel(/^title$/i).fill('After rename');
     await authedPage.getByRole('button', { name: /^save$/i }).click();
@@ -247,7 +255,7 @@ test.describe('UI — create and edit an event', () => {
 
   test('the rename is persisted server-side', async ({ authedPage, api }) => {
     await createEventViaDrawer(authedPage, 'Rename me');
-    await openEventForEdit(authedPage, /rename me/i);
+    await openEventForEdit(authedPage, 'Rename me');
     await authedPage.getByLabel(/^title$/i).fill('Renamed properly');
     await authedPage.getByRole('button', { name: /^save$/i }).click();
     await expect(authedPage.getByRole('dialog').first()).toBeHidden({ timeout: 20_000 });
@@ -261,14 +269,14 @@ test.describe('UI — create and edit an event', () => {
 
   test('the edit drawer offers a delete action', async ({ authedPage }) => {
     await createEventViaDrawer(authedPage, 'Deletable event');
-    await openEventForEdit(authedPage, /deletable event/i);
+    await openEventForEdit(authedPage, 'Deletable event');
 
     await expect(authedPage.getByRole('button', { name: /^delete$/i })).toBeVisible();
   });
 
   test('deletes an event from the drawer', async ({ authedPage, api }) => {
     await createEventViaDrawer(authedPage, 'Doomed event');
-    await openEventForEdit(authedPage, /doomed event/i);
+    await openEventForEdit(authedPage, 'Doomed event');
     await authedPage.getByRole('button', { name: /^delete$/i }).click();
     await expect(authedPage.getByRole('dialog').first()).toBeHidden({ timeout: 20_000 });
 
@@ -285,7 +293,7 @@ test.describe('UI — create and edit an event', () => {
       timeout: 20_000,
     });
 
-    await openEventForEdit(authedPage, /vanishing event/i);
+    await openEventForEdit(authedPage, 'Vanishing event');
     await authedPage.getByRole('button', { name: /^delete$/i }).click();
 
     await expect(authedPage.getByText('Vanishing event')).toHaveCount(0, { timeout: 20_000 });
@@ -325,7 +333,10 @@ test.describe('UI — recurring events', () => {
   });
 
   test('editing a recurring event asks for a scope', async ({ authedPage, api, category }) => {
-    const start = new Date(Date.now() + 2 * 3_600_000);
+    const now = new Date();
+    const start = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 12, 0, 0, 0),
+    );
     await api.createEvent({
       title: 'Scoped series',
       startAt: start.toISOString(),
@@ -335,7 +346,7 @@ test.describe('UI — recurring events', () => {
     });
     await authedPage.reload();
 
-    await openEventForEdit(authedPage, /scoped series/i);
+    await openEventForEdit(authedPage, 'Scoped series');
     await authedPage.getByLabel(/^title$/i).fill('Scoped series edited');
     await authedPage.getByRole('button', { name: /^save$/i }).click();
 

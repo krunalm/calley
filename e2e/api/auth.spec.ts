@@ -1,4 +1,5 @@
 import {
+  API_BASE,
   CSRF_COOKIE,
   errorBody,
   makeCredentials,
@@ -286,13 +287,24 @@ test.describe('API — session lifecycle', () => {
   test('a tampered session cookie is rejected', async ({ api }) => {
     const cookies = await api.cookies();
     const session = cookies.find((c) => c.name === SESSION_COOKIE)!;
+    expect(session.value).toBeTruthy();
+
+    // Same length and shape, one character different — so a rejection can only
+    // come from the token failing to validate, not from a malformed cookie.
+    const last = session.value.slice(-1);
+    const tampered = session.value.slice(0, -1) + (last === 'a' ? 'b' : 'a');
+    expect(tampered).not.toBe(session.value);
 
     const forged = await newApiSession();
-    await forged.ctx.storageState();
-    const res = await forged.get('/auth/me');
+    const res = await forged.ctx.get(API_BASE + '/auth/me', {
+      headers: { cookie: `${SESSION_COOKIE}=${tampered}` },
+    });
+
     expect(res.status()).toBe(401);
-    expect(session.value).toBeTruthy();
     await forged.dispose();
+
+    // The genuine cookie still works, so the 401 was about the tampering.
+    expect((await api.get('/auth/me')).status()).toBe(200);
   });
 
   test('lists the current session with isCurrent set', async ({ api }) => {
@@ -436,6 +448,32 @@ test.describe('API — password management', () => {
     });
 
     expect(res.status()).toBe(401);
+  });
+
+  test('a wrong current password is reported as INVALID_CREDENTIALS', async ({ api }) => {
+    const res = await api.patch('/auth/me/password', {
+      currentPassword: 'NotMyPassword1!',
+      newPassword: 'BrandNewP@ss456!',
+    });
+
+    // Distinct from UNAUTHORIZED so the client can tell a rejected password
+    // apart from a dead session — both are a 401 on this endpoint.
+    expect((await errorBody(res)).code).toBe('INVALID_CREDENTIALS');
+  });
+
+  test('an expired session on the same endpoint is reported as UNAUTHORIZED', async ({
+    api,
+    credentials,
+  }) => {
+    await api.post('/auth/logout');
+
+    const res = await api.patch('/auth/me/password', {
+      currentPassword: credentials.password,
+      newPassword: 'BrandNewP@ss456!',
+    });
+
+    expect(res.status()).toBe(401);
+    expect((await errorBody(res)).code).toBe('UNAUTHORIZED');
   });
 
   test('rejects a new password shorter than 8 characters', async ({ api, credentials }) => {

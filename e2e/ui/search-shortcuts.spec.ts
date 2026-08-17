@@ -19,9 +19,13 @@ async function openSearch(page: Page) {
   return input;
 }
 
+/** Seed an event at a fixed hour today, so it cannot slip into the next day. */
 async function seedEvent(api: ApiSession, title: string) {
   const category = await api.defaultCategory();
-  const start = new Date(Date.now() + 2 * 3_600_000);
+  const now = new Date();
+  const start = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 12, 0, 0, 0),
+  );
   return api.createEvent({
     title,
     startAt: start.toISOString(),

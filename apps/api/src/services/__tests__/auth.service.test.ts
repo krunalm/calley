@@ -466,7 +466,7 @@ describe('AuthService', () => {
         ),
       ).rejects.toMatchObject({
         statusCode: 401,
-        code: 'UNAUTHORIZED',
+        code: 'INVALID_CREDENTIALS',
         message: 'Current password is incorrect',
       });
     });

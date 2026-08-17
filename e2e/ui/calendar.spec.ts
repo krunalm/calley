@@ -19,10 +19,19 @@ async function focusCalendar(page: Page) {
   await page.locator('body').click({ position: { x: 4, y: 4 }, force: true });
 }
 
-/** Create a timed event on today's date, in the browser's own timezone. */
-async function seedEventToday(api: ApiSession, title: string, hourOffset = 2) {
+/**
+ * Create a timed event on today's date.
+ *
+ * Anchored to a fixed midday hour rather than an offset from now: `now + 2h`
+ * crosses midnight late in the day, which on the last day of a month drops the
+ * event into the next month and fails the month-view assertions.
+ */
+async function seedEventToday(api: ApiSession, title: string, hour = 12) {
   const category = await api.defaultCategory();
-  const start = new Date(Date.now() + hourOffset * 3_600_000);
+  const now = new Date();
+  const start = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), hour, 0, 0, 0),
+  );
   return api.createEvent({
     title,
     startAt: start.toISOString(),
@@ -302,7 +311,10 @@ test.describe('UI — events on the calendar', () => {
   });
 
   test('a recurring event is marked as recurring', async ({ authedPage, api, category }) => {
-    const start = new Date(Date.now() + 3 * 3_600_000);
+    const now = new Date();
+    const start = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 12, 0, 0, 0),
+    );
     await api.createEvent({
       title: 'Recurring standup',
       startAt: start.toISOString(),

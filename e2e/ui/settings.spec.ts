@@ -162,6 +162,31 @@ test.describe('UI — profile settings', () => {
     await expect(authedPage).toHaveURL(/\/settings/);
   });
 
+  test('an expired session on the password form still redirects to login', async ({
+    authedPage,
+  }) => {
+    await gotoSettings(authedPage);
+
+    // Both a rejected password and a dead session are a 401 here, and only the
+    // error code tells them apart. Stub the session-expiry shape and assert the
+    // client signs out rather than blaming the typed password.
+    await authedPage.route('**/auth/me/password', (route) =>
+      route.fulfill({
+        status: 401,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          error: { code: 'UNAUTHORIZED', message: 'Invalid or expired session' },
+        }),
+      }),
+    );
+
+    await authedPage.getByLabel(/current password/i).fill('AnyPassword1!');
+    await authedPage.getByLabel(/new password/i).fill('BrandNewP@ss456!');
+    await authedPage.getByRole('button', { name: /change password/i }).click();
+
+    await authedPage.waitForURL('**/login**', { timeout: 20_000 });
+  });
+
   test('rejects a too-short new password', async ({ authedPage, credentials }) => {
     await gotoSettings(authedPage);
     await authedPage.getByLabel(/current password/i).fill(credentials.password);

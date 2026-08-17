@@ -12,17 +12,23 @@ End-to-end tests driven by Playwright. Two layers, one runner:
 ## Running
 
 ```bash
-# Everything (chromium)
-pnpm test:e2e
+# The whole suite, once, in Chromium — what you normally want
+pnpm test:e2e --project=chromium
 
 # One area
-pnpm test:e2e e2e/api
-pnpm test:e2e e2e/ui/calendar.spec.ts
+pnpm test:e2e --project=chromium e2e/api
+pnpm test:e2e --project=chromium e2e/ui/calendar.spec.ts
 
-# Other browsers (local only — CI runs chromium to keep the pipeline short)
+# One other browser
 pnpm test:e2e --project=firefox
 pnpm test:e2e --project="Mobile Safari"
 ```
+
+**Pass `--project` locally.** With no project selected, Playwright runs every
+configured project — Chromium, Firefox, WebKit, Mobile Chrome and Mobile
+Safari — so a bare `pnpm test:e2e` is five full passes, over 3,000 test
+executions. That is the cross-browser sweep from §9.5, not a normal run. CI
+selects Chromium on its own, so this only affects local invocations.
 
 Playwright starts the API and web dev servers itself and reuses them if they
 are already running. Both need the usual environment (`DATABASE_URL`,

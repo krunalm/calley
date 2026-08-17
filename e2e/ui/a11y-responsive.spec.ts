@@ -7,9 +7,13 @@ import type { ApiSession } from '../support/api';
  * offline/error resilience.
  */
 
+/** Seed an event at a fixed hour today, so it cannot slip into the next day. */
 async function seedEvent(api: ApiSession, title: string) {
   const category = await api.defaultCategory();
-  const start = new Date(Date.now() + 2 * 3_600_000);
+  const now = new Date();
+  const start = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 12, 0, 0, 0),
+  );
   return api.createEvent({
     title,
     startAt: start.toISOString(),
@@ -41,7 +45,8 @@ test.describe('UI — accessibility landmarks', () => {
 
     for (let i = 0; i < count; i += 1) {
       const button = buttons.nth(i);
-      const label = (await button.getAttribute('aria-label')) ?? (await button.innerText());
+      // `||` not `??`: aria-label="" is as good as missing.
+      const label = (await button.getAttribute('aria-label')) || (await button.innerText());
       expect(label.trim().length).toBeGreaterThan(0);
     }
   });
@@ -270,15 +275,28 @@ test.describe('UI — responsive layout', () => {
 });
 
 test.describe('UI — resilience', () => {
+  // Always restore connectivity, including when an assertion above the
+  // restore line fails — otherwise the offline state leaks into teardown.
+  test.afterEach(async ({ authedPage }) => {
+    await authedPage.context().setOffline(false);
+  });
+
   test('shows an offline banner when connectivity drops', async ({ authedPage }) => {
+    await expect(authedPage.getByRole('button', { name: /user menu/i })).toBeVisible({
+      timeout: 20_000,
+    });
+
     await authedPage.context().setOffline(true);
     await authedPage.evaluate(() => window.dispatchEvent(new Event('offline')));
 
     await expect(authedPage.getByText(/no connection/i).first()).toBeVisible({ timeout: 20_000 });
-    await authedPage.context().setOffline(false);
   });
 
   test('recovers once connectivity returns', async ({ authedPage }) => {
+    await expect(authedPage.getByRole('button', { name: /user menu/i })).toBeVisible({
+      timeout: 20_000,
+    });
+
     await authedPage.context().setOffline(true);
     await authedPage.evaluate(() => window.dispatchEvent(new Event('offline')));
     await expect(authedPage.getByText(/no connection/i).first()).toBeVisible({ timeout: 20_000 });
@@ -286,7 +304,10 @@ test.describe('UI — resilience', () => {
     await authedPage.context().setOffline(false);
     await authedPage.evaluate(() => window.dispatchEvent(new Event('online')));
 
-    await expect(authedPage.getByRole('button', { name: /user menu/i })).toBeVisible();
+    // The banner is tied to the online/offline events. Where the router sends
+    // the user afterwards depends on whether a query revalidated while the
+    // connection was down, so this asserts the banner only.
+    await expect(authedPage.getByText(/no connection/i)).toHaveCount(0, { timeout: 20_000 });
   });
 
   test('an unknown route does not break the shell', async ({ authedPage }) => {

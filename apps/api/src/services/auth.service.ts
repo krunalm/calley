@@ -489,7 +489,10 @@ export class AuthService {
 
     const validPassword = await argon2.verify(user.passwordHash, data.currentPassword);
     if (!validPassword) {
-      throw new AppError(401, 'UNAUTHORIZED', 'Current password is incorrect');
+      // Distinct from UNAUTHORIZED (an expired/invalid session) so the client
+      // can tell "wrong password" apart from "you are signed out" — both would
+      // otherwise be a bare 401 on this endpoint.
+      throw new AppError(401, 'INVALID_CREDENTIALS', 'Current password is incorrect');
     }
 
     const newPasswordHash = await argon2.hash(data.newPassword, ARGON2_OPTIONS);

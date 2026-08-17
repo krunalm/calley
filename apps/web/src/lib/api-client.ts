@@ -40,13 +40,63 @@ export class ApiError extends Error {
 }
 
 /**
+ * Endpoints reached without a session, where a 401 can only mean "those
+ * credentials were wrong".
+ *
+ * The caller renders the error inline on its own form, so the global
+ * session-expiry redirect must stay out of the way — otherwise a mistyped
+ * password bounces the user to /login with a misleading message.
+ */
+const PRE_SESSION_PATHS = [
+  '/auth/login',
+  '/auth/signup',
+  '/auth/forgot-password',
+  '/auth/reset-password',
+];
+
+/**
+ * Error code the backend uses when a 401 rejects a supplied credential rather
+ * than reporting an expired session. Authenticated endpoints that verify a
+ * password (change password) can return either, so the body decides.
+ */
+export const INVALID_CREDENTIALS = 'INVALID_CREDENTIALS';
+
+/**
+ * True when an error reports that a credential the user supplied was rejected,
+ * rather than that their session has expired. Both arrive as a 401.
+ */
+export function isInvalidCredentials(err: unknown): boolean {
+  return err instanceof ApiError && err.error?.code === INVALID_CREDENTIALS;
+}
+
+function isPreSessionPath(path: string): boolean {
+  return PRE_SESSION_PATHS.includes(path.split('?')[0]);
+}
+
+/**
+ * Whether a 401 rejects the credential the user just typed, as opposed to
+ * reporting that their session has gone. Reads a clone so the caller can still
+ * consume the original body.
+ */
+async function isCredentialRejection(res: Response, path: string): Promise<boolean> {
+  if (isPreSessionPath(path)) return true;
+
+  try {
+    const body = (await res.clone().json()) as { error?: { code?: string } };
+    return body?.error?.code === INVALID_CREDENTIALS;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * API client wrapping fetch with:
  * - Base URL from environment
  * - Credentials: include (for session cookies)
  * - Auto-attach CSRF token header on state-changing requests
  * - Auto-parse JSON responses
  * - Error handling (throw on non-2xx, extract error body)
- * - 401 handling → redirect to login
+ * - 401 handling → redirect to login, unless the 401 rejects a supplied credential
  * - 429 handling → show rate limit warning toast with Retry-After
  */
 class ApiClient {
@@ -90,7 +140,7 @@ class ApiClient {
       });
     }
 
-    if (res.status === 401) {
+    if (res.status === 401 && !(await isCredentialRejection(res, path))) {
       // Session expired mid-session — redirect with informative message
       toast.error('Your session has expired. Please sign in again.');
       window.location.href = '/login';

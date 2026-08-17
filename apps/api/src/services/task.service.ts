@@ -5,6 +5,7 @@ import { calendarCategories, reminders, tasks } from '../db/schema';
 import { AppError } from '../lib/errors';
 import { logger } from '../lib/logger';
 import { reminderQueue } from '../lib/queue';
+import { sanitizeHtml } from '../lib/sanitize';
 import { recurrenceService } from './recurrence.service';
 import { sseService } from './sse.service';
 
@@ -129,7 +130,9 @@ export class TaskService {
         break;
       }
       case 'created_at':
-        orderBy = [desc(tasks.createdAt)];
+        // `id` breaks ties: two tasks created in the same tick would otherwise
+        // come back in an undefined order.
+        orderBy = [desc(tasks.createdAt), desc(tasks.id)];
         break;
       case 'sort_order':
       default:
@@ -190,6 +193,9 @@ export class TaskService {
     // Validate category belongs to user
     await this.validateCategory(userId, data.categoryId);
 
+    // Sanitize description HTML if present
+    const description = data.description ? sanitizeHtml(data.description) : null;
+
     // Validate RRULE if provided
     if (data.rrule) {
       this.validateRrule(data.rrule);
@@ -210,7 +216,7 @@ export class TaskService {
           userId,
           categoryId: data.categoryId,
           title: data.title,
-          description: data.description ?? null,
+          description,
           dueAt: data.dueAt ? new Date(data.dueAt) : null,
           priority: data.priority ?? 'none',
           rrule: data.rrule ?? null,
@@ -305,26 +311,32 @@ export class TaskService {
       await this.validateCategory(userId, data.categoryId);
     }
 
+    // Sanitize description if provided
+    const sanitizedData = { ...data };
+    if (sanitizedData.description !== undefined && sanitizedData.description !== null) {
+      sanitizedData.description = sanitizeHtml(sanitizedData.description);
+    }
+
     // Validate RRULE if provided
-    if (data.rrule !== undefined && data.rrule !== null) {
-      this.validateRrule(data.rrule);
+    if (sanitizedData.rrule !== undefined && sanitizedData.rrule !== null) {
+      this.validateRrule(sanitizedData.rrule);
     }
 
     const isRecurring = task.rrule !== null;
 
     // Non-recurring task or no scope specified: direct update
     if (!isRecurring || !scope) {
-      return this.directUpdate(userId, taskId, data);
+      return this.directUpdate(userId, taskId, sanitizedData);
     }
 
     // Recurring task with scope
     switch (scope) {
       case 'instance':
-        return this.updateInstance(userId, task as TaskRow, data, instanceDate);
+        return this.updateInstance(userId, task as TaskRow, sanitizedData, instanceDate);
       case 'following':
-        return this.updateFollowing(userId, task as TaskRow, data, instanceDate);
+        return this.updateFollowing(userId, task as TaskRow, sanitizedData, instanceDate);
       case 'all':
-        return this.directUpdate(userId, taskId, data);
+        return this.directUpdate(userId, taskId, sanitizedData);
       default:
         throw new AppError(400, 'VALIDATION_ERROR', `Invalid scope: ${scope}`);
     }

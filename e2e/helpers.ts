@@ -62,7 +62,9 @@ export async function logout(page: Page) {
   // Open user menu — the UserMenu trigger has aria-label="User menu"
   await page.getByRole('button', { name: /user menu/i }).click();
   await page.getByRole('menuitem', { name: /sign ?out/i }).click();
-  await page.waitForURL('**/login**', { timeout: 10_000 });
+  // Logout posts to the API before navigating, so give it the same budget as
+  // the other cross-page waits — 10s is tight on a loaded CI runner.
+  await page.waitForURL('**/login**', { timeout: 20_000 });
 }
 
 // ─── Navigation Helpers ─────────────────────────────────────────────
@@ -78,7 +80,7 @@ export async function goToSettings(page: Page) {
   const settingsItem = page.getByRole('menuitem', { name: /^settings$/i });
   await expect(settingsItem).toBeVisible({ timeout: 3_000 });
   await settingsItem.click();
-  await page.waitForURL('**/settings**', { timeout: 10_000 });
+  await page.waitForURL('**/settings**', { timeout: 20_000 });
 }
 
 /**

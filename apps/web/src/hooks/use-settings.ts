@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatInTimeZone } from 'date-fns-tz';
 import { toast } from 'sonner';
 
-import { apiClient, ApiError } from '@/lib/api-client';
+import { apiClient, ApiError, isInvalidCredentials } from '@/lib/api-client';
 import { queryKeys } from '@/lib/query-keys';
 
 import type {
@@ -70,10 +70,11 @@ export function useChangePassword() {
         queryClient.setQueryData(queryKeys.user.me, context.previous);
       }
       if (err instanceof ApiError && err.status === 429) return;
-      const message =
-        err instanceof ApiError && err.status === 401
-          ? 'Current password is incorrect'
-          : 'Failed to change password';
+      // An expired session is also a 401 here; only the code separates them,
+      // and that case redirects to login rather than blaming the password.
+      const message = isInvalidCredentials(err)
+        ? 'Current password is incorrect'
+        : 'Failed to change password';
       toast.error(message);
     },
     onSettled: () => {

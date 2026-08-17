@@ -96,7 +96,7 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
       <p className="text-sm text-[var(--muted-foreground)]">Enter your new password below.</p>
 
       <div className="space-y-2">

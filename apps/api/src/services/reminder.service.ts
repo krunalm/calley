@@ -179,8 +179,18 @@ export class ReminderService {
       await db.update(reminders).set({ triggerAt }).where(eq(reminders.id, reminder.id));
 
       // BullMQ ignores `add` for an existing jobId, so the stale job has to go
-      // before the new delay can take effect.
-      await this.removeReminderJob(reminder.id);
+      // before the new delay can take effect. If removal failed, adding would be
+      // a silent no-op that leaves the old trigger time armed — report it
+      // instead of pretending the reminder was re-armed.
+      const removed = await this.removeReminderJob(reminder.id);
+      if (!removed) {
+        logger.error(
+          { reminderId: reminder.id, itemType, itemId, triggerAt },
+          'Could not clear the previous reminder job; the queue still holds the old trigger time',
+        );
+        continue;
+      }
+
       try {
         await this.enqueueReminderJob({ ...reminder, triggerAt });
       } catch (err) {
@@ -270,17 +280,25 @@ export class ReminderService {
   }
 
   /**
-   * Remove a reminder's BullMQ job. Non-critical: the job may already have been
-   * processed or removed, so failures are logged rather than propagated.
+   * Remove a reminder's BullMQ job.
+   *
+   * Returns whether the queue is now known to be free of a job under this id.
+   * Callers that intend to re-arm the reminder must check it: the job id is the
+   * reminder id, and BullMQ ignores `add` for an id that still exists, so
+   * re-adding after a failed removal would silently leave the old schedule in
+   * place. Failures are logged rather than propagated — the caller decides
+   * whether they are fatal.
    */
-  private async removeReminderJob(reminderId: string): Promise<void> {
+  private async removeReminderJob(reminderId: string): Promise<boolean> {
     try {
       const job = await reminderQueue.getJob(reminderId);
       if (job) {
         await job.remove();
       }
+      return true;
     } catch (err) {
       logger.warn({ err, reminderId }, 'Failed to remove BullMQ job for reminder');
+      return false;
     }
   }
 

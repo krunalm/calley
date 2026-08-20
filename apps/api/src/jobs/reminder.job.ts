@@ -25,8 +25,17 @@ interface ReminderJobData {
 
 interface ItemInfo {
   title: string;
-  time: Date;
+  /**
+   * The item's reference time. Null when the item still exists but currently has
+   * nothing to fire against — a task whose due date was cleared.
+   */
+  time: Date | null;
   isDeleted: boolean;
+}
+
+/** An ItemInfo that is known to have a reference time. */
+interface ResolvedItemInfo extends ItemInfo {
+  time: Date;
 }
 
 async function getItemInfo(
@@ -52,7 +61,9 @@ async function getItemInfo(
       where: and(eq(tasks.id, itemId), eq(tasks.userId, userId)),
       columns: { title: true, dueAt: true, deletedAt: true },
     });
-    if (!task || !task.dueAt) return null;
+    if (!task) return null;
+    // A cleared due date is NOT the same as a missing task: the reminder must
+    // survive so restoring the due date can resynchronise it.
     return {
       title: task.title,
       time: task.dueAt,
@@ -68,7 +79,7 @@ async function getItemInfo(
 async function sendReminderEmail(
   userId: string,
   itemType: 'event' | 'task',
-  itemInfo: ItemInfo,
+  itemInfo: ResolvedItemInfo,
   minutesBefore: number,
 ): Promise<void> {
   const user = await db.query.users.findFirst({
@@ -111,7 +122,7 @@ async function sendReminderEmail(
 async function sendReminderPush(
   userId: string,
   itemType: 'event' | 'task',
-  itemInfo: ItemInfo,
+  itemInfo: ResolvedItemInfo,
 ): Promise<void> {
   const appBaseUrl = process.env.CORS_ORIGIN || 'http://localhost:3000';
   const dateParam = format(itemInfo.time, 'yyyy-MM-dd');
@@ -124,59 +135,83 @@ async function sendReminderPush(
   });
 }
 
+// ─── Job Processor ─────────────────────────────────────────────────
+
+/**
+ * Process a single reminder job. Exported so the delivery rules can be unit
+ * tested without standing up a BullMQ worker and a Redis connection.
+ */
+export async function processReminderJob(data: ReminderJobData): Promise<void> {
+  const { reminderId, userId, itemType, itemId, method } = data;
+
+  logger.info({ reminderId, userId, itemType, itemId, method }, 'Processing reminder job');
+
+  // 1. Verify reminder exists and hasn't been sent (idempotency)
+  const reminder = await db.query.reminders.findFirst({
+    where: and(eq(reminders.id, reminderId), isNull(reminders.sentAt)),
+  });
+
+  if (!reminder) {
+    logger.info({ reminderId }, 'Reminder already sent or deleted, skipping');
+    return;
+  }
+
+  // 2. Verify parent event/task exists and is not deleted
+  const itemInfo = await getItemInfo(userId, itemType, itemId);
+
+  if (!itemInfo || itemInfo.isDeleted) {
+    logger.info({ reminderId, itemType, itemId }, 'Parent item deleted, skipping reminder');
+    // Mark as sent so it's not retried
+    await db.update(reminders).set({ sentAt: new Date() }).where(eq(reminders.id, reminderId));
+    return;
+  }
+
+  const referenceTime = itemInfo.time;
+
+  // The item is still there but currently has no time to fire against — a task
+  // whose due date was cleared. Leave the reminder unsent: marking it sent here
+  // would retire it permanently, so restoring the due date could never bring it
+  // back (resyncItemReminders only considers unsent reminders).
+  if (!referenceTime) {
+    logger.info(
+      { reminderId, itemType, itemId },
+      'Item has no due date, leaving reminder pending until one is set',
+    );
+    return;
+  }
+
+  const resolvedInfo: ResolvedItemInfo = { ...itemInfo, time: referenceTime };
+
+  // 3. Send notification(s) in parallel when both channels are needed
+  const notifications: Promise<void>[] = [];
+  if (method === 'email' || method === 'both') {
+    notifications.push(sendReminderEmail(userId, itemType, resolvedInfo, reminder.minutesBefore));
+  }
+  if (method === 'push' || method === 'both') {
+    notifications.push(sendReminderPush(userId, itemType, resolvedInfo));
+  }
+  await Promise.all(notifications);
+
+  // 4. Emit reminder:fired on SSE for in-app toast
+  sseService.emit(userId, 'reminder:fired', {
+    reminderId,
+    itemType,
+    itemId,
+    title: resolvedInfo.title,
+  });
+
+  // 5. Mark reminder as sent
+  await db.update(reminders).set({ sentAt: new Date() }).where(eq(reminders.id, reminderId));
+
+  logger.info({ reminderId, method }, 'Reminder sent successfully');
+}
+
 // ─── Worker ────────────────────────────────────────────────────────
 
 export function startReminderWorker(): Worker {
   const worker = new Worker<ReminderJobData>(
     QUEUE_NAMES.REMINDERS,
-    async (job) => {
-      const { reminderId, userId, itemType, itemId, method } = job.data;
-
-      logger.info({ reminderId, userId, itemType, itemId, method }, 'Processing reminder job');
-
-      // 1. Verify reminder exists and hasn't been sent (idempotency)
-      const reminder = await db.query.reminders.findFirst({
-        where: and(eq(reminders.id, reminderId), isNull(reminders.sentAt)),
-      });
-
-      if (!reminder) {
-        logger.info({ reminderId }, 'Reminder already sent or deleted, skipping');
-        return;
-      }
-
-      // 2. Verify parent event/task exists and is not deleted
-      const itemInfo = await getItemInfo(userId, itemType, itemId);
-
-      if (!itemInfo || itemInfo.isDeleted) {
-        logger.info({ reminderId, itemType, itemId }, 'Parent item deleted, skipping reminder');
-        // Mark as sent so it's not retried
-        await db.update(reminders).set({ sentAt: new Date() }).where(eq(reminders.id, reminderId));
-        return;
-      }
-
-      // 3. Send notification(s) in parallel when both channels are needed
-      const notifications: Promise<void>[] = [];
-      if (method === 'email' || method === 'both') {
-        notifications.push(sendReminderEmail(userId, itemType, itemInfo, reminder.minutesBefore));
-      }
-      if (method === 'push' || method === 'both') {
-        notifications.push(sendReminderPush(userId, itemType, itemInfo));
-      }
-      await Promise.all(notifications);
-
-      // 4. Emit reminder:fired on SSE for in-app toast
-      sseService.emit(userId, 'reminder:fired', {
-        reminderId,
-        itemType,
-        itemId,
-        title: itemInfo.title,
-      });
-
-      // 5. Mark reminder as sent
-      await db.update(reminders).set({ sentAt: new Date() }).where(eq(reminders.id, reminderId));
-
-      logger.info({ reminderId, method }, 'Reminder sent successfully');
-    },
+    async (job) => processReminderJob(job.data),
     {
       connection: bullmqConnection,
       concurrency: 10,

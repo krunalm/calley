@@ -140,19 +140,17 @@ export class TaskService {
         break;
     }
 
-    // Fetch non-recurring tasks and recurring parents separately
+    // Fetch non-recurring tasks and recurring parents separately.
+    // Both halves share the same caller-supplied filters: unlike listEvents,
+    // this method does no recurrence expansion, so a recurring parent is
+    // returned to the client as-is and must satisfy the filters on its own.
     const [regularTasks, recurringParents] = await Promise.all([
       db.query.tasks.findMany({
         where: and(...conditions, isNull(tasks.rrule)),
         orderBy,
       }),
       db.query.tasks.findMany({
-        where: and(
-          eq(tasks.userId, userId),
-          isNull(tasks.deletedAt),
-          isNotNull(tasks.rrule),
-          isNull(tasks.recurringTaskId),
-        ),
+        where: and(...conditions, isNotNull(tasks.rrule)),
         orderBy,
       }),
     ]);

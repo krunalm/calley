@@ -66,6 +66,8 @@ vi.mock('../sse.service', () => ({
   },
 }));
 
+import { PgDialect } from 'drizzle-orm/pg-core';
+
 import { db } from '../../db';
 import { AppError } from '../../lib/errors';
 import { reminderQueue } from '../../lib/queue';
@@ -1017,6 +1019,49 @@ describe('TaskService', () => {
       });
 
       expect(db.query.tasks.findMany).toHaveBeenCalledTimes(2);
+    });
+
+    // Regression: listTasks concatenates two queries — non-recurring tasks and
+    // recurring parents — and performs no recurrence expansion, so both sets are
+    // returned verbatim. The recurring-parent query used to be built from a
+    // hard-coded condition list, silently dropping every caller-supplied filter:
+    // filtering the task panel by "High" still listed low-priority recurring tasks.
+    it('should apply status, priority and due-date filters to recurring parents too', async () => {
+      (db.query.tasks.findMany as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]);
+
+      await service.listTasks(TEST_USER_ID, {
+        sort: 'created_at',
+        status: ['todo'],
+        priority: ['high'],
+        dueStart: '2026-03-01T00:00:00Z',
+        dueEnd: '2026-03-31T23:59:59Z',
+      });
+
+      const dialect = new PgDialect();
+      const calls = (db.query.tasks.findMany as ReturnType<typeof vi.fn>).mock.calls;
+      expect(calls).toHaveLength(2);
+
+      const [regularWhere, recurringWhere] = calls.map(
+        (call) => dialect.sqlToQuery(call[0].where as never).sql,
+      );
+
+      // The non-recurring query is the reference: it carries every filter.
+      expect(regularWhere).toContain('"tasks"."status"');
+      expect(regularWhere).toContain('"tasks"."priority"');
+      expect(regularWhere).toContain('"tasks"."due_at"');
+
+      // The recurring-parent query must carry them as well.
+      expect(recurringWhere).toContain('"tasks"."status"');
+      expect(recurringWhere).toContain('"tasks"."priority"');
+      expect(recurringWhere).toContain('"tasks"."due_at"');
+
+      // ...while still selecting recurring parents only.
+      expect(recurringWhere).toContain('"tasks"."rrule" is not null');
+      expect(recurringWhere).toContain('"tasks"."recurring_task_id" is null');
+      expect(recurringWhere).toContain('"tasks"."deleted_at" is null');
+      expect(recurringWhere).toContain('"tasks"."user_id"');
     });
 
     it('should handle different sort options', async () => {

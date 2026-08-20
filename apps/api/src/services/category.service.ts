@@ -1,4 +1,4 @@
-import { and, asc, count, eq, isNull, ne, sql } from 'drizzle-orm';
+import { and, asc, count, eq, ne, sql } from 'drizzle-orm';
 
 import { DEFAULT_CATEGORY_COLOR, MAX_CATEGORIES_PER_USER } from '@calley/shared';
 
@@ -207,25 +207,20 @@ export class CategoryService {
     }
 
     await db.transaction(async (tx) => {
-      // Reassign events to default category
+      // Reassign events to default category.
+      // Soft-deleted rows are included on purpose: they still hold the category
+      // foreign key, which is ON DELETE RESTRICT, so leaving them behind would
+      // abort the DELETE below with a foreign-key violation.
       await tx
         .update(events)
         .set({ categoryId: defaultCategory.id, updatedAt: new Date() })
-        .where(
-          and(
-            eq(events.userId, userId),
-            eq(events.categoryId, categoryId),
-            isNull(events.deletedAt),
-          ),
-        );
+        .where(and(eq(events.userId, userId), eq(events.categoryId, categoryId)));
 
-      // Reassign tasks to default category
+      // Reassign tasks to default category (same reasoning as events above)
       await tx
         .update(tasks)
         .set({ categoryId: defaultCategory.id, updatedAt: new Date() })
-        .where(
-          and(eq(tasks.userId, userId), eq(tasks.categoryId, categoryId), isNull(tasks.deletedAt)),
-        );
+        .where(and(eq(tasks.userId, userId), eq(tasks.categoryId, categoryId)));
 
       // Delete the category
       await tx

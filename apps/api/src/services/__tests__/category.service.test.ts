@@ -44,6 +44,8 @@ vi.mock('@calley/shared', () => ({
   MAX_CATEGORIES_PER_USER: 20,
 }));
 
+import { PgDialect } from 'drizzle-orm/pg-core';
+
 import { db } from '../../db';
 import { AppError } from '../../lib/errors';
 import { logger } from '../../lib/logger';
@@ -139,6 +141,31 @@ function mockTransactionForDelete() {
   };
   (db.transaction as ReturnType<typeof vi.fn>).mockImplementation(async (fn) => fn(tx));
   return tx;
+}
+
+/**
+ * Same as mockTransactionForDelete, but also hands back the update chain so a
+ * test can inspect the WHERE clauses the reassignment statements were built with.
+ */
+function mockTransactionForDeleteWithChains() {
+  const txUpdateChain = {
+    set: vi.fn().mockReturnThis(),
+    where: vi.fn().mockResolvedValue([]),
+  };
+  const txDeleteChain = {
+    where: vi.fn().mockResolvedValue([]),
+  };
+  const tx = {
+    update: vi.fn().mockReturnValue(txUpdateChain),
+    delete: vi.fn().mockReturnValue(txDeleteChain),
+  };
+  (db.transaction as ReturnType<typeof vi.fn>).mockImplementation(async (fn) => fn(tx));
+  return { tx, txUpdateChain, txDeleteChain };
+}
+
+/** Render a Drizzle SQL fragment to its parameterised SQL text. */
+function renderSql(fragment: unknown): string {
+  return new PgDialect().sqlToQuery(fragment as never).sql;
 }
 
 // ─── Tests ──────────────────────────────────────────────────────────
@@ -582,6 +609,43 @@ describe('CategoryService', () => {
         code: 'FORBIDDEN',
         message: 'Cannot delete the default category',
       });
+    });
+
+    // Regression: events.category_id / tasks.category_id are ON DELETE RESTRICT, so a
+    // reassignment that skips soft-deleted rows leaves them pointing at the category and
+    // the following DELETE aborts the transaction with a foreign-key violation — surfacing
+    // as a 500 and making the category undeletable until cleanup runs 30 days later.
+    it('should reassign soft-deleted events and tasks too, not just live ones', async () => {
+      const categoryToDelete = makeCategoryRow({ isDefault: false });
+      const defaultCategory = makeDefaultCategoryRow();
+
+      (db.query.calendarCategories.findFirst as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        categoryToDelete,
+      );
+      (db.query.calendarCategories.findFirst as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        defaultCategory,
+      );
+
+      const { txUpdateChain } = mockTransactionForDeleteWithChains();
+
+      await service.deleteCategory(TEST_USER_ID, TEST_CATEGORY_ID);
+
+      // Two reassignment statements: events, then tasks.
+      expect(txUpdateChain.where).toHaveBeenCalledTimes(2);
+
+      const [eventsWhere, tasksWhere] = txUpdateChain.where.mock.calls.map((call) =>
+        renderSql(call[0]),
+      );
+
+      // Both must still be scoped to the owner and the category being removed...
+      expect(eventsWhere).toContain('"events"."user_id"');
+      expect(eventsWhere).toContain('"events"."category_id"');
+      expect(tasksWhere).toContain('"tasks"."user_id"');
+      expect(tasksWhere).toContain('"tasks"."category_id"');
+
+      // ...but must NOT skip soft-deleted rows, which still hold the foreign key.
+      expect(eventsWhere).not.toContain('deleted_at');
+      expect(tasksWhere).not.toContain('deleted_at');
     });
 
     it('should throw INTERNAL_ERROR when default category is missing during reassignment', async () => {

@@ -413,6 +413,15 @@ export class EventService {
 
     const isRecurring = event.rrule !== null;
 
+    // `updateEventSchema` can only check startAt < endAt when the client sends
+    // both. A partial patch has to be validated against the stored row, or a
+    // one-sided time change silently persists endAt < startAt. Only the paths
+    // that write both columns are checked: an 'instance' edit stores a delta and
+    // the expander re-anchors endAt to the overridden startAt.
+    if (!isRecurring || !scope || scope === 'all') {
+      this.assertValidTimeRange(event as EventRow, sanitizedData);
+    }
+
     // Non-recurring event or no scope specified: direct update
     if (!isRecurring || !scope) {
       return this.directUpdate(userId, eventId, sanitizedData);
@@ -569,6 +578,25 @@ export class EventService {
   }
 
   /**
+   * Validate the effective time range of a partial update by merging the patch
+   * with the stored row. All-day events are exempt, matching the create/update
+   * schema refinements.
+   */
+  private assertValidTimeRange(event: EventRow, data: UpdateEventInput): void {
+    if (data.startAt === undefined && data.endAt === undefined) return;
+
+    const isAllDay = data.isAllDay !== undefined ? data.isAllDay : event.isAllDay;
+    if (isAllDay) return;
+
+    const startAt = data.startAt !== undefined ? new Date(data.startAt) : event.startAt;
+    const endAt = data.endAt !== undefined ? new Date(data.endAt) : event.endAt;
+
+    if (endAt.getTime() <= startAt.getTime()) {
+      throw new AppError(422, 'VALIDATION_ERROR', 'End time must be after start time');
+    }
+  }
+
+  /**
    * Direct update of an event (non-recurring or scope='all').
    */
   private async directUpdate(
@@ -705,6 +733,19 @@ export class EventService {
 
     const splitDate = new Date(instanceDate);
 
+    // The new series starts at the split date unless the edit moves it. Its end
+    // is anchored to that effective start, not to splitDate — otherwise a
+    // startAt-only edit would produce a series with endAt before startAt.
+    const newStartAt = data.startAt ? new Date(data.startAt) : splitDate;
+    const parentDuration = parentEvent.endAt.getTime() - parentEvent.startAt.getTime();
+    const newEndAt = data.endAt
+      ? new Date(data.endAt)
+      : new Date(newStartAt.getTime() + parentDuration);
+
+    if (newEndAt.getTime() <= newStartAt.getTime() && !(data.isAllDay ?? parentEvent.isAllDay)) {
+      throw new AppError(422, 'VALIDATION_ERROR', 'End time must be after start time');
+    }
+
     // Terminate the original series just before the split date
     const updatedRrule = recurrenceService.terminateSeriesAt(parentEvent.rrule!, splitDate);
 
@@ -731,12 +772,8 @@ export class EventService {
           title: data.title ?? parentEvent.title,
           description: data.description !== undefined ? data.description : parentEvent.description,
           location: data.location !== undefined ? data.location : parentEvent.location,
-          startAt: data.startAt ? new Date(data.startAt) : splitDate,
-          endAt: data.endAt
-            ? new Date(data.endAt)
-            : new Date(
-                splitDate.getTime() + (parentEvent.endAt.getTime() - parentEvent.startAt.getTime()),
-              ),
+          startAt: newStartAt,
+          endAt: newEndAt,
           isAllDay: data.isAllDay !== undefined ? data.isAllDay : parentEvent.isAllDay,
           color: data.color !== undefined ? data.color : parentEvent.color,
           visibility: data.visibility ?? parentEvent.visibility,

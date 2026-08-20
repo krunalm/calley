@@ -418,6 +418,111 @@ describe('EventService', () => {
       expect(reminderService.resyncItemReminders).not.toHaveBeenCalled();
     });
 
+    // Regression: updateEventSchema's cross-field refine short-circuits when only
+    // one of startAt/endAt is sent ("if (!data.startAt || !data.endAt) return true"),
+    // and nothing merged the patch with the stored row. A startAt-only PATCH could
+    // therefore persist endAt < startAt — a state the recurrence expander already
+    // has to defend against by clamping every instance to zero length.
+    it('should reject a startAt-only update that would invert the stored range', async () => {
+      const eventRow = makeEventRow(); // 10:00 → 11:00
+      (db.query.events.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(eventRow);
+      const updateChain = mockUpdateChain([eventRow]);
+
+      await expect(
+        service.updateEvent(TEST_USER_ID, TEST_EVENT_ID, {
+          startAt: '2026-03-15T18:00:00.000Z',
+        }),
+      ).rejects.toMatchObject({
+        statusCode: 422,
+        code: 'VALIDATION_ERROR',
+      });
+
+      expect(updateChain.set).not.toHaveBeenCalled();
+    });
+
+    it('should reject an endAt-only update that would invert the stored range', async () => {
+      const eventRow = makeEventRow(); // 10:00 → 11:00
+      (db.query.events.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(eventRow);
+      const updateChain = mockUpdateChain([eventRow]);
+
+      await expect(
+        service.updateEvent(TEST_USER_ID, TEST_EVENT_ID, {
+          endAt: '2026-03-15T09:00:00.000Z',
+        }),
+      ).rejects.toMatchObject({
+        statusCode: 422,
+        code: 'VALIDATION_ERROR',
+      });
+
+      expect(updateChain.set).not.toHaveBeenCalled();
+    });
+
+    it('should allow a startAt-only update that keeps a positive duration', async () => {
+      const eventRow = makeEventRow(); // 10:00 → 11:00
+      const updatedRow = makeEventRow({ startAt: new Date('2026-03-15T10:30:00Z') });
+      (db.query.events.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(eventRow);
+      mockUpdateChain([updatedRow]);
+
+      await expect(
+        service.updateEvent(TEST_USER_ID, TEST_EVENT_ID, {
+          startAt: '2026-03-15T10:30:00.000Z',
+        }),
+      ).resolves.toBeDefined();
+    });
+
+    it('should not apply the range check to all-day events', async () => {
+      const eventRow = makeEventRow({ isAllDay: true });
+      (db.query.events.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(eventRow);
+      mockUpdateChain([eventRow]);
+
+      await expect(
+        service.updateEvent(TEST_USER_ID, TEST_EVENT_ID, {
+          startAt: '2026-03-15T00:00:00.000Z',
+        }),
+      ).resolves.toBeDefined();
+    });
+
+    // A single-instance override only stores a delta; the expander re-anchors the
+    // instance's endAt to the overridden startAt, so the parent's stored endAt is
+    // not the value being compared and must not veto the edit.
+    it('should not block an instance override that moves one occurrence later', async () => {
+      const recurringEvent = makeEventRow({ rrule: 'FREQ=DAILY' }); // 10:00 → 11:00
+      (db.query.events.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(recurringEvent);
+      const exceptionRow = {
+        id: 'exception1234567890123456',
+        recurringEventId: TEST_EVENT_ID,
+        userId: TEST_USER_ID,
+        originalDate: new Date('2026-03-16T10:00:00Z'),
+        overrides: { startAt: '2026-03-16T14:00:00.000Z' },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        deletedAt: null,
+      };
+      (db.transaction as ReturnType<typeof vi.fn>).mockImplementation(async (fn) => {
+        const tx = {
+          update: vi.fn().mockReturnValue({
+            set: vi.fn().mockReturnThis(),
+            where: vi.fn().mockResolvedValue([]),
+          }),
+          insert: vi.fn().mockReturnValue({
+            values: vi.fn().mockReturnThis(),
+            returning: vi.fn().mockResolvedValue([exceptionRow]),
+          }),
+        };
+        return fn(tx);
+      });
+
+      await expect(
+        service.updateEvent(
+          TEST_USER_ID,
+          TEST_EVENT_ID,
+          { startAt: '2026-03-16T14:00:00.000Z' },
+          'instance',
+          '2026-03-16T10:00:00.000Z',
+        ),
+      ).resolves.toBeDefined();
+    });
+
     it('should throw NOT_FOUND when updating non-existent event', async () => {
       (db.query.events.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
 
@@ -540,6 +645,45 @@ describe('EventService', () => {
       expect((result as { overrides: Record<string, unknown> }).overrides).toEqual({
         title: 'Exception Title',
       });
+    });
+
+    // Same defect class as the startAt-only patch above: the split series took its
+    // startAt from the edit but anchored its default endAt to splitDate, so a
+    // startAt-only "this and following" edit produced endAt before startAt.
+    it('should anchor the split series endAt to its own startAt, preserving duration', async () => {
+      const recurringEvent = makeEventRow({ rrule: 'FREQ=DAILY' }); // 10:00 → 11:00, 1h
+      (db.query.events.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(recurringEvent);
+
+      let insertedValues: Record<string, unknown> = {};
+      (db.transaction as ReturnType<typeof vi.fn>).mockImplementation(async (fn) => {
+        const tx = {
+          update: vi.fn().mockReturnValue({
+            set: vi.fn().mockReturnThis(),
+            where: vi.fn().mockResolvedValue([]),
+          }),
+          insert: vi.fn().mockReturnValue({
+            values: vi.fn((v: Record<string, unknown>) => {
+              insertedValues = v;
+              return {
+                returning: vi.fn().mockResolvedValue([makeEventRow({ rrule: 'FREQ=DAILY' })]),
+              };
+            }),
+          }),
+        };
+        return fn(tx);
+      });
+
+      await service.updateEvent(
+        TEST_USER_ID,
+        TEST_EVENT_ID,
+        { startAt: '2026-03-20T15:00:00.000Z' },
+        'following',
+        '2026-03-20T10:00:00.000Z',
+      );
+
+      expect(insertedValues.startAt).toEqual(new Date('2026-03-20T15:00:00Z'));
+      // 1h after the new start — not splitDate + 1h, which would be 11:00.
+      expect(insertedValues.endAt).toEqual(new Date('2026-03-20T16:00:00Z'));
     });
 
     it('should require instanceDate when scope is "following"', async () => {

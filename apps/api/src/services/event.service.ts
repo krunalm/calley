@@ -7,6 +7,7 @@ import { logger } from '../lib/logger';
 import { reminderQueue } from '../lib/queue';
 import { sanitizeHtml } from '../lib/sanitize';
 import { recurrenceService } from './recurrence.service';
+import { reminderService } from './reminder.service';
 import { sseService } from './sse.service';
 
 import type { CreateEventInput, EditScope, UpdateEventInput } from '@calley/shared';
@@ -595,6 +596,11 @@ export class EventService {
 
     if (!updated) {
       throw new AppError(404, 'NOT_FOUND', 'Event not found');
+    }
+
+    // Reminders are anchored to startAt, so a reschedule has to move them too.
+    if (data.startAt !== undefined) {
+      await reminderService.resyncItemReminders(userId, 'event', eventId, updated.startAt);
     }
 
     logger.info({ userId, eventId }, 'Event updated');

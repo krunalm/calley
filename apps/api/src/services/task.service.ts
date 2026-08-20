@@ -7,6 +7,7 @@ import { logger } from '../lib/logger';
 import { reminderQueue } from '../lib/queue';
 import { sanitizeHtml } from '../lib/sanitize';
 import { recurrenceService } from './recurrence.service';
+import { reminderService } from './reminder.service';
 import { sseService } from './sse.service';
 
 import type { CreateTaskInput, EditScope, ListTasksQuery, UpdateTaskInput } from '@calley/shared';
@@ -536,6 +537,11 @@ export class TaskService {
 
     if (!updated) {
       throw new AppError(404, 'NOT_FOUND', 'Task not found');
+    }
+
+    // Reminders are anchored to dueAt, so a reschedule has to move them too.
+    if (data.dueAt !== undefined) {
+      await reminderService.resyncItemReminders(userId, 'task', taskId, updated.dueAt);
     }
 
     logger.info({ userId, taskId }, 'Task updated');

@@ -102,15 +102,7 @@ export class ReminderService {
     }
 
     // Remove the BullMQ job (use reminder ID as job ID)
-    try {
-      const job = await reminderQueue.getJob(reminderId);
-      if (job) {
-        await job.remove();
-      }
-    } catch (err) {
-      // Non-critical: job may have already been processed or removed
-      logger.warn({ err, reminderId }, 'Failed to remove BullMQ job for reminder');
-    }
+    await this.removeReminderJob(reminderId);
 
     // Delete the reminder record
     await db
@@ -137,6 +129,69 @@ export class ReminderService {
     });
 
     return result.map((r) => toReminderResponse(r as ReminderRow));
+  }
+
+  /**
+   * Re-synchronise an item's pending reminders after its reference time moved.
+   *
+   * `triggerAt` is derived state — SPECS §6.7 defines it as
+   * `item start/due - minutesBefore` — so rescheduling an event or task has to
+   * recompute it and re-arm the delayed job. Without this the reminder keeps
+   * firing at the old absolute time while the notification itself is rendered
+   * from the item's new time.
+   *
+   * Reminders that have already been sent are left untouched. Passing a null
+   * reference time (a task that lost its due date) cancels the queued job and
+   * leaves the record in place.
+   *
+   * The database write is the durable part and happens first; queue failures are
+   * logged and swallowed, since `reEnqueueMissedReminders` re-arms from the
+   * stored `triggerAt` on the next startup.
+   */
+  async resyncItemReminders(
+    userId: string,
+    itemType: 'event' | 'task',
+    itemId: string,
+    referenceTime: Date | null,
+  ): Promise<void> {
+    const pending = await db.query.reminders.findMany({
+      where: and(
+        eq(reminders.userId, userId),
+        eq(reminders.itemType, itemType),
+        eq(reminders.itemId, itemId),
+        isNull(reminders.sentAt),
+      ),
+    });
+
+    if (pending.length === 0) return;
+
+    for (const row of pending) {
+      const reminder = row as ReminderRow;
+
+      if (!referenceTime) {
+        await this.removeReminderJob(reminder.id);
+        continue;
+      }
+
+      const triggerAt = new Date(referenceTime.getTime() - reminder.minutesBefore * 60 * 1000);
+      if (triggerAt.getTime() === reminder.triggerAt.getTime()) continue;
+
+      await db.update(reminders).set({ triggerAt }).where(eq(reminders.id, reminder.id));
+
+      // BullMQ ignores `add` for an existing jobId, so the stale job has to go
+      // before the new delay can take effect.
+      await this.removeReminderJob(reminder.id);
+      try {
+        await this.enqueueReminderJob({ ...reminder, triggerAt });
+      } catch (err) {
+        logger.warn({ err, reminderId: reminder.id }, 'Failed to re-enqueue rescheduled reminder');
+      }
+    }
+
+    logger.info(
+      { userId, itemType, itemId, count: pending.length },
+      'Reminders resynced after item reschedule',
+    );
   }
 
   /**
@@ -212,6 +267,21 @@ export class ReminderService {
     }
 
     throw new AppError(400, 'VALIDATION_ERROR', `Invalid item type: ${itemType}`);
+  }
+
+  /**
+   * Remove a reminder's BullMQ job. Non-critical: the job may already have been
+   * processed or removed, so failures are logged rather than propagated.
+   */
+  private async removeReminderJob(reminderId: string): Promise<void> {
+    try {
+      const job = await reminderQueue.getJob(reminderId);
+      if (job) {
+        await job.remove();
+      }
+    } catch (err) {
+      logger.warn({ err, reminderId }, 'Failed to remove BullMQ job for reminder');
+    }
   }
 
   /**

@@ -41,6 +41,13 @@ vi.mock('../../lib/queue', () => ({
   },
 }));
 
+// Mock reminder service
+vi.mock('../reminder.service', () => ({
+  reminderService: {
+    resyncItemReminders: vi.fn().mockResolvedValue(undefined),
+  },
+}));
+
 // Mock recurrence service
 vi.mock('../recurrence.service', () => ({
   recurrenceService: {
@@ -72,6 +79,7 @@ import { db } from '../../db';
 import { AppError } from '../../lib/errors';
 import { reminderQueue } from '../../lib/queue';
 import { recurrenceService } from '../recurrence.service';
+import { reminderService } from '../reminder.service';
 import { sseService } from '../sse.service';
 import { TaskService } from '../task.service';
 
@@ -397,6 +405,53 @@ describe('TaskService', () => {
   // ─── updateTask ─────────────────────────────────────────────────
 
   describe('updateTask', () => {
+    // Regression: `triggerAt` is derived from the task's dueAt (SPECS §6.7) but was
+    // only computed at reminder-creation time, so moving a due date left the
+    // reminder firing at the old absolute time.
+    it('should resync pending reminders when dueAt is rescheduled', async () => {
+      const taskRow = makeTaskRow();
+      const updatedRow = makeTaskRow({ dueAt: new Date('2026-03-20T09:00:00Z') });
+      (db.query.tasks.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(taskRow);
+      mockUpdateChain([updatedRow]);
+
+      await service.updateTask(TEST_USER_ID, TEST_TASK_ID, {
+        dueAt: '2026-03-20T09:00:00.000Z',
+      });
+
+      expect(reminderService.resyncItemReminders).toHaveBeenCalledWith(
+        TEST_USER_ID,
+        'task',
+        TEST_TASK_ID,
+        new Date('2026-03-20T09:00:00Z'),
+      );
+    });
+
+    it('should resync with a null reference time when the due date is cleared', async () => {
+      const taskRow = makeTaskRow();
+      const updatedRow = makeTaskRow({ dueAt: null });
+      (db.query.tasks.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(taskRow);
+      mockUpdateChain([updatedRow]);
+
+      await service.updateTask(TEST_USER_ID, TEST_TASK_ID, { dueAt: null });
+
+      expect(reminderService.resyncItemReminders).toHaveBeenCalledWith(
+        TEST_USER_ID,
+        'task',
+        TEST_TASK_ID,
+        null,
+      );
+    });
+
+    it('should not resync reminders when dueAt is untouched', async () => {
+      const taskRow = makeTaskRow();
+      (db.query.tasks.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(taskRow);
+      mockUpdateChain([makeTaskRow({ title: 'Renamed' })]);
+
+      await service.updateTask(TEST_USER_ID, TEST_TASK_ID, { title: 'Renamed' });
+
+      expect(reminderService.resyncItemReminders).not.toHaveBeenCalled();
+    });
+
     it('should update a non-recurring task directly', async () => {
       const taskRow = makeTaskRow();
       const updatedRow = makeTaskRow({ title: 'Updated Title' });

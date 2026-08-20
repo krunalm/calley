@@ -43,6 +43,13 @@ vi.mock('../../lib/sanitize', () => ({
   sanitizeHtml: vi.fn((html: string) => html.replace(/<script[^>]*>.*?<\/script>/gi, '')),
 }));
 
+// Mock reminder service
+vi.mock('../reminder.service', () => ({
+  reminderService: {
+    resyncItemReminders: vi.fn().mockResolvedValue(undefined),
+  },
+}));
+
 // Mock recurrence service
 vi.mock('../recurrence.service', () => ({
   recurrenceService: {
@@ -67,6 +74,7 @@ import { AppError } from '../../lib/errors';
 import { sanitizeHtml } from '../../lib/sanitize';
 import { EventService } from '../event.service';
 import { recurrenceService } from '../recurrence.service';
+import { reminderService } from '../reminder.service';
 
 // ─── Test Fixtures ──────────────────────────────────────────────────
 
@@ -373,6 +381,41 @@ describe('EventService', () => {
 
       expect((result as { title: string }).title).toBe('Updated Title');
       expect(db.update).toHaveBeenCalled();
+    });
+
+    // Regression: `triggerAt` is derived from the event's startAt (SPECS §6.7),
+    // but was only computed when the reminder was created. Rescheduling an event
+    // left every pending reminder firing at the old absolute time.
+    it('should resync pending reminders when startAt is rescheduled', async () => {
+      const eventRow = makeEventRow();
+      const updatedRow = makeEventRow({
+        startAt: new Date('2026-03-15T18:00:00Z'),
+        endAt: new Date('2026-03-15T19:00:00Z'),
+      });
+      (db.query.events.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(eventRow);
+      mockUpdateChain([updatedRow]);
+
+      await service.updateEvent(TEST_USER_ID, TEST_EVENT_ID, {
+        startAt: '2026-03-15T18:00:00.000Z',
+        endAt: '2026-03-15T19:00:00.000Z',
+      });
+
+      expect(reminderService.resyncItemReminders).toHaveBeenCalledWith(
+        TEST_USER_ID,
+        'event',
+        TEST_EVENT_ID,
+        new Date('2026-03-15T18:00:00Z'),
+      );
+    });
+
+    it('should not resync reminders when startAt is untouched', async () => {
+      const eventRow = makeEventRow();
+      (db.query.events.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(eventRow);
+      mockUpdateChain([makeEventRow({ title: 'Renamed' })]);
+
+      await service.updateEvent(TEST_USER_ID, TEST_EVENT_ID, { title: 'Renamed' });
+
+      expect(reminderService.resyncItemReminders).not.toHaveBeenCalled();
     });
 
     it('should throw NOT_FOUND when updating non-existent event', async () => {

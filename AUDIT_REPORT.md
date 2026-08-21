@@ -39,6 +39,27 @@ Severity of fixed findings: 4 high, 17 medium, 10 low.
 A local PostgreSQL 16 + Redis 7 pair was stood up in the sandbox, so migrations, the API and the
 full Playwright suite were all exercised against real services rather than mocks.
 
+#### End-to-end validation
+
+The full Playwright suite ran against those services: **629 of 630 passed** in 39.7 minutes.
+
+The one failure — `p2-edge-cases.spec.ts › Category create → assign to event → delete category →
+verify event reassigned` — was a browser process crash, not an assertion failure:
+
+```
+Protocol error (Runtime.callFunctionOn): Internal server error, session closed.
+```
+
+Re-run in isolation, that spec file passes in full (5/5), including the assertion that failed. The
+crash is contention in this sandbox under four parallel Chromium workers; CI runs the same suite
+with `retries: 2`, which absorbs it. It is recorded here rather than written off, and it is not
+attributed to any change in this branch — the code path it exercises (category deletion reassigning
+items to the default) is untouched, and it is covered by passing API-level specs as well.
+
+The UI half of the suite also serves as end-to-end proof of M17: the web app was configured from the
+shipped `apps/web/.env.example`, so every request it made went to `/api/v1` — the base path that did
+not exist before this branch.
+
 ---
 
 ## High severity
@@ -604,6 +625,18 @@ in the suite places an item more than 60 days from its anchor, so the default dr
 comment recording why it must stay under half the cap. Two specs now assert the bound itself, so the
 limit is covered end to end rather than only in unit tests.
 
+### L15 — All-day form validation diverged from the API
+
+**Status: `FIXED`**
+
+**Location:** `apps/web/src/components/calendar/EventDrawer.tsx`
+
+The drawer's form schema mirrored the same mistake M7 fixed on the server: its refinement returned
+`true` unconditionally for all-day events. Once the API started rejecting an inverted all-day range,
+the client would happily submit one and surface the rejection as a toast rather than an inline error
+on the field the user got wrong. The client check now matches the server's — dates alone for all-day
+events, but still checked.
+
 ### L10 — Dead `.gitignore` rule would have excluded the migration journal
 
 **Status: `FIXED`**
@@ -757,7 +790,8 @@ planning rather than silently absorbed into the coverage configuration.
 
 ## Testing
 
-Unit and integration tests grew from **640 to 740**.
+Unit and integration tests grew from **640 to 752**, and the Playwright suite from 628 to 630
+specs.
 
 | Package          | Before | After | Coverage (statements / branches / functions / lines) |
 | ---------------- | ------ | ----- | ---------------------------------------------------- |
@@ -836,6 +870,10 @@ silently skipped.
   do not exist here. The migration ordering issue they contain is recorded below.
 - **Cross-browser E2E (Firefox, WebKit, mobile viewports) was not run.** Only Chromium is
   pre-installed; the Playwright config already restricts CI to Chromium for the same reason.
+- **The pre-installed browsers predate this Playwright version.** Playwright 1.62.1 looks for
+  `chromium_headless_shell-1234`; the sandbox ships `-1194`. The suite was pointed at the full
+  Chromium binary through the config's existing `PLAYWRIGHT_CHROMIUM_PATH` escape hatch. CI runs
+  `playwright install`, so it gets the matching build and is unaffected.
 
 ## Deployment note
 

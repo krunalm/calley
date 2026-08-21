@@ -62,7 +62,13 @@ const eventFormBaseSchema = z.object({
 function createEventFormSchema(timezone: string) {
   return eventFormBaseSchema.refine(
     (data) => {
-      if (data.isAllDay) return true;
+      // All-day events span whole days, so the check is on the dates alone —
+      // but it still has to happen. Exempting them entirely (as this did) let a
+      // reversed date pair through to the API, which rejects it, so the user
+      // got a toast instead of an inline error on the field they got wrong.
+      if (data.isAllDay) {
+        return parseISO(data.startDate) <= parseISO(data.endDate);
+      }
       const start = fromZonedTime(parseISO(`${data.startDate}T${data.startTime}`), timezone);
       const end = fromZonedTime(parseISO(`${data.endDate}T${data.endTime}`), timezone);
       return start < end;

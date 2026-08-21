@@ -1,5 +1,5 @@
 import { Worker } from 'bullmq';
-import { and, inArray, isNotNull, lt, or } from 'drizzle-orm';
+import { and, getTableName, inArray, isNotNull, lt, or } from 'drizzle-orm';
 
 import { db } from '../db';
 import {
@@ -51,6 +51,7 @@ async function deleteInBatches(
   where: SQL | undefined,
 ): Promise<number> {
   let total = 0;
+  let exhausted = false;
 
   for (let batch = 0; batch < MAX_DELETE_BATCHES; batch++) {
     const doomed = await db
@@ -59,13 +60,29 @@ async function deleteInBatches(
       .where(where)
       .limit(DELETE_BATCH_SIZE);
 
-    if (doomed.length === 0) break;
+    if (doomed.length === 0) {
+      exhausted = true;
+      break;
+    }
 
     const ids = doomed.map((row) => row.id);
     await db.delete(table).where(inArray(idColumn, ids));
     total += ids.length;
 
-    if (doomed.length < DELETE_BATCH_SIZE) break;
+    if (doomed.length < DELETE_BATCH_SIZE) {
+      exhausted = true;
+      break;
+    }
+  }
+
+  if (!exhausted) {
+    // Hitting the ceiling is not an error — the next daily run picks up where
+    // this one stopped — but it must be visible, or a table growing faster than
+    // cleanup drains it looks exactly like a table being fully cleaned.
+    logger.warn(
+      { table: getTableName(table), deleted: total },
+      'Cleanup hit its per-run batch ceiling; the remainder is left for the next run',
+    );
   }
 
   return total;

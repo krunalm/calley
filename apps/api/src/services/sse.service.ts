@@ -23,7 +23,7 @@ interface SSEConnection {
 /** Whether a connection's queue has grown past what a live reader would leave. */
 function isBackedUp(conn: SSEConnection): boolean {
   const desiredSize = conn.controller.desiredSize;
-  return desiredSize !== null && desiredSize < -MAX_QUEUE_BACKLOG_BYTES;
+  return desiredSize !== null && desiredSize <= 0;
 }
 
 // ─── Constants ──────────────────────────────────────────────────────
@@ -33,16 +33,21 @@ const MAX_CONNECTIONS_PER_USER = 5;
 const MAX_TOTAL_CONNECTIONS = 10_000;
 
 /**
- * How far a connection's queue may fall behind before it is dropped.
+ * How many bytes a connection's queue may hold before it is dropped.
  *
  * `enqueue` never rejects on a slow consumer — it buffers, and the buffer is
  * only bounded by memory. A client that stops reading (a suspended laptop, a
  * proxy that stalls) would otherwise accumulate every event the account
- * generates for as long as the socket stays half-open. `desiredSize` goes
- * negative once the queue exceeds the stream's high-water mark; past this
- * threshold the connection is closed and the client reconnects and refetches.
+ * generates for as long as the socket stays half-open.
+ *
+ * This is the stream's high-water mark, so `desiredSize` reports the headroom
+ * left in bytes and reaching zero means the ceiling is hit. It only reads that
+ * way because `createSseStream` pairs the stream with a
+ * `ByteLengthQueuingStrategy` — under the default strategy `desiredSize` counts
+ * *chunks* against a high-water mark of 1, and a byte-valued comparison against
+ * it would never fire.
  */
-const MAX_QUEUE_BACKLOG_BYTES = 1024 * 1024;
+export const MAX_QUEUE_BACKLOG_BYTES = 1024 * 1024;
 
 // ─── Service ────────────────────────────────────────────────────────
 

@@ -10,6 +10,7 @@ vi.mock('../../db', () => {
       reminders: { findFirst: vi.fn(), findMany: vi.fn() },
     },
     insert: vi.fn(),
+    update: vi.fn(),
     delete: vi.fn(),
   };
   return { db: mockDb };
@@ -70,6 +71,15 @@ function mockInsertChain(result: unknown[]) {
     returning: vi.fn().mockResolvedValue(result),
   };
   (db.insert as ReturnType<typeof vi.fn>).mockReturnValue(chain);
+  return chain;
+}
+
+function mockUpdateChain() {
+  const chain = {
+    set: vi.fn().mockReturnThis(),
+    where: vi.fn().mockResolvedValue([]),
+  };
+  (db.update as ReturnType<typeof vi.fn>).mockReturnValue(chain);
   return chain;
 }
 
@@ -352,7 +362,9 @@ describe('ReminderService', () => {
       (db.query.reminders.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(reminderRow);
       mockDeleteChain();
 
-      (reminderQueue.getJob as ReturnType<typeof vi.fn>).mockRejectedValue(
+      // Once, not persistent: vi.clearAllMocks() does not drop implementations, so
+      // a persistent rejection here would leak a failing getJob into every later test.
+      (reminderQueue.getJob as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
         new Error('Redis connection failed'),
       );
 
@@ -498,6 +510,109 @@ describe('ReminderService', () => {
           delay: 0,
         }),
       );
+    });
+  });
+  // ─── resyncItemReminders ────────────────────────────────────────
+
+  // Regression: `triggerAt` is derived state (SPECS §6.7 —
+  // `item start/due - minutesBefore`) but was only ever computed at creation
+  // time. Rescheduling an event left its reminder pinned to the old absolute
+  // time, while the notification body was rendered from the item's new time.
+  describe('resyncItemReminders', () => {
+    it('should recompute triggerAt and re-arm the job when the item moves', async () => {
+      const reminder = makeReminderRow(); // 15 min before 2026-04-15T10:00:00Z
+      (db.query.reminders.findMany as ReturnType<typeof vi.fn>).mockResolvedValueOnce([reminder]);
+      const updateChain = mockUpdateChain();
+      (reminderQueue.getJob as ReturnType<typeof vi.fn>).mockResolvedValueOnce(null);
+
+      const newStart = new Date('2026-04-15T18:00:00Z');
+      await service.resyncItemReminders(TEST_USER_ID, 'event', TEST_EVENT_ID, newStart);
+
+      // Stored triggerAt follows the item: 18:00 - 15 min = 17:45.
+      expect(updateChain.set).toHaveBeenCalledWith({
+        triggerAt: new Date('2026-04-15T17:45:00Z'),
+      });
+
+      // And the delayed job is re-armed for the new time.
+      expect(reminderQueue.add).toHaveBeenCalledTimes(1);
+      const [, , opts] = (reminderQueue.add as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect(opts.jobId).toBe(TEST_REMINDER_ID);
+      expect(opts.delay).toBe(Math.max(0, new Date('2026-04-15T17:45:00Z').getTime() - Date.now()));
+    });
+
+    it('should leave triggerAt alone when the reference time is unchanged', async () => {
+      const reminder = makeReminderRow();
+      (db.query.reminders.findMany as ReturnType<typeof vi.fn>).mockResolvedValueOnce([reminder]);
+      mockUpdateChain();
+
+      await service.resyncItemReminders(TEST_USER_ID, 'event', TEST_EVENT_ID, EVENT_START);
+
+      expect(db.update).not.toHaveBeenCalled();
+      expect(reminderQueue.add).not.toHaveBeenCalled();
+    });
+
+    it('should not touch reminders that have already been sent', async () => {
+      // Already-sent reminders are excluded by the query itself.
+      (db.query.reminders.findMany as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+      mockUpdateChain();
+
+      await service.resyncItemReminders(
+        TEST_USER_ID,
+        'event',
+        TEST_EVENT_ID,
+        new Date('2026-04-15T18:00:00Z'),
+      );
+
+      expect(db.update).not.toHaveBeenCalled();
+      expect(reminderQueue.add).not.toHaveBeenCalled();
+    });
+
+    // Regression: removeReminderJob swallowed transient getJob/remove failures and
+    // returned void, so the caller carried on to enqueueReminderJob. BullMQ ignores
+    // `add` for an id that still exists, so the stale job stayed armed at the OLD
+    // trigger time while PostgreSQL held the new one — and because the job id is the
+    // reminder id, startup recovery could not replace it either.
+    it('should not re-arm the job when clearing the stale one failed', async () => {
+      (db.query.reminders.findMany as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+        makeReminderRow(),
+      ]);
+      const updateChain = mockUpdateChain();
+      (reminderQueue.getJob as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+        new Error('Redis connection lost'),
+      );
+
+      await service.resyncItemReminders(
+        TEST_USER_ID,
+        'event',
+        TEST_EVENT_ID,
+        new Date('2026-04-15T18:00:00Z'),
+      );
+
+      // The durable state is still corrected...
+      expect(updateChain.set).toHaveBeenCalledWith({
+        triggerAt: new Date('2026-04-15T17:45:00Z'),
+      });
+
+      // ...but no misleading no-op add is issued on top of the surviving job.
+      expect(reminderQueue.add).not.toHaveBeenCalled();
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.objectContaining({ reminderId: TEST_REMINDER_ID }),
+        'Could not clear the previous reminder job; the queue still holds the old trigger time',
+      );
+    });
+
+    it('should cancel the queued job when a task loses its due date', async () => {
+      const job = { remove: vi.fn().mockResolvedValue(undefined) };
+      (reminderQueue.getJob as ReturnType<typeof vi.fn>).mockResolvedValueOnce(job);
+      (db.query.reminders.findMany as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+        makeReminderRow({ itemType: 'task', itemId: TEST_TASK_ID }),
+      ]);
+      mockUpdateChain();
+
+      await service.resyncItemReminders(TEST_USER_ID, 'task', TEST_TASK_ID, null);
+
+      expect(job.remove).toHaveBeenCalledTimes(1);
+      expect(reminderQueue.add).not.toHaveBeenCalled();
     });
   });
 });

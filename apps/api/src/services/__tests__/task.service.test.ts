@@ -41,6 +41,13 @@ vi.mock('../../lib/queue', () => ({
   },
 }));
 
+// Mock reminder service
+vi.mock('../reminder.service', () => ({
+  reminderService: {
+    resyncItemReminders: vi.fn().mockResolvedValue(undefined),
+  },
+}));
+
 // Mock recurrence service
 vi.mock('../recurrence.service', () => ({
   recurrenceService: {
@@ -66,10 +73,13 @@ vi.mock('../sse.service', () => ({
   },
 }));
 
+import { PgDialect } from 'drizzle-orm/pg-core';
+
 import { db } from '../../db';
 import { AppError } from '../../lib/errors';
 import { reminderQueue } from '../../lib/queue';
 import { recurrenceService } from '../recurrence.service';
+import { reminderService } from '../reminder.service';
 import { sseService } from '../sse.service';
 import { TaskService } from '../task.service';
 
@@ -395,6 +405,53 @@ describe('TaskService', () => {
   // ─── updateTask ─────────────────────────────────────────────────
 
   describe('updateTask', () => {
+    // Regression: `triggerAt` is derived from the task's dueAt (SPECS §6.7) but was
+    // only computed at reminder-creation time, so moving a due date left the
+    // reminder firing at the old absolute time.
+    it('should resync pending reminders when dueAt is rescheduled', async () => {
+      const taskRow = makeTaskRow();
+      const updatedRow = makeTaskRow({ dueAt: new Date('2026-03-20T09:00:00Z') });
+      (db.query.tasks.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(taskRow);
+      mockUpdateChain([updatedRow]);
+
+      await service.updateTask(TEST_USER_ID, TEST_TASK_ID, {
+        dueAt: '2026-03-20T09:00:00.000Z',
+      });
+
+      expect(reminderService.resyncItemReminders).toHaveBeenCalledWith(
+        TEST_USER_ID,
+        'task',
+        TEST_TASK_ID,
+        new Date('2026-03-20T09:00:00Z'),
+      );
+    });
+
+    it('should resync with a null reference time when the due date is cleared', async () => {
+      const taskRow = makeTaskRow();
+      const updatedRow = makeTaskRow({ dueAt: null });
+      (db.query.tasks.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(taskRow);
+      mockUpdateChain([updatedRow]);
+
+      await service.updateTask(TEST_USER_ID, TEST_TASK_ID, { dueAt: null });
+
+      expect(reminderService.resyncItemReminders).toHaveBeenCalledWith(
+        TEST_USER_ID,
+        'task',
+        TEST_TASK_ID,
+        null,
+      );
+    });
+
+    it('should not resync reminders when dueAt is untouched', async () => {
+      const taskRow = makeTaskRow();
+      (db.query.tasks.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(taskRow);
+      mockUpdateChain([makeTaskRow({ title: 'Renamed' })]);
+
+      await service.updateTask(TEST_USER_ID, TEST_TASK_ID, { title: 'Renamed' });
+
+      expect(reminderService.resyncItemReminders).not.toHaveBeenCalled();
+    });
+
     it('should update a non-recurring task directly', async () => {
       const taskRow = makeTaskRow();
       const updatedRow = makeTaskRow({ title: 'Updated Title' });
@@ -1017,6 +1074,49 @@ describe('TaskService', () => {
       });
 
       expect(db.query.tasks.findMany).toHaveBeenCalledTimes(2);
+    });
+
+    // Regression: listTasks concatenates two queries — non-recurring tasks and
+    // recurring parents — and performs no recurrence expansion, so both sets are
+    // returned verbatim. The recurring-parent query used to be built from a
+    // hard-coded condition list, silently dropping every caller-supplied filter:
+    // filtering the task panel by "High" still listed low-priority recurring tasks.
+    it('should apply status, priority and due-date filters to recurring parents too', async () => {
+      (db.query.tasks.findMany as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]);
+
+      await service.listTasks(TEST_USER_ID, {
+        sort: 'created_at',
+        status: ['todo'],
+        priority: ['high'],
+        dueStart: '2026-03-01T00:00:00Z',
+        dueEnd: '2026-03-31T23:59:59Z',
+      });
+
+      const dialect = new PgDialect();
+      const calls = (db.query.tasks.findMany as ReturnType<typeof vi.fn>).mock.calls;
+      expect(calls).toHaveLength(2);
+
+      const [regularWhere, recurringWhere] = calls.map(
+        (call) => dialect.sqlToQuery(call[0].where as never).sql,
+      );
+
+      // The non-recurring query is the reference: it carries every filter.
+      expect(regularWhere).toContain('"tasks"."status"');
+      expect(regularWhere).toContain('"tasks"."priority"');
+      expect(regularWhere).toContain('"tasks"."due_at"');
+
+      // The recurring-parent query must carry them as well.
+      expect(recurringWhere).toContain('"tasks"."status"');
+      expect(recurringWhere).toContain('"tasks"."priority"');
+      expect(recurringWhere).toContain('"tasks"."due_at"');
+
+      // ...while still selecting recurring parents only.
+      expect(recurringWhere).toContain('"tasks"."rrule" is not null');
+      expect(recurringWhere).toContain('"tasks"."recurring_task_id" is null');
+      expect(recurringWhere).toContain('"tasks"."deleted_at" is null');
+      expect(recurringWhere).toContain('"tasks"."user_id"');
     });
 
     it('should handle different sort options', async () => {

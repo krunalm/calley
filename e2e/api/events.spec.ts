@@ -228,6 +228,30 @@ test.describe('API — read events', () => {
     expect(res.status()).toBe(404);
   });
 
+  /**
+   * Recurrence is expanded per request rather than materialised, so the work a
+   * listing does grows with the span asked for. Without a ceiling, one request
+   * could ask the server to expand every daily series across centuries.
+   */
+  test('rejects a listing range wider than the supported window', async ({ api }) => {
+    const res = await api.get(
+      `/events?start=${encodeURIComponent(isoPlusDays(ANCHOR, -400))}` +
+        `&end=${encodeURIComponent(isoPlusDays(ANCHOR, 400))}`,
+    );
+
+    expect(res.status()).toBe(400);
+    expect((await errorBody(res)).code).toBe('VALIDATION_ERROR');
+  });
+
+  test('accepts a listing range inside the supported window', async ({ api }) => {
+    const res = await api.get(
+      `/events?start=${encodeURIComponent(isoPlusDays(ANCHOR, -30))}` +
+        `&end=${encodeURIComponent(isoPlusDays(ANCHOR, 30))}`,
+    );
+
+    expect(res.status()).toBe(200);
+  });
+
   test('returns 400 for a malformed event id', async ({ api }) => {
     const res = await api.get('/events/not-a-cuid');
     expect(res.status()).toBe(400);

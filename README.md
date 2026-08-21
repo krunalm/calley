@@ -145,7 +145,7 @@ Edit the `.env` files as needed. The defaults work with the dev Docker Compose s
 ### 4. Run database migrations
 
 ```bash
-pnpm --filter api db:push
+pnpm --filter api db:migrate
 ```
 
 ### 5. Seed development data (optional)
@@ -174,7 +174,8 @@ This starts the frontend (http://localhost:5173) and API (http://localhost:4000)
 | `pnpm test`                     | Run unit + integration tests                 |
 | `pnpm test:e2e`                 | Run Playwright E2E tests                     |
 | `pnpm --filter api db:generate` | Generate Drizzle migration                   |
-| `pnpm --filter api db:push`     | Apply schema to dev database                 |
+| `pnpm --filter api db:migrate`  | Apply committed migrations                   |
+| `pnpm --filter api db:push`     | Push schema straight to a dev database       |
 | `pnpm --filter api db:seed`     | Seed development data                        |
 | `pnpm --filter api db:studio`   | Open Drizzle Studio                          |
 
@@ -472,11 +473,16 @@ docker compose -f docker/docker-compose.dev.yml up -d redis
 If the database schema is out of sync:
 
 ```bash
-# Reset and re-apply (development only)
-pnpm --filter api db:push
+# Apply any migrations the database has not seen
+pnpm --filter api db:migrate
 # Re-seed if needed
 pnpm --filter api db:seed
 ```
+
+`db:push` diffs the schema straight against a live database and bypasses the migration history
+entirely, so it is a development convenience only — it is what let `event_exceptions` exist in
+`schema.ts` for months with no migration behind it. Deployments run `db:migrate`, and CI fails if
+`schema.ts` and the committed migrations disagree.
 
 ### Docker build failures
 

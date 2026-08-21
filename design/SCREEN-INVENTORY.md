@@ -104,9 +104,7 @@ docker compose -f docker/docker-compose.dev.yml up -d     # or a local postgres:
 # 2. Schema and env
 cp apps/api/.env.example apps/api/.env
 cp apps/web/.env.example apps/web/.env
-# The shipped example points at /api/v1, which the API does not serve — see below
-sed -i 's|^VITE_API_URL=.*|VITE_API_URL=http://localhost:4000|' apps/web/.env
-pnpm --filter api exec drizzle-kit push --force
+pnpm --filter api db:migrate
 
 # 3. Dev servers  (the API reads env from the shell, it has no dotenv loader)
 set -a && . ./apps/api/.env && set +a
@@ -122,14 +120,10 @@ Both scripts take overrides from the environment: `SHOT_DIR` for the output dire
 `CHROMIUM_PATH` for a Chromium binary if Playwright's own download isn't present (e.g.
 `CHROMIUM_PATH=/opt/pw-browsers/chromium`).
 
-Three environment notes, all of which cost time to discover:
+Two environment notes, both of which cost time to discover:
 
 - **The API has no dotenv loader.** `apps/api/.env` is read from the shell or not at all — hence the
   `set -a && . ./apps/api/.env` above. Started any other way, it exits on `DATABASE_URL is required`.
-- **`apps/web/.env.example` points at the wrong base URL.** It ships
-  `VITE_API_URL=http://localhost:4000/api/v1`, but the API mounts its routes at `/v1` and at the
-  root — never at `/api/v1`. Use `http://localhost:4000`, or auth silently 401s and the app bounces
-  straight back to `/login`.
 - **An HTTPS proxy breaks lazy chunks.** If one is set, Chromium must be launched with
   `--no-proxy-server` (the capture script already does), or Vite's lazily imported view chunks fail
   with `ERR_CERT_AUTHORITY_INVALID` and every calendar view renders as a permanent loading spinner.

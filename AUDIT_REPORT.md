@@ -413,6 +413,40 @@ now assembled once and mounted at all three base paths, so the documented path w
 breaking existing clients. Verified live: `/health`, `/v1/health` and `/api/v1/health` all return
 `200`; `/api/v1/auth/me` returns `401` rather than `404`.
 
+### M18 — Self-hosted template omitted a variable the API refuses to start without
+
+**Status: `FIXED`**
+
+**Location:** `docker/.env.example`, `apps/api/.env.example`
+
+`FRONTEND_URL` is in `REQUIRED_VARS` in `lib/env.ts`, and in production a missing required variable
+takes the fatal path:
+
+```
+logger.fatal('Cannot start in production with missing required environment variables');
+return false;  // → process.exit(1)
+```
+
+Neither `.env.example` contained it. A self-hoster who copied `docker/.env.example` and filled in
+every value it listed got a container that exited on boot with no obvious cause. Added to both
+templates and to the README's variable table.
+
+### M19 — Behind the bundled nginx, rate limiting still collapsed into one bucket
+
+**Status: `FIXED`**
+
+**Location:** `docker/.env.example`, `docker/nginx.conf`, `README.md`
+
+H2 keys anonymous callers by socket address, which is correct when the API is exposed directly. The
+shipped self-hosted stack is not: `docker/docker-compose.yml` puts nginx in front, so every request
+reaches the API from the nginx container and that address is identical for every client — H2
+reintroduced by configuration. nginx already sets `X-Forwarded-For`; the API only honours it when
+`TRUSTED_PROXIES` is set, and the variable appeared in no template and no documentation.
+
+Added to `docker/.env.example` with the reasoning inline, to the README's variable table, and to a
+short README section explaining when it is safe to set — only where a proxy you control terminates
+every request, since the header is caller-supplied otherwise.
+
 ---
 
 ## Low severity
@@ -508,6 +542,68 @@ Nothing audited dependencies. Baseline was 20 high / 6 moderate / 1 low across t
 `rollup`, and a **Security Audit** CI job gates on high-severity advisories in the production tree
 while reporting dev-only findings without blocking.
 
+### L11 — ICS line folding split surrogate pairs and overran the octet limit
+
+**Status: `FIXED`**
+
+**Location:** `apps/api/src/services/event.service.ts` — `foldIcsLine()`
+
+RFC 5545 §3.1 caps a content line at 75 **octets** and forbids a fold inside a multi-octet
+character. The implementation sliced by UTF-16 code unit, satisfying neither: accented or CJK titles
+produced lines well over the octet limit, and a fold landing between the halves of a surrogate pair
+emitted two lone surrogates — not valid UTF-8, so a strict consumer rejects the file outright. A
+single emoji in a title long enough to fold was enough. Folding is now driven by each code point's
+encoded length, with the continuation line's leading space charged against its own budget.
+
+Tests assert every emitted line fits in 75 octets for accented text, and that unfolding an
+emoji-only title reproduces it exactly with no replacement characters.
+
+### L12 — The first backpressure guard measured chunks against a byte threshold
+
+**Status: `FIXED`**
+
+**Location:** `apps/api/src/services/sse.service.ts`, `routes/stream.routes.ts`
+
+Found in the re-audit pass, in this branch's own earlier work. M14's backlog check read
+`controller.desiredSize` and compared it to `-1048576`, but the stream was constructed with the
+default queuing strategy — under which `desiredSize` counts _chunks_ against a high-water mark of 1,
+not bytes. Reaching the threshold would have taken over a million queued chunks, so the guard was
+dead code and the leak it was meant to close was still open.
+
+Verified directly:
+
+```
+default strategy, 50KB queued : desiredSize = 0
+byte strategy,    50KB queued : desiredSize = 998576
+```
+
+The stream now carries a `ByteLengthQueuingStrategy` whose high-water mark _is_ the backlog ceiling,
+so `desiredSize` reports remaining headroom in bytes and reaching zero is exactly the drop
+condition. A test drives a stream nobody reads past the ceiling and asserts it is dropped, while one
+being read keeps receiving.
+
+### L13 — Cleanup's per-run batch ceiling was silent
+
+**Status: `FIXED`**
+
+**Location:** `apps/api/src/jobs/cleanup.job.ts`
+
+M9's batching caps a single run at 200 batches. Stopping there is not an error — the next daily run
+resumes — but draining a fraction looked identical to draining everything, which is precisely the
+signal that matters if a table grows faster than cleanup clears it. Now logged with the table name
+and the count deleted.
+
+### L14 — E2E helper asked for a range the new bound rejects
+
+**Status: `FIXED`**
+
+**Location:** `e2e/support/dates.ts`
+
+`wideRange()` defaulted to a ±400-day half-width — an 800-day span, rejected once M6 landed. Nothing
+in the suite places an item more than 60 days from its anchor, so the default drops to ±180, with a
+comment recording why it must stay under half the cap. Two specs now assert the bound itself, so the
+limit is covered end to end rather than only in unit tests.
+
 ### L10 — Dead `.gitignore` rule would have excluded the migration journal
 
 **Status: `FIXED`**
@@ -576,6 +672,23 @@ resynchronise it.
 A Redis failure logs and allows the request. Failing closed would turn a cache outage into a total
 API outage, which is the worse trade for this application. Covered by a test so the behaviour is
 deliberate rather than incidental.
+
+### V7 — Compose interpolates `${...}` inside `env_file`
+
+**Status: `VALIDATED — NO CHANGE REQUIRED`**
+
+`docker/.env.example` builds `DATABASE_URL` and `REDIS_URL` from `${DB_PASSWORD}` / `${REDIS_PASSWORD}`
+declared in the same file. Historically Docker Compose passed `env_file` values to the container
+literally, which would have delivered a connection string containing the placeholder text. Verified
+against the Compose version available here (v5.1.1):
+
+```
+$ docker compose config
+    environment:
+      DATABASE_URL: postgresql://calley:s3cret@db:5432/calley
+```
+
+Interpolation is performed, so the template works as written on any current Compose.
 
 ---
 

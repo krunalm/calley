@@ -12,6 +12,7 @@ vi.mock('../../db', () => {
     insert: vi.fn(),
     update: vi.fn(),
     delete: vi.fn(),
+    select: vi.fn(),
   };
   return { db: mockDb };
 });
@@ -83,6 +84,16 @@ function mockUpdateChain() {
   return chain;
 }
 
+/** Stand in for the `SELECT count(*)` that enforces the per-item reminder cap. */
+function mockReminderCount(value: number) {
+  const chain = {
+    from: vi.fn().mockReturnThis(),
+    where: vi.fn().mockResolvedValue([{ value }]),
+  };
+  (db.select as ReturnType<typeof vi.fn>).mockReturnValue(chain);
+  return chain;
+}
+
 function mockDeleteChain() {
   const chain = {
     where: vi.fn().mockResolvedValue([]),
@@ -98,12 +109,36 @@ describe('ReminderService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default: the item is well under the per-item reminder cap.
+    mockReminderCount(0);
     service = new ReminderService();
   });
 
   // ─── createReminder ─────────────────────────────────────────────
 
   describe('createReminder', () => {
+    it('should reject an item that already holds the maximum reminders', async () => {
+      (db.query.events.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue({
+        startAt: EVENT_START,
+      });
+      mockReminderCount(10);
+
+      // Each reminder is a durable row plus a delayed queue job, so an
+      // uncapped endpoint lets one authenticated caller schedule unbounded
+      // background work against a single event.
+      await expect(
+        service.createReminder(TEST_USER_ID, {
+          itemType: 'event',
+          itemId: TEST_EVENT_ID,
+          minutesBefore: 15,
+          method: 'push',
+        }),
+      ).rejects.toMatchObject({ statusCode: 422, code: 'VALIDATION_ERROR' });
+
+      expect(db.insert).not.toHaveBeenCalled();
+      expect(reminderQueue.add).not.toHaveBeenCalled();
+    });
+
     it('should create a reminder for an event', async () => {
       (db.query.events.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue({
         startAt: EVENT_START,

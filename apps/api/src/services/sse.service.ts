@@ -20,11 +20,29 @@ interface SSEConnection {
   createdAt: number;
 }
 
+/** Whether a connection's queue has grown past what a live reader would leave. */
+function isBackedUp(conn: SSEConnection): boolean {
+  const desiredSize = conn.controller.desiredSize;
+  return desiredSize !== null && desiredSize < -MAX_QUEUE_BACKLOG_BYTES;
+}
+
 // ─── Constants ──────────────────────────────────────────────────────
 
 const HEARTBEAT_INTERVAL_MS = 30_000;
 const MAX_CONNECTIONS_PER_USER = 5;
 const MAX_TOTAL_CONNECTIONS = 10_000;
+
+/**
+ * How far a connection's queue may fall behind before it is dropped.
+ *
+ * `enqueue` never rejects on a slow consumer — it buffers, and the buffer is
+ * only bounded by memory. A client that stops reading (a suspended laptop, a
+ * proxy that stalls) would otherwise accumulate every event the account
+ * generates for as long as the socket stays half-open. `desiredSize` goes
+ * negative once the queue exceeds the stream's high-water mark; past this
+ * threshold the connection is closed and the client reconnects and refetches.
+ */
+const MAX_QUEUE_BACKLOG_BYTES = 1024 * 1024;
 
 // ─── Service ────────────────────────────────────────────────────────
 
@@ -112,6 +130,17 @@ class SSEService {
     const dead: SSEConnection[] = [];
 
     for (const conn of userConnections) {
+      if (isBackedUp(conn)) {
+        logger.warn({ userId }, 'Dropping SSE connection that stopped draining');
+        try {
+          conn.controller.close();
+        } catch {
+          // Already closed.
+        }
+        dead.push(conn);
+        continue;
+      }
+
       try {
         conn.controller.enqueue(encoded);
       } catch {
@@ -214,6 +243,11 @@ class SSEService {
         }
       }
     }, HEARTBEAT_INTERVAL_MS);
+
+    // A bare interval keeps the process alive on its own, so an API that has
+    // finished shutting down (or a test run that imported this module) would
+    // hang for up to the interval waiting on a timer nobody is watching.
+    this.heartbeatTimer.unref?.();
   }
 }
 

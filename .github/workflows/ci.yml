@@ -75,6 +75,124 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm test
 
+  # Stylelint has been configured and installed since the project was set up but
+  # nothing ever invoked it, so the CSS rules were never actually enforced.
+  stylelint:
+    name: Stylelint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint:css
+
+  # Fails the build on a high-severity advisory anywhere in the runtime
+  # dependency tree. Dev-only advisories are reported but do not gate, since
+  # they cannot reach a user.
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Audit production dependencies
+        run: pnpm audit --prod --audit-level high
+
+      - name: Report all advisories (informational)
+        if: ${{ !cancelled() }}
+        run: pnpm audit || true
+
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:coverage
+
+      - name: Upload coverage reports
+        uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: coverage
+          path: |
+            apps/api/coverage/
+            apps/web/coverage/
+            packages/shared/coverage/
+          retention-days: 14
+
+  # Verifies the committed migration chain still reproduces schema.ts. Without
+  # it, schema edits land with no migration and only `db:push` deployments
+  # notice — `drizzle-kit migrate` silently builds a database the API cannot
+  # run against.
+  migrations:
+    name: Migrations
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: calley_migrations
+          POSTGRES_USER: calley
+          POSTGRES_PASSWORD: testpassword
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U calley"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://calley:testpassword@localhost:5432/calley_migrations
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Apply migrations to an empty database
+        run: pnpm --filter api db:migrate
+
+      - name: Fail if schema.ts has drifted from the migrations
+        run: |
+          pnpm --filter api exec drizzle-kit generate --name=drift_check
+          if [ -n "$(git status --porcelain apps/api/drizzle)" ]; then
+            echo "::error::schema.ts has changes with no migration. Run 'pnpm --filter api db:generate' and commit the result."
+            git status --porcelain apps/api/drizzle
+            git diff -- apps/api/drizzle
+            exit 1
+          fi
+
   build:
     name: Build
     runs-on: ubuntu-latest
@@ -185,8 +303,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
 
-      - name: Push database schema
-        run: pnpm --filter api db:push --force
+      - name: Apply database migrations
+        run: pnpm --filter api db:migrate
 
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps chromium

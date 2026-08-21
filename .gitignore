@@ -47,8 +47,10 @@ docker/data/
 # TypeScript incremental build
 *.tsbuildinfo
 
-# Drizzle
-drizzle/meta/
+# NOTE: drizzle/meta/ is deliberately NOT ignored. The journal and snapshots are
+# what `drizzle-kit generate` diffs against and what `drizzle-kit migrate` reads
+# to decide what has run; without them the migration chain cannot be extended or
+# applied at all.
 
 # Playwright
 test-results/

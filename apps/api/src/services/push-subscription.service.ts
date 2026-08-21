@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import webpush from 'web-push';
 
 import { db } from '../db';
@@ -20,6 +20,18 @@ if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
 } else {
   logger.warn('VAPID keys not configured — Web Push notifications will be disabled');
 }
+
+// ─── Constants ──────────────────────────────────────────────────────
+
+/**
+ * Subscriptions retained per user.
+ *
+ * A subscription is created per browser profile and never expires on its own,
+ * so without a cap a user who clears site data repeatedly accumulates dead
+ * endpoints, and every notification fans out over all of them. Beyond the cap
+ * the oldest are dropped — the browser in front of the user just registered.
+ */
+const MAX_SUBSCRIPTIONS_PER_USER = 20;
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -88,6 +100,8 @@ export class PushSubscriptionService {
       return toResponse(updated as PushSubscriptionRow);
     }
 
+    await this.evictOldestOverCap(userId);
+
     const [created] = await db
       .insert(userPushSubscriptions)
       .values({
@@ -101,6 +115,25 @@ export class PushSubscriptionService {
 
     logger.info({ userId, subscriptionId: created.id }, 'Push subscription created');
     return toResponse(created as PushSubscriptionRow);
+  }
+
+  /**
+   * Make room for one more subscription by dropping the user's oldest.
+   */
+  private async evictOldestOverCap(userId: string): Promise<void> {
+    const existing = await db.query.userPushSubscriptions.findMany({
+      where: eq(userPushSubscriptions.userId, userId),
+      orderBy: (subscription, { asc }) => [asc(subscription.createdAt), asc(subscription.id)],
+      columns: { id: true },
+    });
+
+    const excess = existing.length - (MAX_SUBSCRIPTIONS_PER_USER - 1);
+    if (excess <= 0) return;
+
+    const doomed = existing.slice(0, excess).map((subscription) => subscription.id);
+    await db.delete(userPushSubscriptions).where(inArray(userPushSubscriptions.id, doomed));
+
+    logger.info({ userId, evicted: doomed.length }, 'Evicted oldest push subscriptions over cap');
   }
 
   /**
@@ -187,13 +220,13 @@ export class PushSubscriptionService {
       }),
     );
 
-    // Clean up expired subscriptions
+    // Clean up expired subscriptions in one statement rather than one round
+    // trip per endpoint.
     if (expired.length > 0) {
-      for (const id of expired) {
-        await db
-          .delete(userPushSubscriptions)
-          .where(eq(userPushSubscriptions.id, id))
-          .catch(() => {});
+      try {
+        await db.delete(userPushSubscriptions).where(inArray(userPushSubscriptions.id, expired));
+      } catch (err) {
+        logger.warn({ err, count: expired.length }, 'Failed to prune expired push subscriptions');
       }
     }
   }

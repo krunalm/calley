@@ -14,6 +14,7 @@ import {
   updateProfileSchema,
 } from '@calley/shared';
 
+import { getClientIp } from '../lib/client-ip';
 import { clearCsrfCookie, generateCsrfToken, setCsrfCookie } from '../lib/csrf';
 import { AppError } from '../lib/errors';
 import { logger } from '../lib/logger';
@@ -39,6 +40,7 @@ import type {
   SignupInput,
   UpdateProfileInput,
 } from '@calley/shared';
+import type { Context } from 'hono';
 
 const emptySchema = z.object({});
 const oauthAccountIdParamSchema = z.object({ id: cuid2Schema });
@@ -47,11 +49,15 @@ const auth = new Hono<{ Variables: AppVariables }>();
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
-/** Extract client IP address from request headers. */
-function getIpAddress(c: { req: { header: (name: string) => string | undefined } }): string | null {
-  return (
-    c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || c.req.header('x-real-ip') || null
-  );
+/**
+ * Client IP recorded against sessions and audit entries.
+ *
+ * Delegates to the shared resolver so forwarded headers are only honoured
+ * behind a configured proxy — otherwise any caller could stamp an arbitrary
+ * address onto another user's audit trail.
+ */
+function getIpAddress(c: Context): string | null {
+  return getClientIp(c);
 }
 
 // ─── Public Routes (no auth required) ──────────────────────────────────

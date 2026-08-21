@@ -1,8 +1,9 @@
+import { getClientIp } from '../lib/client-ip';
 import { logger } from '../lib/logger';
 import { redis } from '../lib/redis';
 
 import type { AppVariables } from '../types/hono';
-import type { MiddlewareHandler } from 'hono';
+import type { Context, MiddlewareHandler } from 'hono';
 
 interface RateLimitOptions {
   limit: number;
@@ -12,28 +13,15 @@ interface RateLimitOptions {
 }
 
 /**
- * Extract a client IP from the request, only trusting proxy headers when
- * TRUSTED_PROXIES is configured. Falls back to 'unknown' when no reliable
- * source is available.
+ * Bucket identifier for a request that carries no explicit `keyFn`.
+ *
+ * Falls back to the socket address rather than a shared constant: keying every
+ * anonymous caller as `unknown` would put the whole deployment in one bucket,
+ * so a single client could exhaust the limit for everybody. `unknown` remains
+ * only for runtimes that expose neither a trusted proxy header nor a socket.
  */
-function getClientIp(c: Parameters<MiddlewareHandler>[0]): string {
-  const trustedProxies = process.env.TRUSTED_PROXIES;
-
-  if (trustedProxies) {
-    // Only trust X-Forwarded-For / X-Real-IP when requests arrive through
-    // a known reverse proxy. In production this should be set to the proxy
-    // CIDR (e.g. "10.0.0.0/8") or "*" to trust any proxy.
-    const forwarded = c.req.header('x-forwarded-for')?.split(',')[0]?.trim();
-    if (forwarded) return forwarded;
-
-    const realIp = c.req.header('x-real-ip');
-    if (realIp) return realIp;
-  }
-
-  // Without trusted proxies configured, fall back to a fixed identifier.
-  // This means all requests share the same bucket, which is intentionally
-  // restrictive to prevent IP spoofing from bypassing rate limits.
-  return 'unknown';
+function defaultIdentifier(c: Context): string {
+  return getClientIp(c) ?? 'unknown';
 }
 
 export function rateLimit(
@@ -47,7 +35,7 @@ export function rateLimit(
       return;
     }
 
-    const identifier = keyFn ? keyFn(c) : getClientIp(c);
+    const identifier = keyFn ? keyFn(c) : defaultIdentifier(c);
 
     const key = `rl:${keyPrefix}:${identifier}`;
     const now = Date.now();

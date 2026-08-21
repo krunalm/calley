@@ -15,13 +15,16 @@ const pushSubscriptions = new Hono<{ Variables: AppVariables }>();
 // All routes require authentication
 pushSubscriptions.use('/*', authMiddleware);
 
-// Rate limit: 20 requests per minute per user
+// Rate limit: 20 requests per minute per user. The key must be the user id —
+// without it every caller shares one bucket and a single busy client locks
+// push registration for the whole deployment.
 pushSubscriptions.use(
   '/*',
   rateLimit({
     limit: 20,
     windowSeconds: 60,
     keyPrefix: 'push-subs',
+    keyFn: (c) => c.get('userId') ?? 'anon',
   }),
 );
 

@@ -231,6 +231,11 @@ export class RecurrenceService {
     const instances: ExpandedInstance[] = [];
 
     for (const occurrence of cappedOccurrences) {
+      // Truncate before deriving the end, not after. `instanceDate` is
+      // millisecond-truncated to match how exception dates are keyed, so
+      // computing the end from the untruncated value stretched every instance
+      // by whatever sub-second remainder dtstart carried.
+      occurrence.setMilliseconds(0);
       const occurrenceMs = occurrence.getTime();
       const instanceEndMs = occurrenceMs + duration;
 
@@ -240,8 +245,6 @@ export class RecurrenceService {
         continue;
       }
 
-      // Normalize: truncate ms to match exceptionKey precision
-      occurrence.setMilliseconds(0);
       const instanceDate = occurrence.toISOString();
 
       // Skip if this occurrence is in exDates (double check in case rruleSet missed it)

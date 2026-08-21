@@ -1,5 +1,5 @@
 import { Worker } from 'bullmq';
-import { and, isNotNull, lt, or } from 'drizzle-orm';
+import { and, inArray, isNotNull, lt, or } from 'drizzle-orm';
 
 import { db } from '../db';
 import {
@@ -14,28 +14,79 @@ import {
 import { logger } from '../lib/logger';
 import { bullmqConnection, cleanupQueue, QUEUE_NAMES, registerWorker } from '../lib/queue';
 
+import type { SQL } from 'drizzle-orm';
+import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
+
+// ─── Constants ─────────────────────────────────────────────────────
+
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
+
+/**
+ * Rows removed per statement.
+ *
+ * A single unqualified `DELETE` over months of retention takes row locks on
+ * everything it touches and holds them until it commits, which on a busy table
+ * blocks writers for the duration. Chunking keeps each transaction short; the
+ * loop simply runs until a pass comes back short.
+ */
+const DELETE_BATCH_SIZE = 5_000;
+
+/** Guard against an unbounded loop if a delete silently stops making progress. */
+const MAX_DELETE_BATCHES = 200;
+
 // ─── Cleanup Task Functions ────────────────────────────────────────
+
+/**
+ * Delete every row matching `where`, in bounded batches.
+ *
+ * Only the primary keys of the current batch are materialised, so memory stays
+ * flat no matter how much backlog has accumulated — the previous
+ * `.returning({ id })` over the whole predicate pulled every deleted id into
+ * the worker at once.
+ */
+async function deleteInBatches(
+  table: PgTable,
+  idColumn: PgColumn,
+  where: SQL | undefined,
+): Promise<number> {
+  let total = 0;
+
+  for (let batch = 0; batch < MAX_DELETE_BATCHES; batch++) {
+    const doomed = await db
+      .select({ id: idColumn })
+      .from(table)
+      .where(where)
+      .limit(DELETE_BATCH_SIZE);
+
+    if (doomed.length === 0) break;
+
+    const ids = doomed.map((row) => row.id);
+    await db.delete(table).where(inArray(idColumn, ids));
+    total += ids.length;
+
+    if (doomed.length < DELETE_BATCH_SIZE) break;
+  }
+
+  return total;
+}
 
 /**
  * Delete sessions that have expired.
  */
 async function cleanupExpiredSessions(): Promise<number> {
-  const result = await db
-    .delete(sessions)
-    .where(lt(sessions.expiresAt, new Date()))
-    .returning({ id: sessions.id });
-  return result.length;
+  return deleteInBatches(sessions, sessions.id, lt(sessions.expiresAt, new Date()));
 }
 
 /**
  * Delete password reset tokens that are used or expired.
  */
 async function cleanupPasswordResetTokens(): Promise<number> {
-  const result = await db
-    .delete(passwordResetTokens)
-    .where(or(isNotNull(passwordResetTokens.usedAt), lt(passwordResetTokens.expiresAt, new Date())))
-    .returning({ id: passwordResetTokens.id });
-  return result.length;
+  return deleteInBatches(
+    passwordResetTokens,
+    passwordResetTokens.id,
+    or(isNotNull(passwordResetTokens.usedAt), lt(passwordResetTokens.expiresAt, new Date())),
+  );
 }
 
 /**
@@ -43,60 +94,58 @@ async function cleanupPasswordResetTokens(): Promise<number> {
  * Deletes event exceptions first to satisfy FK constraints.
  */
 async function cleanupDeletedEvents(): Promise<number> {
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const cutoff = new Date(Date.now() - THIRTY_DAYS_MS);
 
   // First delete related exception overrides
-  const deletedExceptions = await db
-    .delete(eventExceptions)
-    .where(and(isNotNull(eventExceptions.deletedAt), lt(eventExceptions.deletedAt, thirtyDaysAgo)))
-    .returning({ id: eventExceptions.id });
+  const deletedExceptions = await deleteInBatches(
+    eventExceptions,
+    eventExceptions.id,
+    and(isNotNull(eventExceptions.deletedAt), lt(eventExceptions.deletedAt, cutoff)),
+  );
 
   // Then delete the events themselves
-  const deletedEvents = await db
-    .delete(events)
-    .where(and(isNotNull(events.deletedAt), lt(events.deletedAt, thirtyDaysAgo)))
-    .returning({ id: events.id });
+  const deletedEvents = await deleteInBatches(
+    events,
+    events.id,
+    and(isNotNull(events.deletedAt), lt(events.deletedAt, cutoff)),
+  );
 
-  return deletedEvents.length + deletedExceptions.length;
+  return deletedEvents + deletedExceptions;
 }
 
 /**
  * Hard delete soft-deleted tasks older than 30 days.
  */
 async function cleanupDeletedTasks(): Promise<number> {
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const cutoff = new Date(Date.now() - THIRTY_DAYS_MS);
 
-  const result = await db
-    .delete(tasks)
-    .where(and(isNotNull(tasks.deletedAt), lt(tasks.deletedAt, thirtyDaysAgo)))
-    .returning({ id: tasks.id });
-  return result.length;
+  return deleteInBatches(
+    tasks,
+    tasks.id,
+    and(isNotNull(tasks.deletedAt), lt(tasks.deletedAt, cutoff)),
+  );
 }
 
 /**
  * Delete sent reminders older than 30 days.
  */
 async function cleanupSentReminders(): Promise<number> {
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const cutoff = new Date(Date.now() - THIRTY_DAYS_MS);
 
-  const result = await db
-    .delete(reminders)
-    .where(and(isNotNull(reminders.sentAt), lt(reminders.sentAt, thirtyDaysAgo)))
-    .returning({ id: reminders.id });
-  return result.length;
+  return deleteInBatches(
+    reminders,
+    reminders.id,
+    and(isNotNull(reminders.sentAt), lt(reminders.sentAt, cutoff)),
+  );
 }
 
 /**
  * Delete audit logs older than 90 days.
  */
 async function cleanupAuditLogs(): Promise<number> {
-  const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+  const cutoff = new Date(Date.now() - NINETY_DAYS_MS);
 
-  const result = await db
-    .delete(auditLogs)
-    .where(lt(auditLogs.createdAt, ninetyDaysAgo))
-    .returning({ id: auditLogs.id });
-  return result.length;
+  return deleteInBatches(auditLogs, auditLogs.id, lt(auditLogs.createdAt, cutoff));
 }
 
 // ─── Worker ────────────────────────────────────────────────────────

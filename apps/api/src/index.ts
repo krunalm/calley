@@ -1,6 +1,7 @@
 import { serve } from '@hono/node-server';
 
 import { app } from './app';
+import { closeDb } from './db';
 import { initializeJobProcessing } from './jobs';
 import { validateEnv } from './lib/env';
 import { logger } from './lib/logger';
@@ -36,7 +37,17 @@ async function start() {
   });
 }
 
+let shuttingDown = false;
+
 async function shutdown(signal: string) {
+  // Orchestrators routinely send SIGTERM and then SIGINT, and a second pass
+  // would close an already-closing server and race the forced-exit timer.
+  if (shuttingDown) {
+    logger.warn({ signal }, 'Shutdown already in progress, ignoring signal');
+    return;
+  }
+  shuttingDown = true;
+
   logger.info({ signal }, 'Shutdown signal received, closing gracefully');
 
   // Wait for in-flight requests (max 30s)
@@ -83,12 +94,38 @@ async function shutdown(signal: string) {
     logger.error({ err }, 'Error disconnecting Redis');
   }
 
+  // Postgres last: the shutdown steps above may still write (BullMQ draining a
+  // job, a final audit entry), so the pool has to outlive them.
+  try {
+    await closeDb();
+    logger.info('Database pool drained');
+  } catch (err) {
+    logger.error({ err }, 'Error draining database pool');
+  }
+
   clearTimeout(forceTimeout);
   logger.info('Graceful shutdown complete');
   process.exit(0);
 }
 
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('SIGTERM', () => void shutdown('SIGTERM'));
+process.on('SIGINT', () => void shutdown('SIGINT'));
 
-start();
+// Node terminates on an unhandled rejection by default and prints only the
+// bare reason. Logging through pino first keeps the failure in the same
+// structured stream as everything else, so it is actually discoverable in
+// production.
+process.on('unhandledRejection', (reason) => {
+  logger.fatal({ err: reason }, 'Unhandled promise rejection — shutting down');
+  void shutdown('unhandledRejection');
+});
+
+process.on('uncaughtException', (err) => {
+  logger.fatal({ err }, 'Uncaught exception — shutting down');
+  void shutdown('uncaughtException');
+});
+
+start().catch((err) => {
+  logger.fatal({ err }, 'Failed to start Calley API');
+  process.exit(1);
+});

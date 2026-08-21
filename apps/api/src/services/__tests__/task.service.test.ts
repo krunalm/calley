@@ -1007,84 +1007,77 @@ describe('TaskService', () => {
   describe('listTasks', () => {
     it('should query tasks and return them', async () => {
       const taskRows = [makeTaskRow()];
-      // findMany is called twice: regular tasks, recurring parents
-      (db.query.tasks.findMany as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce(taskRows) // regular tasks
-        .mockResolvedValueOnce([]); // recurring parents
+      (db.query.tasks.findMany as ReturnType<typeof vi.fn>).mockResolvedValue(taskRows);
 
       const result = await service.listTasks(TEST_USER_ID, { sort: 'created_at' });
 
       expect(result).toHaveLength(1);
       expect(result[0].id).toBe(TEST_TASK_ID);
-      expect(db.query.tasks.findMany).toHaveBeenCalledTimes(2);
-    });
-
-    it('should deduplicate tasks that appear in multiple queries', async () => {
-      const taskRow = makeTaskRow();
-      // Both queries return the same task
-      (db.query.tasks.findMany as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce([taskRow])
-        .mockResolvedValueOnce([taskRow]);
-
-      const result = await service.listTasks(TEST_USER_ID, { sort: 'created_at' });
-
-      // Should be deduplicated to 1 task
-      expect(result).toHaveLength(1);
+      // One query, so Postgres applies the requested ordering across the whole
+      // result. Splitting recurring parents into a second query and
+      // concatenating discarded that ordering (see the regression below).
+      expect(db.query.tasks.findMany).toHaveBeenCalledTimes(1);
     });
 
     it('should return an empty array when no tasks match', async () => {
-      (db.query.tasks.findMany as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([]);
+      (db.query.tasks.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([]);
 
       const result = await service.listTasks(TEST_USER_ID, { sort: 'created_at' });
 
       expect(result).toEqual([]);
     });
 
-    it('should pass through status filter', async () => {
-      (db.query.tasks.findMany as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([]);
-
-      await service.listTasks(TEST_USER_ID, { sort: 'created_at', status: ['todo'] });
-
-      expect(db.query.tasks.findMany).toHaveBeenCalledTimes(2);
-    });
-
-    it('should pass through priority filter', async () => {
-      (db.query.tasks.findMany as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([]);
-
-      await service.listTasks(TEST_USER_ID, { sort: 'created_at', priority: ['high', 'medium'] });
-
-      expect(db.query.tasks.findMany).toHaveBeenCalledTimes(2);
-    });
-
-    it('should handle due date range filters', async () => {
-      (db.query.tasks.findMany as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([]);
-
-      await service.listTasks(TEST_USER_ID, {
-        sort: 'created_at',
-        dueStart: '2026-03-01T00:00:00Z',
-        dueEnd: '2026-03-31T23:59:59Z',
+    /**
+     * Regression: recurring parents and one-off tasks were fetched by two
+     * separate queries and concatenated, so the requested sort only held within
+     * each half — every recurring task sorted after every non-recurring one no
+     * matter what the client asked for. A user sorting by due date saw a
+     * recurring task due today below a one-off due next month.
+     */
+    it('should order recurring and non-recurring tasks together', async () => {
+      const recurringDueSoon = makeTaskRow({
+        id: 'aaaaaaaaaaaaaaaaaaaaaaaa',
+        rrule: 'FREQ=WEEKLY',
+        dueAt: new Date('2026-03-01T09:00:00Z'),
       });
+      const oneOffDueLater = makeTaskRow({
+        id: 'bbbbbbbbbbbbbbbbbbbbbbbb',
+        rrule: null,
+        dueAt: new Date('2026-03-20T09:00:00Z'),
+      });
+      // A single query means the database decides the order; the service must
+      // preserve whatever it returns rather than regrouping.
+      (db.query.tasks.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
+        recurringDueSoon,
+        oneOffDueLater,
+      ]);
 
-      expect(db.query.tasks.findMany).toHaveBeenCalledTimes(2);
+      const result = await service.listTasks(TEST_USER_ID, { sort: 'due_at' });
+
+      expect(result.map((t) => t.id)).toEqual([recurringDueSoon.id, oneOffDueLater.id]);
+      expect(db.query.tasks.findMany).toHaveBeenCalledTimes(1);
     });
 
-    // Regression: listTasks concatenates two queries — non-recurring tasks and
-    // recurring parents — and performs no recurrence expansion, so both sets are
-    // returned verbatim. The recurring-parent query used to be built from a
-    // hard-coded condition list, silently dropping every caller-supplied filter:
-    // filtering the task panel by "High" still listed low-priority recurring tasks.
-    it('should apply status, priority and due-date filters to recurring parents too', async () => {
-      (db.query.tasks.findMany as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([]);
+    it('should cap the number of rows a single listing can return', async () => {
+      (db.query.tasks.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+
+      await service.listTasks(TEST_USER_ID, { sort: 'sort_order' });
+
+      // The endpoint is unpaginated, so an uncapped query serialises an entire
+      // backlog into one response on every poll.
+      const [call] = (db.query.tasks.findMany as ReturnType<typeof vi.fn>).mock.calls;
+      expect(call[0].limit).toBeGreaterThan(0);
+    });
+
+    /**
+     * Regression: the recurring-parent query was built from a hard-coded
+     * condition list and silently dropped every caller-supplied filter, so
+     * filtering the task panel by "High" still listed low-priority recurring
+     * tasks. With a single query there is only one place filters can go, and
+     * this asserts they land there.
+     */
+    it('should apply status, priority and due-date filters to every task', async () => {
+      (db.query.tasks.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([]);
 
       await service.listTasks(TEST_USER_ID, {
         sort: 'created_at',
@@ -1096,41 +1089,32 @@ describe('TaskService', () => {
 
       const dialect = new PgDialect();
       const calls = (db.query.tasks.findMany as ReturnType<typeof vi.fn>).mock.calls;
-      expect(calls).toHaveLength(2);
+      expect(calls).toHaveLength(1);
 
-      const [regularWhere, recurringWhere] = calls.map(
-        (call) => dialect.sqlToQuery(call[0].where as never).sql,
-      );
+      const where = dialect.sqlToQuery(calls[0][0].where as never).sql;
 
-      // The non-recurring query is the reference: it carries every filter.
-      expect(regularWhere).toContain('"tasks"."status"');
-      expect(regularWhere).toContain('"tasks"."priority"');
-      expect(regularWhere).toContain('"tasks"."due_at"');
+      expect(where).toContain('"tasks"."status"');
+      expect(where).toContain('"tasks"."priority"');
+      expect(where).toContain('"tasks"."due_at"');
 
-      // The recurring-parent query must carry them as well.
-      expect(recurringWhere).toContain('"tasks"."status"');
-      expect(recurringWhere).toContain('"tasks"."priority"');
-      expect(recurringWhere).toContain('"tasks"."due_at"');
-
-      // ...while still selecting recurring parents only.
-      expect(recurringWhere).toContain('"tasks"."rrule" is not null');
-      expect(recurringWhere).toContain('"tasks"."recurring_task_id" is null');
-      expect(recurringWhere).toContain('"tasks"."deleted_at" is null');
-      expect(recurringWhere).toContain('"tasks"."user_id"');
+      // Exception rows stay out of the top-level listing; parents of every kind
+      // stay in.
+      expect(where).toContain('"tasks"."recurring_task_id" is null');
+      expect(where).toContain('"tasks"."deleted_at" is null');
+      expect(where).toContain('"tasks"."user_id"');
+      expect(where).not.toContain('"tasks"."rrule" is not null');
     });
 
     it('should handle different sort options', async () => {
       const taskRow = makeTaskRow();
       for (const sort of ['due_at', 'priority', 'created_at', 'sort_order'] as const) {
         vi.clearAllMocks();
-        (db.query.tasks.findMany as ReturnType<typeof vi.fn>)
-          .mockResolvedValueOnce([taskRow])
-          .mockResolvedValueOnce([]);
+        (db.query.tasks.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([taskRow]);
 
         const result = await service.listTasks(TEST_USER_ID, { sort });
 
         expect(result).toHaveLength(1);
-        expect(db.query.tasks.findMany).toHaveBeenCalledTimes(2);
+        expect(db.query.tasks.findMany).toHaveBeenCalledTimes(1);
       }
     });
   });

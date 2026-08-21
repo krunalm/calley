@@ -71,10 +71,13 @@ stream.get('/', validate('query', streamQuerySchema), async (c) => {
 
   const resolvedUserId = userId;
 
+  let registered: ReturnType<typeof sseService.addConnection> = null;
+
   const readable = new ReadableStream({
     start(controller) {
       // Register the connection
       const connection = sseService.addConnection(resolvedUserId, controller);
+      registered = connection;
 
       if (!connection) {
         // Global limit reached — close immediately
@@ -107,6 +110,20 @@ stream.get('/', validate('query', streamQuerySchema), async (c) => {
         } else {
           signal.addEventListener('abort', cleanup, { once: true });
         }
+      }
+    },
+
+    /**
+     * The abort signal is the primary disconnect notification, but it does not
+     * fire on every path — a consumer that releases its reader, or a runtime
+     * that tears the stream down directly, only reaches `cancel`. Without this
+     * the connection stays in the registry forever, counting against the
+     * per-user cap and taking a write on every subsequent heartbeat.
+     */
+    cancel() {
+      if (registered) {
+        sseService.removeConnection(resolvedUserId, registered);
+        registered = null;
       }
     },
   });

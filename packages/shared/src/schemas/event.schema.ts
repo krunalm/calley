@@ -5,6 +5,8 @@ import {
   datetimeSchema,
   editScopeSchema,
   hexColorSchema,
+  isSupportedRange,
+  MAX_QUERY_RANGE_DAYS,
   visibilitySchema,
 } from './common.schema';
 
@@ -40,7 +42,12 @@ export const createEventSchema = z
   })
   .refine(
     (data) => {
-      if (data.isAllDay) return true;
+      // An all-day event is stored midnight-to-midnight, so a same-day one has
+      // startAt === endAt and only strictly-inverted ranges are rejected.
+      // Exempting all-day events from the check entirely (as this once did) let
+      // endAt land before startAt, which yields a negative duration that breaks
+      // both overlap queries and recurrence expansion.
+      if (data.isAllDay) return new Date(data.startAt) <= new Date(data.endAt);
       return new Date(data.startAt) < new Date(data.endAt);
     },
     {
@@ -78,7 +85,7 @@ export const updateEventSchema = z
   .refine(
     (data) => {
       if (!data.startAt || !data.endAt) return true;
-      if (data.isAllDay) return true;
+      if (data.isAllDay) return new Date(data.startAt) <= new Date(data.endAt);
       return new Date(data.startAt) < new Date(data.endAt);
     },
     {
@@ -103,6 +110,10 @@ export const listEventsQuerySchema = z
   })
   .refine((data) => new Date(data.start) < new Date(data.end), {
     message: 'Start must be before end',
+    path: ['end'],
+  })
+  .refine((data) => isSupportedRange(data.start, data.end), {
+    message: `Date range must not exceed ${MAX_QUERY_RANGE_DAYS} days`,
     path: ['end'],
   });
 

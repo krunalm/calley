@@ -117,13 +117,19 @@ function toExceptionResponse(row: EventExceptionRow): EventExceptionResponse {
 /**
  * Escape a text value for inclusion in an ICS file.
  * Per RFC 5545: backslash, semicolons, commas, and newlines must be escaped.
+ *
+ * A bare carriage return counts as a line break to every ICS parser, so it has
+ * to be folded into the escape too — otherwise a title containing one splits
+ * the SUMMARY property and everything after it is read as new iCalendar
+ * content, letting a crafted title inject arbitrary properties into the
+ * exported file.
  */
 function escapeIcsText(text: string): string {
   return text
     .replace(/\\/g, '\\\\')
     .replace(/;/g, '\\;')
     .replace(/,/g, '\\,')
-    .replace(/\n/g, '\\n');
+    .replace(/\r\n|\r|\n/g, '\\n');
 }
 
 /**
@@ -749,12 +755,22 @@ export class EventService {
     // Terminate the original series just before the split date
     const updatedRrule = recurrenceService.terminateSeriesAt(parentEvent.rrule!, splitDate);
 
+    // Everything the user already did to the tail of the series has to move
+    // with it. The old parent stops generating occurrences at UNTIL, so an
+    // exclusion or a per-instance override left behind on it is dead state:
+    // a deleted occurrence would reappear under the new series, and an edited
+    // one would silently revert to the series defaults.
+    const splitMs = splitDate.getTime();
+    const parentExDates = (parentEvent.exDates as Date[] | null) ?? [];
+    const retainedExDates = parentExDates.filter((d) => d.getTime() < splitMs);
+    const migratedExDates = parentExDates.filter((d) => d.getTime() >= splitMs);
+
     // Create a new series starting from splitDate with updates
     const result = await db.transaction(async (tx) => {
       // Update original series to end at UNTIL
       await tx
         .update(events)
-        .set({ rrule: updatedRrule, updatedAt: new Date() })
+        .set({ rrule: updatedRrule, exDates: retainedExDates, updatedAt: new Date() })
         .where(
           and(
             eq(events.id, parentEvent.id),
@@ -778,8 +794,23 @@ export class EventService {
           color: data.color !== undefined ? data.color : parentEvent.color,
           visibility: data.visibility ?? parentEvent.visibility,
           rrule: data.rrule !== undefined ? data.rrule : parentEvent.rrule,
+          exDates: migratedExDates,
         })
         .returning();
+
+      // Re-point per-instance overrides at or after the split onto the new
+      // series so the edits they carry keep applying.
+      await tx
+        .update(eventExceptions)
+        .set({ recurringEventId: newSeries.id, updatedAt: new Date() })
+        .where(
+          and(
+            eq(eventExceptions.recurringEventId, parentEvent.id),
+            eq(eventExceptions.userId, userId),
+            isNull(eventExceptions.deletedAt),
+            gte(eventExceptions.originalDate, splitDate),
+          ),
+        );
 
       return newSeries;
     });

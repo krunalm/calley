@@ -30,8 +30,15 @@ const client = postgres(databaseUrl, {
 const isDev = process.env.NODE_ENV !== 'production';
 
 const drizzleLogger: Logger = {
+  /**
+   * Bound parameters are deliberately not logged — they carry password hashes,
+   * reset-token hashes and session ids, and "never log secrets" holds in
+   * development too, where these logs are most likely to be pasted into an
+   * issue. The parameter count is enough to correlate a statement with a call
+   * site.
+   */
   logQuery(query: string, params: unknown[]) {
-    appLogger.debug({ query, params }, 'DB query');
+    appLogger.debug({ query, paramCount: params.length }, 'DB query');
   },
 };
 
@@ -41,6 +48,17 @@ export const db = drizzle(client, {
 });
 
 export { client };
+
+/**
+ * Drain the connection pool.
+ *
+ * Without this the process keeps up to `DB_POOL_MAX` sockets open through
+ * shutdown, so an orchestrator that waits for a clean exit has to fall back to
+ * SIGKILL and Postgres is left reaping the connections itself.
+ */
+export async function closeDb(): Promise<void> {
+  await client.end({ timeout: 5 });
+}
 
 /**
  * Default statement timeout for queries (in seconds).

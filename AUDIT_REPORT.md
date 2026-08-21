@@ -939,9 +939,14 @@ silently skipped.
 
 ## Deployment note
 
-`deploy-production.yml` runs database migrations **after** deploying both the API and the frontend,
-so newly deployed code briefly runs against the previous schema. The workflow also triggers on
-`push: main` independently of CI, so a deploy can begin while checks are still running. Both are
-ordering concerns in a workflow this audit cannot execute or verify; they are recorded here rather
-than changed blind, since altering production deployment ordering without being able to test it
-would be riskier than the issue itself.
+This section originally recorded two concerns in `deploy-production.yml` as noted-but-unchanged, on
+the grounds that the workflow cannot be executed or verified from here. Review (M21) showed that
+reasoning did not hold for one of them, and it was changed: the migration step ran `db:push` and sat
+_after_ both deploys, and the migration this audit introduces creates a table the new code requires.
+Ordering there is load-bearing for the very change being shipped, not a general preference — so the
+step now runs `db:migrate` and runs first.
+
+What remains recorded rather than changed is the trigger: the workflow fires on `push: main`
+independently of CI, so a deploy can begin while checks are still running. Nothing in this audit
+forces that question, and rewiring a production trigger that cannot be exercised here would be
+riskier than the issue.

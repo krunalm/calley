@@ -13,12 +13,15 @@ Every finding below carries a final disposition. Nothing was skipped silently.
 
 | Disposition                      | Count |
 | -------------------------------- | ----- |
-| `FIXED`                          | 31    |
-| `VALIDATED — NO CHANGE REQUIRED` | 6     |
+| `FIXED`                          | 41    |
+| `VALIDATED — NO CHANGE REQUIRED` | 7     |
 | `NOT APPLICABLE`                 | 2     |
 | `BLOCKED`                        | 2     |
 
-Severity of fixed findings: 4 high, 17 medium, 10 low.
+Severity of fixed findings: 4 high, 22 medium, 15 low. Seven (M18, M19, L11–L15) came
+from the re-audit pass rather than the first sweep, and three more (M20–M22) from automated review
+on the pull request. Four of those ten were defects in this branch's own work — L12, M20, M21 and
+M22 — each verified against a running service before and after the fix rather than reasoned about.
 
 ### Validation performed
 
@@ -360,7 +363,16 @@ two concurrent requests can both pass. Added `idx_categories_user_name` and
 at all**, so every push notification sequentially scanned the whole table. The pre-checks remain as
 the friendly path; the constraint violation is now translated into the same `409` instead of
 surfacing as a `500`. Migration `0002` de-duplicates existing rows before creating each index, so it
-is safe on a populated database.
+is safe on a populated database. Its first draft _skipped_ duplicates that events or tasks still
+referenced, to avoid orphaning them — which left the pair in place and aborted the very index it
+preceded. Review caught it; the migration now reassigns those references to the surviving category
+before deleting the loser. Verified both ways against a seeded PostgreSQL 16:
+
+```
+-- original: ERROR: could not create unique index "idx_categories_user_name"
+--           DETAIL: Key (user_id, name)=(…, Work) is duplicated.
+-- rewritten: index created; the referencing event and task now point at the surviving category.
+```
 
 ### M13 — Postgres pool was never drained, and startup failures were silent
 
@@ -467,6 +479,56 @@ reintroduced by configuration. nginx already sets `X-Forwarded-For`; the API onl
 Added to `docker/.env.example` with the reasoning inline, to the README's variable table, and to a
 short README section explaining when it is safe to set — only where a proxy you control terminates
 every request, since the header is caller-supplied otherwise.
+
+### M20 — OAuth cookies were scoped to a path the documented callback does not sit under
+
+**Status: `FIXED`**
+
+**Location:** `apps/api/src/routes/auth.routes.ts` — `setOAuthCookie()`
+
+Raised in review on this branch. The OAuth state and PKCE cookies were pinned to
+`path: '/auth/oauth'`. A cookie only travels back to request paths at or below its own `Path`
+(RFC 6265 §5.1.4), so those cookies are never sent to `/api/v1/auth/oauth/<provider>/callback`. The
+callback finds no stored state, reads that as a mismatch, and rejects the sign-in.
+
+The documented redirect URIs in both `.env.example` files carry the `/api/v1` prefix, so this is
+exactly the configuration it breaks — and M17 turned that path from a 404 into a live route, which
+is what surfaced it. The `/v1` mount had the same defect all along.
+
+The cookie path is now derived from the request that sets it, so it follows whichever base path the
+flow started on while staying as narrowly scoped as before. Parameterised tests assert the emitted
+`Path` for all three mounts and that the corresponding callback sits underneath it.
+
+### M21 — Production deploy still pushed the schema instead of migrating it
+
+**Status: `FIXED`**
+
+**Location:** `.github/workflows/deploy-production.yml`
+
+Raised in review on this branch. H3 added the migration chain, a `db:migrate` script and a CI drift
+gate, and the README was updated to say deployments run `db:migrate` — but the production workflow
+was left on `pnpm --filter api db:push`, making that documentation false. Worse, `db:push` diffs the
+schema against the live database and never runs the migrations' data transformations, so it would
+skip the duplicate cleanup in `0002` and then fail creating the unique indexes those duplicates
+still violate.
+
+Switched to `db:migrate`, and moved **before** the deploy steps rather than after: the new code
+requires `event_exceptions`, so migrating afterwards leaves a window where the new API runs against
+a schema without it. Both migrations in the chain are additive, so the reverse window — old code
+against the new schema — is safe.
+
+### M22 — Push registration could 500 on a concurrent retry
+
+**Status: `FIXED`**
+
+**Location:** `apps/api/src/services/push-subscription.service.ts` — `subscribe()`
+
+Raised in review on this branch. `subscribe()` looked the endpoint up and then inserted. That lookup
+is advisory — a browser retrying its registration can put two requests past it at once — and with
+M12's `(user_id, endpoint)` unique index in place the loser now failed on the constraint and
+returned a 500 for a subscription that in fact existed. The same race was already handled for
+categories but not here. Now an `ON CONFLICT ... DO UPDATE` on the columns the index covers, so the
+documented update-or-create behaviour holds under concurrency.
 
 ---
 
@@ -790,7 +852,7 @@ planning rather than silently absorbed into the coverage configuration.
 
 ## Testing
 
-Unit and integration tests grew from **640 to 752**, and the Playwright suite from 628 to 630
+Unit and integration tests grew from **640 to 756**, and the Playwright suite from 628 to 630
 specs.
 
 | Package          | Before | After | Coverage (statements / branches / functions / lines) |

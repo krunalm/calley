@@ -102,6 +102,12 @@ export class PushSubscriptionService {
 
     await this.evictOldestOverCap(userId);
 
+    // Upsert rather than plain insert. The lookup above is advisory: a browser
+    // that retries its registration can put two requests past it at once, and
+    // with the (user_id, endpoint) unique index in place the loser would fail
+    // on the constraint and return a 500 for a subscription that now exists.
+    // Conflicting on the same columns the index covers makes the documented
+    // update-or-create behaviour hold under concurrency.
     const [created] = await db
       .insert(userPushSubscriptions)
       .values({
@@ -110,6 +116,14 @@ export class PushSubscriptionService {
         p256dh: data.p256dh,
         auth: data.auth,
         userAgent: data.userAgent ?? null,
+      })
+      .onConflictDoUpdate({
+        target: [userPushSubscriptions.userId, userPushSubscriptions.endpoint],
+        set: {
+          p256dh: data.p256dh,
+          auth: data.auth,
+          userAgent: data.userAgent ?? null,
+        },
       })
       .returning();
 

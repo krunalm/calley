@@ -26,6 +26,27 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
 
+      # Migrations run before the deploy, not after.
+      #
+      # This step used `db:push`, which diffs the schema against the live
+      # database and bypasses the migration chain entirely — so it would never
+      # apply the data transformations the migrations carry (the duplicate
+      # cleanup in 0002 among them), and would then fail creating the unique
+      # indexes those duplicates still violate. It also left migration history
+      # unrecorded, which is what allowed the schema to drift from the
+      # migrations in the first place.
+      #
+      # Ordering matters for the same transition: the new code requires the
+      # event_exceptions table, so applying migrations after the deploy leaves a
+      # window where the new API is running against a schema without it. Both
+      # migrations in the chain are additive, so the reverse window — old code
+      # against the new schema — is safe.
+      - name: Run Database Migrations
+        if: env.DATABASE_URL != ''
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: pnpm --filter api db:migrate
+
       # Deploy frontend to Vercel production
       - name: Deploy Frontend to Vercel
         if: env.VERCEL_TOKEN != ''
@@ -48,13 +69,6 @@ jobs:
         with:
           railway_token: ${{ secrets.RAILWAY_TOKEN }}
           service: calley-api
-
-      # Run database migrations post-deploy
-      - name: Run Database Migrations
-        if: env.DATABASE_URL != ''
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: pnpm --filter api db:push
 
       # Post-deployment health verification
       - name: Verify API Health

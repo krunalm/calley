@@ -129,7 +129,12 @@ export const calendarCategories = pgTable(
     sortOrder: integer('sort_order').notNull().default(0),
     ...timestamps,
   },
-  (table) => [index('idx_categories_user').on(table.userId)],
+  (table) => [
+    index('idx_categories_user').on(table.userId),
+    // The service checks name uniqueness before inserting, which two concurrent
+    // requests can both pass. The constraint is what actually guarantees it.
+    uniqueIndex('idx_categories_user_name').on(table.userId, table.name),
+  ],
 );
 
 // ─── Events ──────────────────────────────────────────────────────────
@@ -294,17 +299,30 @@ export const reminders = pgTable(
 
 // ─── User Push Subscriptions ─────────────────────────────────────────
 
-export const userPushSubscriptions = pgTable('user_push_subscriptions', {
-  id: cuid2('id').primaryKey(),
-  userId: varchar('user_id', { length: 128 })
-    .notNull()
-    .references(() => users.id, { onDelete: 'cascade' }),
-  endpoint: text('endpoint').notNull(),
-  p256dh: text('p256dh').notNull(),
-  auth: text('auth').notNull(),
-  userAgent: text('user_agent'),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-});
+export const userPushSubscriptions = pgTable(
+  'user_push_subscriptions',
+  {
+    id: cuid2('id').primaryKey(),
+    userId: varchar('user_id', { length: 128 })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    endpoint: text('endpoint').notNull(),
+    p256dh: text('p256dh').notNull(),
+    auth: text('auth').notNull(),
+    userAgent: text('user_agent'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    // Every push send fans out over this lookup, and the table had no index at
+    // all — each notification meant a sequential scan of every subscription in
+    // the system.
+    index('idx_push_subs_user').on(table.userId),
+    // `subscribe` upserts on (user, endpoint); without the constraint two
+    // concurrent registrations of the same browser both insert, and the user
+    // then receives every notification twice.
+    uniqueIndex('idx_push_subs_user_endpoint').on(table.userId, table.endpoint),
+  ],
+);
 
 // ─── Audit Logs ──────────────────────────────────────────────────────
 

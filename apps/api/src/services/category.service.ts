@@ -38,6 +38,13 @@ interface CategoryResponse {
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
+/** Postgres SQLSTATE for `unique_violation`. */
+const UNIQUE_VIOLATION = '23505';
+
+function isUniqueViolation(err: unknown): boolean {
+  return typeof err === 'object' && err !== null && 'code' in err && err.code === UNIQUE_VIOLATION;
+}
+
 function toCategoryResponse(row: CategoryRow): CategoryResponse {
   return {
     id: row.id,
@@ -102,16 +109,28 @@ export class CategoryService {
       .where(eq(calendarCategories.userId, userId));
     const nextSortOrder = (maxResult?.maxSort ?? -1) + 1;
 
-    const [created] = await db
-      .insert(calendarCategories)
-      .values({
-        userId,
-        name: data.name,
-        color: data.color,
-        isDefault: false,
-        sortOrder: nextSortOrder,
-      })
-      .returning();
+    // The pre-check above is advisory: two concurrent creates can both pass it,
+    // and only the unique index rejects the loser. Translate that rejection
+    // into the same 409 the pre-check produces instead of letting a constraint
+    // violation surface as a 500.
+    let created: typeof calendarCategories.$inferSelect;
+    try {
+      [created] = await db
+        .insert(calendarCategories)
+        .values({
+          userId,
+          name: data.name,
+          color: data.color,
+          isDefault: false,
+          sortOrder: nextSortOrder,
+        })
+        .returning();
+    } catch (err) {
+      if (isUniqueViolation(err)) {
+        throw new AppError(409, 'CONFLICT', 'A category with this name already exists');
+      }
+      throw err;
+    }
 
     logger.info({ userId, categoryId: created.id }, 'Category created');
 
@@ -149,17 +168,25 @@ export class CategoryService {
       }
     }
 
-    const [updated] = await db
-      .update(calendarCategories)
-      .set({
-        ...(data.name !== undefined && { name: data.name }),
-        ...(data.color !== undefined && { color: data.color }),
-        ...(data.visible !== undefined && { visible: data.visible }),
-        ...(data.sortOrder !== undefined && { sortOrder: data.sortOrder }),
-        updatedAt: new Date(),
-      })
-      .where(and(eq(calendarCategories.id, categoryId), eq(calendarCategories.userId, userId)))
-      .returning();
+    let updated: typeof calendarCategories.$inferSelect | undefined;
+    try {
+      [updated] = await db
+        .update(calendarCategories)
+        .set({
+          ...(data.name !== undefined && { name: data.name }),
+          ...(data.color !== undefined && { color: data.color }),
+          ...(data.visible !== undefined && { visible: data.visible }),
+          ...(data.sortOrder !== undefined && { sortOrder: data.sortOrder }),
+          updatedAt: new Date(),
+        })
+        .where(and(eq(calendarCategories.id, categoryId), eq(calendarCategories.userId, userId)))
+        .returning();
+    } catch (err) {
+      if (isUniqueViolation(err)) {
+        throw new AppError(409, 'CONFLICT', 'A category with this name already exists');
+      }
+      throw err;
+    }
 
     if (!updated) {
       throw new AppError(404, 'NOT_FOUND', 'Category not found');

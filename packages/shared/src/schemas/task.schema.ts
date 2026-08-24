@@ -60,21 +60,29 @@ export type UpdateTaskInput = z.infer<typeof updateTaskSchema>;
 
 // ─── List Tasks Query ───────────────────────────────────────────────
 
-export const listTasksQuerySchema = z.object({
-  status: z
-    .string()
-    .transform((val) => val.split(',').filter(Boolean))
-    .pipe(z.array(taskStatusSchema))
-    .optional(),
-  priority: z
-    .string()
-    .transform((val) => val.split(',').filter(Boolean))
-    .pipe(z.array(taskPrioritySchema))
-    .optional(),
-  dueStart: datetimeSchema.optional(),
-  dueEnd: datetimeSchema.optional(),
-  sort: z.enum(['due_at', 'sort_order', 'priority', 'created_at']).default('sort_order'),
-});
+export const listTasksQuerySchema = z
+  .object({
+    status: z
+      .string()
+      .transform((val) => val.split(',').filter(Boolean))
+      .pipe(z.array(taskStatusSchema))
+      .optional(),
+    priority: z
+      .string()
+      .transform((val) => val.split(',').filter(Boolean))
+      .pipe(z.array(taskPrioritySchema))
+      .optional(),
+    dueStart: datetimeSchema.optional(),
+    dueEnd: datetimeSchema.optional(),
+    sort: z.enum(['due_at', 'sort_order', 'priority', 'created_at']).default('sort_order'),
+  })
+  .refine(
+    (data) => !data.dueStart || !data.dueEnd || new Date(data.dueStart) <= new Date(data.dueEnd),
+    {
+      message: 'dueStart must be before dueEnd',
+      path: ['dueEnd'],
+    },
+  );
 
 export type ListTasksQuery = z.infer<typeof listTasksQuerySchema>;
 
@@ -93,8 +101,19 @@ export type TaskScopeQuery = z.infer<typeof taskScopeQuerySchema>;
 
 // ─── Reorder Tasks ──────────────────────────────────────────────────
 
+/**
+ * Reordering rewrites `sortOrder` one row at a time inside a transaction, so an
+ * unbounded list is a request to hold a write transaction open for as many
+ * round trips as the client cares to send. The cap matches the other bulk
+ * endpoints in spirit while staying above any realistic task list.
+ */
+export const MAX_REORDER_IDS = 500;
+
 export const reorderTasksSchema = z.object({
-  ids: z.array(cuid2Schema).min(1, 'At least one task ID is required'),
+  ids: z
+    .array(cuid2Schema)
+    .min(1, 'At least one task ID is required')
+    .max(MAX_REORDER_IDS, `At most ${MAX_REORDER_IDS} task IDs can be reordered at once`),
 });
 
 export type ReorderTasksInput = z.infer<typeof reorderTasksSchema>;

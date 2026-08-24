@@ -328,6 +328,35 @@ describe('Auth Routes — API Integration', () => {
       const location = res.headers.get('Location');
       expect(location).toContain('github.com');
     });
+
+    /**
+     * A cookie only travels back to request paths at or below its own `Path`,
+     * so state and PKCE cookies scoped to a fixed `/auth/oauth` never reach
+     * `/api/v1/auth/oauth/<provider>/callback`. The callback would then find no
+     * stored state, read that as a mismatch, and reject every sign-in — and
+     * since the documented redirect URIs carry the `/api/v1` prefix, that is
+     * precisely the configuration it would break. The path is derived from the
+     * request so it follows whichever base path the flow started on.
+     */
+    it.each([
+      ['/auth/oauth/google', '/auth/oauth'],
+      ['/v1/auth/oauth/google', '/v1/auth/oauth'],
+      ['/api/v1/auth/oauth/google', '/api/v1/auth/oauth'],
+      ['/api/v1/auth/oauth/github', '/api/v1/auth/oauth'],
+    ])('scopes OAuth cookies from %s to Path=%s', async (initiationPath, expectedPath) => {
+      const res = await app.request(initiationPath);
+
+      const cookies = res.headers.getSetCookie();
+      expect(cookies.length).toBeGreaterThan(0);
+
+      for (const cookie of cookies) {
+        expect(cookie).toContain(`Path=${expectedPath}`);
+      }
+
+      // The callback the provider redirects to must sit under that path, or the
+      // browser withholds the cookies the callback needs to verify state.
+      expect(`${initiationPath}/callback`.startsWith(`${expectedPath}/`)).toBe(true);
+    });
   });
 
   // ─── Password Reset Flow ─────────────────────────────────────────

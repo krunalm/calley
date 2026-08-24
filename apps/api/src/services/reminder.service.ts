@@ -1,4 +1,4 @@
-import { and, eq, gte, isNull } from 'drizzle-orm';
+import { and, count, eq, gt, gte, isNull, or } from 'drizzle-orm';
 
 import { db } from '../db';
 import { events, reminders, tasks } from '../db/schema';
@@ -50,6 +50,20 @@ function toReminderResponse(row: ReminderRow): ReminderResponse {
   };
 }
 
+// ─── Constants ──────────────────────────────────────────────────────
+
+/** Reminders pulled per page when rebuilding the queue after a restart. */
+const REENQUEUE_PAGE_SIZE = 500;
+
+/**
+ * Reminders one item may carry.
+ *
+ * Each one is a durable row plus a delayed queue job, so an unbounded count is
+ * an unbounded amount of scheduled work an authenticated caller can create
+ * against a single event.
+ */
+const MAX_REMINDERS_PER_ITEM = 10;
+
 // ─── Service ────────────────────────────────────────────────────────
 
 export class ReminderService {
@@ -61,10 +75,30 @@ export class ReminderService {
     // 1. Resolve the parent item's reference time (startAt for events, dueAt for tasks)
     const referenceTime = await this.getItemReferenceTime(userId, data.itemType, data.itemId);
 
-    // 2. Compute triggerAt
+    // 2. Cap how many reminders one item can carry
+    const [{ value: existingCount }] = await db
+      .select({ value: count() })
+      .from(reminders)
+      .where(
+        and(
+          eq(reminders.userId, userId),
+          eq(reminders.itemType, data.itemType),
+          eq(reminders.itemId, data.itemId),
+        ),
+      );
+
+    if (existingCount >= MAX_REMINDERS_PER_ITEM) {
+      throw new AppError(
+        422,
+        'VALIDATION_ERROR',
+        `An item can have at most ${MAX_REMINDERS_PER_ITEM} reminders`,
+      );
+    }
+
+    // 3. Compute triggerAt
     const triggerAt = new Date(referenceTime.getTime() - data.minutesBefore * 60 * 1000);
 
-    // 3. Insert reminder record
+    // 4. Insert reminder record
     const [reminder] = await db
       .insert(reminders)
       .values({
@@ -77,7 +111,7 @@ export class ReminderService {
       })
       .returning();
 
-    // 4. Enqueue BullMQ delayed job
+    // 5. Enqueue BullMQ delayed job
     await this.enqueueReminderJob(reminder as ReminderRow);
 
     logger.info(
@@ -213,26 +247,55 @@ export class ReminderService {
   async reEnqueueMissedReminders(): Promise<void> {
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
 
-    const missed = await db.query.reminders.findMany({
-      where: and(isNull(reminders.sentAt), gte(reminders.triggerAt, fiveMinutesAgo)),
-    });
+    let total = 0;
+    let enqueued = 0;
+    let cursor: { triggerAt: Date; id: string } | null = null;
 
-    if (missed.length === 0) {
+    // Paged by (triggerAt, id) rather than fetched in one go: this runs on
+    // every boot across every user's pending reminders, and an instance
+    // restarting into a large backlog would otherwise materialise the whole
+    // table before enqueuing anything.
+    for (;;) {
+      const page: ReminderRow[] = (await db.query.reminders.findMany({
+        where: and(
+          isNull(reminders.sentAt),
+          gte(reminders.triggerAt, fiveMinutesAgo),
+          ...(cursor
+            ? [
+                or(
+                  gt(reminders.triggerAt, cursor.triggerAt),
+                  and(eq(reminders.triggerAt, cursor.triggerAt), gt(reminders.id, cursor.id)),
+                )!,
+              ]
+            : []),
+        ),
+        orderBy: (r, { asc }) => [asc(r.triggerAt), asc(r.id)],
+        limit: REENQUEUE_PAGE_SIZE,
+      })) as ReminderRow[];
+
+      if (page.length === 0) break;
+
+      for (const reminder of page) {
+        total++;
+        try {
+          await this.enqueueReminderJob(reminder);
+          enqueued++;
+        } catch (err) {
+          logger.error({ err, reminderId: reminder.id }, 'Failed to re-enqueue reminder');
+        }
+      }
+
+      if (page.length < REENQUEUE_PAGE_SIZE) break;
+      const last = page[page.length - 1];
+      cursor = { triggerAt: last.triggerAt, id: last.id };
+    }
+
+    if (total === 0) {
       logger.info('No missed reminders to re-enqueue');
       return;
     }
 
-    let enqueued = 0;
-    for (const reminder of missed) {
-      try {
-        await this.enqueueReminderJob(reminder as ReminderRow);
-        enqueued++;
-      } catch (err) {
-        logger.error({ err, reminderId: reminder.id }, 'Failed to re-enqueue reminder');
-      }
-    }
-
-    logger.info({ total: missed.length, enqueued }, 'Re-enqueued missed reminders');
+    logger.info({ total, enqueued }, 'Re-enqueued missed reminders');
   }
 
   // ─── Private Helpers ────────────────────────────────────────────────

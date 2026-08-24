@@ -14,6 +14,7 @@ import {
   updateProfileSchema,
 } from '@calley/shared';
 
+import { getClientIp } from '../lib/client-ip';
 import { clearCsrfCookie, generateCsrfToken, setCsrfCookie } from '../lib/csrf';
 import { AppError } from '../lib/errors';
 import { logger } from '../lib/logger';
@@ -39,6 +40,7 @@ import type {
   SignupInput,
   UpdateProfileInput,
 } from '@calley/shared';
+import type { Context } from 'hono';
 
 const emptySchema = z.object({});
 const oauthAccountIdParamSchema = z.object({ id: cuid2Schema });
@@ -47,11 +49,15 @@ const auth = new Hono<{ Variables: AppVariables }>();
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
-/** Extract client IP address from request headers. */
-function getIpAddress(c: { req: { header: (name: string) => string | undefined } }): string | null {
-  return (
-    c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || c.req.header('x-real-ip') || null
-  );
+/**
+ * Client IP recorded against sessions and audit entries.
+ *
+ * Delegates to the shared resolver so forwarded headers are only honoured
+ * behind a configured proxy — otherwise any caller could stamp an arbitrary
+ * address onto another user's audit trail.
+ */
+function getIpAddress(c: Context): string | null {
+  return getClientIp(c);
 }
 
 // ─── Public Routes (no auth required) ──────────────────────────────────
@@ -304,12 +310,32 @@ const oauthCallbackQuerySchema = z.object({
  * Helper to set short-lived OAuth cookies for state and code verifier.
  * Cookies are HttpOnly, scoped to the OAuth callback path, and expire after 10 minutes.
  */
-function setOAuthCookie(c: Parameters<typeof setCookie>[0], name: string, value: string): void {
+/**
+ * Path to scope the OAuth state and PKCE cookies to, derived from the request
+ * that is setting them.
+ *
+ * The API answers on several base paths (`/api/v1`, `/v1`, and the root), and a
+ * cookie only travels back to request paths at or below its own `Path` — so a
+ * fixed `/auth/oauth` is never sent to `/api/v1/auth/oauth/<provider>/callback`.
+ * The callback would then see no stored state, treat it as a mismatch, and
+ * reject every sign-in. Since the documented redirect URIs use the `/api/v1`
+ * prefix, that is the configuration it would break.
+ *
+ * Deriving the path keeps the cookies as narrowly scoped as they were while
+ * following whichever base path the flow actually started on.
+ */
+function oauthCookiePath(c: Context): string {
+  const marker = '/auth/oauth';
+  const index = c.req.path.indexOf(marker);
+  return index === -1 ? marker : c.req.path.slice(0, index + marker.length);
+}
+
+function setOAuthCookie(c: Context, name: string, value: string): void {
   setCookie(c, name, value, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'Lax',
-    path: '/auth/oauth',
+    path: oauthCookiePath(c),
     maxAge: OAUTH_STATE_COOKIE_MAX_AGE,
   });
 }

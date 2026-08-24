@@ -39,8 +39,16 @@ export function endOfUtcDay(iso: string): string {
   ).toISOString();
 }
 
-/** A wide range that comfortably contains anything the suite creates. */
-export function wideRange(anchorIso: string, days = 400): { start: string; end: string } {
+/**
+ * A range wide enough to contain anything the suite creates — the furthest any
+ * spec places an item is 60 days from its anchor.
+ *
+ * `days` is a half-width, so the span is twice it. The listing endpoints reject
+ * a range wider than `MAX_QUERY_RANGE_DAYS` (400), which bounds how much
+ * recurrence expansion one request can ask for, so the default half-width has
+ * to stay under half of that.
+ */
+export function wideRange(anchorIso: string, days = 180): { start: string; end: string } {
   return {
     start: isoPlusDays(anchorIso, -days),
     end: isoPlusDays(anchorIso, days),

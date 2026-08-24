@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lte, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, isNull, lte, sql } from 'drizzle-orm';
 
 import { db } from '../db';
 import { calendarCategories, reminders, tasks } from '../db/schema';
@@ -83,6 +83,15 @@ function toTaskResponse(row: TaskRow): TaskResponse {
 /** Maximum number of exDates a recurring task can accumulate. */
 const MAX_EX_DATES = 500;
 
+/**
+ * Hard ceiling on a single task listing.
+ *
+ * The endpoint has no pagination, so without a limit one account with a large
+ * backlog serialises its entire task table into a single response on every
+ * poll. The panel virtualises well below this.
+ */
+const MAX_TASKS_PER_LIST = 1000;
+
 // ─── Service ────────────────────────────────────────────────────────
 
 export class TaskService {
@@ -141,32 +150,19 @@ export class TaskService {
         break;
     }
 
-    // Fetch non-recurring tasks and recurring parents separately.
-    // Both halves share the same caller-supplied filters: unlike listEvents,
-    // this method does no recurrence expansion, so a recurring parent is
-    // returned to the client as-is and must satisfy the filters on its own.
-    const [regularTasks, recurringParents] = await Promise.all([
-      db.query.tasks.findMany({
-        where: and(...conditions, isNull(tasks.rrule)),
-        orderBy,
-      }),
-      db.query.tasks.findMany({
-        where: and(...conditions, isNotNull(tasks.rrule)),
-        orderBy,
-      }),
-    ]);
-
-    const allTasks = [...regularTasks, ...recurringParents];
-
-    // Deduplicate by id
-    const seen = new Set<string>();
-    const deduped = allTasks.filter((t) => {
-      if (seen.has(t.id)) return false;
-      seen.add(t.id);
-      return true;
+    // One query, one sort. Recurring parents and one-off tasks used to be
+    // fetched separately and concatenated, which silently discarded the
+    // requested ordering across the join: every recurring task landed after
+    // every non-recurring one no matter what `sort` asked for. They satisfy
+    // identical filters — this method does no recurrence expansion, so a
+    // recurring parent is returned as-is — so there is nothing to separate.
+    const rows = await db.query.tasks.findMany({
+      where: and(...conditions),
+      orderBy,
+      limit: MAX_TASKS_PER_LIST,
     });
 
-    return deduped.map((t) => toTaskResponse(t as TaskRow));
+    return rows.map((t) => toTaskResponse(t as TaskRow));
   }
 
   /**

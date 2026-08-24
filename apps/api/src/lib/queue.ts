@@ -15,17 +15,37 @@ export const QUEUE_NAMES = {
 
 const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
 
+interface BullMqConnection {
+  host: string;
+  port: number;
+  username?: string;
+  password?: string;
+  db?: number;
+  tls?: Record<string, never>;
+}
+
 /**
  * Parse a Redis URL into a BullMQ-compatible connection object.
  * BullMQ requires { host, port, password } — it does not accept URL strings.
+ *
+ * `rediss://` and the ACL username both have to survive the conversion:
+ * every managed Redis (Upstash, Elasticache in-transit encryption, Redis Cloud)
+ * hands out a TLS URL, and Redis 6 ACLs put a username in front of the
+ * password. Dropping either leaves the queue unable to connect while the rest
+ * of the API — which passes the URL to ioredis verbatim — works fine, so the
+ * failure shows up only as reminders silently never firing.
  */
-function parseRedisConnection(): { host: string; port: number; password?: string; db?: number } {
+function parseRedisConnection(): BullMqConnection {
   const url = new URL(redisUrl);
+  const isTls = url.protocol === 'rediss:';
+
   return {
     host: url.hostname,
     port: Number(url.port) || 6379,
-    password: url.password || undefined,
+    username: url.username ? decodeURIComponent(url.username) : undefined,
+    password: url.password ? decodeURIComponent(url.password) : undefined,
     db: url.pathname.length > 1 ? Number(url.pathname.slice(1)) : undefined,
+    ...(isTls ? { tls: {} } : {}),
   };
 }
 

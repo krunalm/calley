@@ -41,30 +41,47 @@ app.use(
 // Global error handler
 app.onError(errorHandler);
 
-// Health check routes (no auth required)
-app.route('/', health);
+// ─── API surface ────────────────────────────────────────────────────
 
-// Auth routes (rate limiting applied per-route in auth.routes.ts)
-app.route('/', auth);
+/**
+ * Every route the API serves, assembled once and mounted under each supported
+ * base path.
+ *
+ * SPECS.md §API, the README, both `.env.example` files and the deployment
+ * health checks all name `/api/v1` as the base — and the documented OAuth
+ * redirect URIs are `/api/v1/auth/oauth/<provider>/callback`. That prefix was
+ * never actually mounted: routes existed at `/v1` and at the root only. A
+ * developer who followed the documented setup got an app whose every request
+ * 404'd into a silent bounce back to /login, and the documented OAuth callbacks
+ * could not resolve at all.
+ *
+ * Rather than pick one prefix and break the other clients, the same router is
+ * mounted at all three. Hono routers are stateless, so this costs matching, not
+ * duplicated handlers.
+ */
+function createApiRoutes() {
+  const api = new Hono<{ Variables: AppVariables }>();
 
-// ─── API v1 routes ──────────────────────────────────────────────────
-const v1 = new Hono<{ Variables: AppVariables }>();
+  // Health checks (no auth required)
+  api.route('/', health);
 
-v1.route('/events', eventsRouter);
-v1.route('/tasks', tasksRouter);
-v1.route('/categories', categoriesRouter);
-v1.route('/reminders', remindersRouter);
-v1.route('/search', searchRouter);
-v1.route('/push-subscriptions', pushSubscriptionsRouter);
-v1.route('/stream', streamRouter);
+  // Auth routes (rate limiting applied per-route in auth.routes.ts)
+  api.route('/', auth);
 
-app.route('/v1', v1);
+  api.route('/events', eventsRouter);
+  api.route('/tasks', tasksRouter);
+  api.route('/categories', categoriesRouter);
+  api.route('/reminders', remindersRouter);
+  api.route('/search', searchRouter);
+  api.route('/push-subscriptions', pushSubscriptionsRouter);
+  api.route('/stream', streamRouter);
 
-// Backwards-compatible routes (same as /v1, for existing clients)
-app.route('/events', eventsRouter);
-app.route('/tasks', tasksRouter);
-app.route('/categories', categoriesRouter);
-app.route('/reminders', remindersRouter);
-app.route('/search', searchRouter);
-app.route('/push-subscriptions', pushSubscriptionsRouter);
-app.route('/stream', streamRouter);
+  return api;
+}
+
+/** Base paths the API answers on, in the order they should be matched. */
+export const API_BASE_PATHS = ['/api/v1', '/v1', '/'] as const;
+
+for (const basePath of API_BASE_PATHS) {
+  app.route(basePath, createApiRoutes());
+}

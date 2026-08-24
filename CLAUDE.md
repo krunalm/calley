@@ -9,6 +9,7 @@
 **Calley** is a production-grade calendar web application (events + tasks + recurrence) built as a TypeScript monorepo. It has a React SPA frontend and a Hono API backend with PostgreSQL and Redis.
 
 **Key documents:**
+
 - `SPECS.md` — Full technical specification (architecture, security, data models, API design)
 - `TASKS.md` — Phase-wise task breakdown with progress tracking
 
@@ -30,32 +31,32 @@ calley/                          # pnpm + Turborepo monorepo
 
 ## Tech Stack Quick Reference
 
-| What | Technology |
-|---|---|
-| Frontend framework | React 18 + TypeScript 5 |
-| Build tool | Vite 5 |
-| CSS | Tailwind CSS v4 |
-| UI components | shadcn/ui (Radix-based) |
-| Client state | Zustand |
-| Server state | TanStack Query v5 |
-| Routing | TanStack Router (file-based) |
-| Forms | React Hook Form + Zod |
-| Dates | date-fns + date-fns-tz |
-| Recurrence | rrule.js (RFC 5545) |
-| Drag & drop | @dnd-kit/core |
-| Rich text | Tiptap v2 (bold, italic, links only) |
-| Animations | Framer Motion |
-| Backend framework | Hono 4.x |
-| ORM | Drizzle ORM |
-| Database | PostgreSQL 16 |
-| Auth | Lucia Auth v3 + Arctic.js (OAuth) |
-| Job queue | BullMQ + Redis 7 |
-| Email | Resend |
-| Logging | Pino |
-| Password hashing | argon2 (Argon2id) |
-| IDs | @paralleldrive/cuid2 |
-| Package manager | pnpm (strict) |
-| Monorepo | Turborepo |
+| What               | Technology                           |
+| ------------------ | ------------------------------------ |
+| Frontend framework | React 18 + TypeScript 5              |
+| Build tool         | Vite 5                               |
+| CSS                | Tailwind CSS v4                      |
+| UI components      | shadcn/ui (Radix-based)              |
+| Client state       | Zustand                              |
+| Server state       | TanStack Query v5                    |
+| Routing            | TanStack Router (file-based)         |
+| Forms              | React Hook Form + Zod                |
+| Dates              | date-fns + date-fns-tz               |
+| Recurrence         | rrule.js (RFC 5545)                  |
+| Drag & drop        | @dnd-kit/core                        |
+| Rich text          | Tiptap v2 (bold, italic, links only) |
+| Animations         | Framer Motion                        |
+| Backend framework  | Hono 4.x                             |
+| ORM                | Drizzle ORM                          |
+| Database           | PostgreSQL 16                        |
+| Auth               | Lucia Auth v3 + Arctic.js (OAuth)    |
+| Job queue          | BullMQ + Redis 7                     |
+| Email              | Resend                               |
+| Logging            | Pino                                 |
+| Password hashing   | argon2 (Argon2id)                    |
+| IDs                | @paralleldrive/cuid2                 |
+| Package manager    | pnpm (strict)                        |
+| Monorepo           | Turborepo                            |
 
 ---
 
@@ -205,7 +206,7 @@ export class AppError extends Error {
     public statusCode: number,
     public code: string,
     message: string,
-    public details?: unknown
+    public details?: unknown,
   ) {
     super(message);
   }
@@ -250,6 +251,7 @@ Exception (id: evt_002)
 ```
 
 **Expansion flow:**
+
 1. Query finds parent events with RRULE in the date range.
 2. Use `rrule.js` to expand occurrences within the range.
 3. Subtract exDates.
@@ -310,6 +312,7 @@ users
 ```
 
 **Key indexes** (see SPECS.md §7.1 for full list):
+
 - `idx_events_user_date` — critical for calendar range queries
 - `idx_tasks_user_due` — critical for task panel
 - `idx_events_search` / `idx_tasks_search` — GIN indexes for full-text search
@@ -361,9 +364,7 @@ All API errors follow this shape:
   "error": {
     "code": "VALIDATION_ERROR",
     "message": "Invalid input",
-    "details": [
-      { "path": ["title"], "message": "Required" }
-    ]
+    "details": [{ "path": ["title"], "message": "Required" }]
   }
 }
 ```
@@ -403,10 +404,18 @@ class ApiClient {
     return res.json();
   }
 
-  get<T>(path: string) { return this.request<T>(path); }
-  post<T>(path: string, body: unknown) { return this.request<T>(path, { method: 'POST', body: JSON.stringify(body) }); }
-  patch<T>(path: string, body: unknown) { return this.request<T>(path, { method: 'PATCH', body: JSON.stringify(body) }); }
-  delete<T>(path: string) { return this.request<T>(path, { method: 'DELETE' }); }
+  get<T>(path: string) {
+    return this.request<T>(path);
+  }
+  post<T>(path: string, body: unknown) {
+    return this.request<T>(path, { method: 'POST', body: JSON.stringify(body) });
+  }
+  patch<T>(path: string, body: unknown) {
+    return this.request<T>(path, { method: 'PATCH', body: JSON.stringify(body) });
+  }
+  delete<T>(path: string) {
+    return this.request<T>(path, { method: 'DELETE' });
+  }
 }
 
 export const apiClient = new ApiClient();
@@ -493,7 +502,7 @@ cp apps/web/.env.example apps/web/.env
 # Edit .env files with your values
 
 # 4. Run migrations
-pnpm --filter api db:push
+pnpm --filter api db:migrate
 
 # 5. Seed dev data (optional)
 pnpm --filter api db:seed
@@ -513,7 +522,8 @@ pnpm type-check       # TypeScript check all
 pnpm test             # Run unit + integration tests
 pnpm test:e2e         # Run Playwright E2E tests
 pnpm --filter api db:generate   # Generate Drizzle migration
-pnpm --filter api db:push       # Apply schema to dev DB
+pnpm --filter api db:migrate    # Apply committed migrations (what deployments run)
+pnpm --filter api db:push       # Push schema straight to a dev DB (bypasses migrations)
 pnpm --filter api db:seed       # Seed development data
 pnpm --filter api db:studio     # Open Drizzle Studio
 ```
@@ -537,7 +547,9 @@ pnpm --filter api db:studio     # Open Drizzle Studio
 1. Define Drizzle schema in `apps/api/src/db/schema.ts`.
 2. Add indexes and foreign keys.
 3. Generate migration: `pnpm --filter api db:generate`.
-4. Test migration locally: `pnpm --filter api db:push`.
+4. Apply it locally: `pnpm --filter api db:migrate`. Commit the generated `.sql` **and** the
+   `drizzle/meta/` snapshot — CI fails if `schema.ts` and the migration chain disagree. Do not use
+   `db:push` for this: it diffs against the live database and leaves no migration behind.
 5. Add corresponding Zod schema in `packages/shared`.
 
 ### Adding a New Frontend Page
@@ -576,7 +588,10 @@ describe('EventService', () => {
 
   it('should reject events where end is before start', async () => {
     await expect(
-      service.createEvent('user_1', { startAt: '2026-03-15T14:00:00Z', endAt: '2026-03-15T13:00:00Z', /* ... */ })
+      service.createEvent('user_1', {
+        startAt: '2026-03-15T14:00:00Z',
+        endAt: '2026-03-15T13:00:00Z' /* ... */,
+      }),
     ).rejects.toThrow('End time must be after start time');
   });
 });
@@ -646,4 +661,4 @@ test('create and view event', async ({ page }) => {
 
 ---
 
-*This file should be updated as the project evolves. When completing a phase, update conventions or patterns if they changed during implementation.*
+_This file should be updated as the project evolves. When completing a phase, update conventions or patterns if they changed during implementation._

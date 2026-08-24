@@ -71,6 +71,35 @@ function hashIpAddress(ip: string): string {
   return createHash('sha256').update(ip).digest('hex').slice(0, 16);
 }
 
+/**
+ * Argon2 hash of a value no one can log in with, verified against whenever a
+ * login cannot reach a real password check.
+ *
+ * Without it, `login` returns in microseconds for an unknown address and in
+ * ~100ms for a known one, and that gap alone enumerates registered emails —
+ * the generic error message does not hide it. Computed once and reused; a
+ * verify against it costs the same as a verify against a real user's hash.
+ */
+let decoyHashPromise: Promise<string> | null = null;
+
+function getDecoyHash(): Promise<string> {
+  decoyHashPromise ??= argon2.hash(randomBytes(32).toString('hex'), ARGON2_OPTIONS);
+  return decoyHashPromise;
+}
+
+/**
+ * Burn the same work a real password verification would, so failing early
+ * (unknown email, OAuth-only account, locked account) is indistinguishable
+ * from a wrong password by response time.
+ */
+async function equalizeVerifyTiming(password: string): Promise<void> {
+  try {
+    await argon2.verify(await getDecoyHash(), password);
+  } catch {
+    // A decoy verification can only ever fail; nothing to report.
+  }
+}
+
 function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
 }
@@ -176,6 +205,7 @@ export class AuthService {
     });
 
     if (!user) {
+      await equalizeVerifyTiming(data.password);
       // Audit failed login for non-existent account
       auditService.log({
         action: 'user.login.failed',
@@ -188,6 +218,7 @@ export class AuthService {
 
     // Check account lockout — return generic error to prevent account state enumeration
     if (user.lockedUntil && user.lockedUntil > new Date()) {
+      await equalizeVerifyTiming(data.password);
       auditService.log({
         action: 'user.login.failed',
         userId: user.id,
@@ -198,8 +229,22 @@ export class AuthService {
       throw new AppError(401, 'UNAUTHORIZED', 'Invalid email or password');
     }
 
+    // A lockout that has run its course must also clear the counter it was
+    // raised from. Leaving `failedLogins` at the threshold means the next
+    // mistyped password re-locks the account instantly, so a user who forgets
+    // their password once effectively never gets their five attempts back.
+    const lockoutExpired = user.lockedUntil !== null && user.lockedUntil <= new Date();
+    const failedLoginsBaseline = lockoutExpired ? 0 : user.failedLogins;
+    if (lockoutExpired) {
+      await db
+        .update(users)
+        .set({ failedLogins: 0, lockedUntil: null })
+        .where(eq(users.id, user.id));
+    }
+
     // OAuth-only users cannot login with password
     if (!user.passwordHash) {
+      await equalizeVerifyTiming(data.password);
       auditService.log({
         action: 'user.login.failed',
         userId: user.id,
@@ -214,7 +259,7 @@ export class AuthService {
     const validPassword = await argon2.verify(user.passwordHash, data.password);
 
     if (!validPassword) {
-      const newFailedLogins = user.failedLogins + 1;
+      const newFailedLogins = failedLoginsBaseline + 1;
 
       if (newFailedLogins >= LOCKOUT_THRESHOLD) {
         // Lock the account
@@ -460,7 +505,18 @@ export class AuthService {
     userId: string,
     data: UpdateProfileInput,
   ): Promise<ReturnType<typeof stripSensitiveFields>> {
-    const [updated] = await db.update(users).set(data).where(eq(users.id, userId)).returning();
+    // Every field on the patch schema is optional, so `{}` is a valid request.
+    // Handing Drizzle an empty `set` produces malformed SQL and a 500, so treat
+    // a no-op patch as a read.
+    if (Object.keys(data).length === 0) {
+      return this.getMe(userId);
+    }
+
+    const [updated] = await db
+      .update(users)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .returning();
 
     if (!updated) {
       throw new AppError(404, 'NOT_FOUND', 'User not found');

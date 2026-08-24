@@ -9,6 +9,8 @@ import { defineConfig } from 'vite';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+const analyze = process.env.ANALYZE === '1';
+
 export default defineConfig({
   plugins: [
     // `semicolons` / `quoteStyle` keep the generated route tree byte-identical to
@@ -32,13 +34,18 @@ export default defineConfig({
   },
   build: {
     rollupOptions: {
-      plugins: [
-        visualizer({
-          filename: 'dist/bundle-stats.html',
-          gzipSize: true,
-          brotliSize: true,
-        }),
-      ],
+      // The bundle report is an analysis artefact, not part of the app: writing
+      // it into `dist` on every build ships a browsable map of the source tree
+      // to whatever serves the static output. Opt in with `ANALYZE=1 pnpm build`.
+      plugins: analyze
+        ? [
+            visualizer({
+              filename: 'dist/bundle-stats.html',
+              gzipSize: true,
+              brotliSize: true,
+            }),
+          ]
+        : [],
     },
   },
 });

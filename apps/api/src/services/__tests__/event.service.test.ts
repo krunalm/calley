@@ -874,6 +874,67 @@ describe('EventService', () => {
       expect(ics).toContain('DESCRIPTION:Meeting notes');
     });
 
+    /**
+     * Every ICS parser treats a bare CR as a line break, so an unescaped one
+     * splits the property it appears in and everything after it is read as new
+     * iCalendar content — letting a crafted title inject arbitrary properties
+     * into a file other calendar applications then import.
+     */
+    it('should not let a carriage return in a title break out of SUMMARY', async () => {
+      const eventRow = makeEventRow({ title: 'Standup\rSUMMARY:Injected' });
+      (db.query.events.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(eventRow);
+
+      const ics = await service.exportIcs(TEST_USER_ID, TEST_EVENT_ID);
+
+      const summaryLines = ics.split('\r\n').filter((line) => line.startsWith('SUMMARY:'));
+      expect(summaryLines).toHaveLength(1);
+      expect(summaryLines[0]).toBe('SUMMARY:Standup\\nSUMMARY:Injected');
+    });
+
+    it('should escape a CRLF pair as a single break', async () => {
+      const eventRow = makeEventRow({ title: 'One\r\nTwo' });
+      (db.query.events.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(eventRow);
+
+      const ics = await service.exportIcs(TEST_USER_ID, TEST_EVENT_ID);
+
+      expect(ics).toContain('SUMMARY:One\\nTwo');
+    });
+
+    /**
+     * RFC 5545 §3.1 caps a line at 75 *octets* and forbids folding inside a
+     * multi-octet character. Slicing by UTF-16 code unit satisfies neither:
+     * accented text overruns the octet limit, and a fold between the halves of
+     * a surrogate pair emits two lone surrogates, which is not valid UTF-8.
+     */
+    it('should fold long lines on octet boundaries', async () => {
+      const eventRow = makeEventRow({ title: 'é'.repeat(120) });
+      (db.query.events.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(eventRow);
+
+      const ics = await service.exportIcs(TEST_USER_ID, TEST_EVENT_ID);
+
+      const encoder = new TextEncoder();
+      for (const line of ics.split('\r\n')) {
+        expect(encoder.encode(line).length).toBeLessThanOrEqual(75);
+      }
+    });
+
+    it('should not split a surrogate pair when folding', async () => {
+      const eventRow = makeEventRow({ title: '📅'.repeat(60) });
+      (db.query.events.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(eventRow);
+
+      const ics = await service.exportIcs(TEST_USER_ID, TEST_EVENT_ID);
+
+      // A lone surrogate survives a String round trip but encodes to U+FFFD,
+      // so re-decoding the encoded form is what actually detects the split.
+      const decoder = new TextDecoder('utf-8', { fatal: true });
+      expect(() => decoder.decode(new TextEncoder().encode(ics))).not.toThrow();
+      expect(ics).not.toContain('\uFFFD');
+
+      // Unfolding must recover the original title exactly.
+      const unfolded = ics.split('\r\n ').join('');
+      expect(unfolded).toContain(`SUMMARY:${'📅'.repeat(60)}`);
+    });
+
     it('should escape special characters in ICS fields', async () => {
       const eventRow = makeEventRow({
         title: 'Meeting; with, special\\chars\nnewline',

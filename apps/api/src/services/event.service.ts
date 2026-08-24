@@ -117,13 +117,19 @@ function toExceptionResponse(row: EventExceptionRow): EventExceptionResponse {
 /**
  * Escape a text value for inclusion in an ICS file.
  * Per RFC 5545: backslash, semicolons, commas, and newlines must be escaped.
+ *
+ * A bare carriage return counts as a line break to every ICS parser, so it has
+ * to be folded into the escape too — otherwise a title containing one splits
+ * the SUMMARY property and everything after it is read as new iCalendar
+ * content, letting a crafted title inject arbitrary properties into the
+ * exported file.
  */
 function escapeIcsText(text: string): string {
   return text
     .replace(/\\/g, '\\\\')
     .replace(/;/g, '\\;')
     .replace(/,/g, '\\,')
-    .replace(/\n/g, '\\n');
+    .replace(/\r\n|\r|\n/g, '\\n');
 }
 
 /**
@@ -135,20 +141,44 @@ function stripHtml(html: string): string {
 
 /**
  * Fold long lines for ICS output (max 75 octets per line, per RFC 5545 §3.1).
+ *
+ * The limit is octets, not characters, and a fold may not fall inside a
+ * multi-octet character. Slicing by UTF-16 code unit satisfies neither: a title
+ * of accented text or emoji produces lines well over 75 octets, and a fold
+ * landing between the halves of a surrogate pair emits two lone surrogates,
+ * which is not valid UTF-8 at all. Folding is therefore driven by the encoded
+ * length of each code point.
  */
 function foldIcsLine(line: string): string {
-  const maxLen = 75;
-  if (line.length <= maxLen) return line;
+  const maxOctets = 75;
+  const encoder = new TextEncoder();
+
+  if (encoder.encode(line).length <= maxOctets) return line;
 
   const parts: string[] = [];
-  parts.push(line.slice(0, maxLen));
-  let pos = maxLen;
-  while (pos < line.length) {
-    // Continuation lines start with a single space
-    parts.push(' ' + line.slice(pos, pos + maxLen - 1));
-    pos += maxLen - 1;
+  let current = '';
+  let currentOctets = 0;
+  // Continuation lines are prefixed with a space, which itself costs an octet.
+  let budget = maxOctets;
+
+  for (const codePoint of line) {
+    const size = encoder.encode(codePoint).length;
+
+    if (currentOctets + size > budget) {
+      parts.push(current);
+      current = '';
+      currentOctets = 0;
+      budget = maxOctets - 1;
+    }
+
+    current += codePoint;
+    currentOctets += size;
   }
-  return parts.join('\r\n');
+
+  if (current) parts.push(current);
+
+  const [first, ...continuations] = parts;
+  return [first, ...continuations.map((part) => ' ' + part)].join('\r\n');
 }
 
 // ─── Constants ─────────────────────────────────────────────────────
@@ -749,12 +779,22 @@ export class EventService {
     // Terminate the original series just before the split date
     const updatedRrule = recurrenceService.terminateSeriesAt(parentEvent.rrule!, splitDate);
 
+    // Everything the user already did to the tail of the series has to move
+    // with it. The old parent stops generating occurrences at UNTIL, so an
+    // exclusion or a per-instance override left behind on it is dead state:
+    // a deleted occurrence would reappear under the new series, and an edited
+    // one would silently revert to the series defaults.
+    const splitMs = splitDate.getTime();
+    const parentExDates = (parentEvent.exDates as Date[] | null) ?? [];
+    const retainedExDates = parentExDates.filter((d) => d.getTime() < splitMs);
+    const migratedExDates = parentExDates.filter((d) => d.getTime() >= splitMs);
+
     // Create a new series starting from splitDate with updates
     const result = await db.transaction(async (tx) => {
       // Update original series to end at UNTIL
       await tx
         .update(events)
-        .set({ rrule: updatedRrule, updatedAt: new Date() })
+        .set({ rrule: updatedRrule, exDates: retainedExDates, updatedAt: new Date() })
         .where(
           and(
             eq(events.id, parentEvent.id),
@@ -778,8 +818,23 @@ export class EventService {
           color: data.color !== undefined ? data.color : parentEvent.color,
           visibility: data.visibility ?? parentEvent.visibility,
           rrule: data.rrule !== undefined ? data.rrule : parentEvent.rrule,
+          exDates: migratedExDates,
         })
         .returning();
+
+      // Re-point per-instance overrides at or after the split onto the new
+      // series so the edits they carry keep applying.
+      await tx
+        .update(eventExceptions)
+        .set({ recurringEventId: newSeries.id, updatedAt: new Date() })
+        .where(
+          and(
+            eq(eventExceptions.recurringEventId, parentEvent.id),
+            eq(eventExceptions.userId, userId),
+            isNull(eventExceptions.deletedAt),
+            gte(eventExceptions.originalDate, splitDate),
+          ),
+        );
 
       return newSeries;
     });

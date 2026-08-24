@@ -323,8 +323,11 @@ describe('AuthService', () => {
         message: 'Invalid email or password',
       });
 
-      // Password verification should NOT be called for a locked account
-      expect(argon2.verify).not.toHaveBeenCalled();
+      // A locked account must still pay for a verification. Skipping it makes
+      // the response measurably faster than a wrong-password response, which
+      // reveals the lockout — and, on the unknown-email path, the account's
+      // existence — regardless of the generic error message.
+      expect(argon2.verify).toHaveBeenCalledTimes(1);
     });
 
     it('should throw UNAUTHORIZED for OAuth-only account without password', async () => {
@@ -339,7 +342,47 @@ describe('AuthService', () => {
         message: 'Invalid email or password',
       });
 
-      expect(argon2.verify).not.toHaveBeenCalled();
+      // Same reasoning as the locked-account case: an OAuth-only account must
+      // not answer faster than a password account.
+      expect(argon2.verify).toHaveBeenCalledTimes(1);
+    });
+
+    it('should verify against a decoy hash when the email is unknown', async () => {
+      (db.query.users.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+
+      await expect(
+        service.login({ email: 'nobody@example.com', password: 'SecureP@ss123' }, META),
+      ).rejects.toMatchObject({ statusCode: 401, code: 'UNAUTHORIZED' });
+
+      // The decoy keeps an unregistered address from being identifiable by how
+      // quickly the request comes back.
+      expect(argon2.verify).toHaveBeenCalledTimes(1);
+    });
+
+    it('should clear a lapsed lockout so the attempt counter restarts', async () => {
+      const userRow = makeUserRow({
+        lockedUntil: new Date(Date.now() - 60_000),
+        failedLogins: 5,
+      });
+      (db.query.users.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(userRow);
+      (argon2.verify as ReturnType<typeof vi.fn>).mockResolvedValue(false);
+
+      await expect(
+        service.login({ email: 'test@example.com', password: 'wrong' }, META),
+      ).rejects.toMatchObject({ statusCode: 401 });
+
+      // Counting from the stale 5 would re-lock on this single wrong attempt,
+      // so a user who once hit the threshold would never get their five tries
+      // back. The failure must be recorded as the first of a fresh window.
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'user.login.failed',
+          metadata: expect.objectContaining({ failedAttempts: 1 }),
+        }),
+      );
+      expect(auditService.log).not.toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'user.lockout' }),
+      );
     });
   });
 

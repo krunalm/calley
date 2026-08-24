@@ -145,7 +145,7 @@ Edit the `.env` files as needed. The defaults work with the dev Docker Compose s
 ### 4. Run database migrations
 
 ```bash
-pnpm --filter api db:push
+pnpm --filter api db:migrate
 ```
 
 ### 5. Seed development data (optional)
@@ -174,7 +174,8 @@ This starts the frontend (http://localhost:5173) and API (http://localhost:4000)
 | `pnpm test`                     | Run unit + integration tests                 |
 | `pnpm test:e2e`                 | Run Playwright E2E tests                     |
 | `pnpm --filter api db:generate` | Generate Drizzle migration                   |
-| `pnpm --filter api db:push`     | Apply schema to dev database                 |
+| `pnpm --filter api db:migrate`  | Apply committed migrations                   |
+| `pnpm --filter api db:push`     | Push schema straight to a dev database       |
 | `pnpm --filter api db:seed`     | Seed development data                        |
 | `pnpm --filter api db:studio`   | Open Drizzle Studio                          |
 
@@ -296,6 +297,8 @@ Redis data is non-critical and is reconstructable from PostgreSQL (reminder jobs
 | `SESSION_SECRET`       | Session signing secret (min 32 chars)                                             | — (required)                  |
 | `COOKIE_DOMAIN`        | Cookie domain                                                                     | `localhost`                   |
 | `CORS_ORIGIN`          | Allowed CORS origin (frontend URL; `*` rejected in production — see `lib/env.ts`) | — (required)                  |
+| `FRONTEND_URL`         | Base URL for links in password-reset and lockout emails                           | — (required)                  |
+| `TRUSTED_PROXIES`      | Set when a proxy you control fronts the API — see below                           | —                             |
 | `GOOGLE_CLIENT_ID`     | Google OAuth client ID                                                            | —                             |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret                                                        | —                             |
 | `GOOGLE_REDIRECT_URI`  | Google OAuth callback URL                                                         | —                             |
@@ -309,7 +312,19 @@ Redis data is non-critical and is reconstructable from PostgreSQL (reminder jobs
 | `VAPID_SUBJECT`        | VAPID subject (mailto: URL)                                                       | —                             |
 | `RATE_LIMIT_ENABLED`   | Enable rate limiting                                                              | `true`                        |
 | `SENTRY_DSN`           | Sentry error tracking DSN (optional)                                              | —                             |
-| `LOG_LEVEL`            | Pino log level                                                                    | `info`                        |
+
+#### `TRUSTED_PROXIES` and rate limiting
+
+Rate limits are keyed per client. When the API is exposed directly, the client is identified by its
+TCP socket address, which it cannot forge. Behind a reverse proxy — including the nginx container in
+`docker/docker-compose.yml` — every request arrives from the proxy, so that address is the same for
+everyone and the whole deployment shares one bucket.
+
+Set `TRUSTED_PROXIES` in that case and the API will key on the `X-Forwarded-For` the proxy supplies.
+Set it **only** when a proxy you control terminates every request: the header is caller-supplied
+otherwise, and trusting it lets anyone pick their own bucket — and stamp an arbitrary address onto
+their session and audit records.
+| `LOG_LEVEL` | Pino log level | `info` |
 
 ## CI/CD
 
@@ -472,11 +487,16 @@ docker compose -f docker/docker-compose.dev.yml up -d redis
 If the database schema is out of sync:
 
 ```bash
-# Reset and re-apply (development only)
-pnpm --filter api db:push
+# Apply any migrations the database has not seen
+pnpm --filter api db:migrate
 # Re-seed if needed
 pnpm --filter api db:seed
 ```
+
+`db:push` diffs the schema straight against a live database and bypasses the migration history
+entirely, so it is a development convenience only — it is what let `event_exceptions` exist in
+`schema.ts` for months with no migration behind it. Deployments run `db:migrate`, and CI fails if
+`schema.ts` and the committed migrations disagree.
 
 ### Docker build failures
 

@@ -47,6 +47,26 @@ export type PaginationInput = z.infer<typeof paginationSchema>;
 
 // ─── Date Range Query ───────────────────────────────────────────────
 
+/**
+ * Widest window a range query may ask for, in days.
+ *
+ * Recurrence is expanded per request rather than materialised, so the cost of a
+ * listing is proportional to the span asked for: an unbounded `start`/`end`
+ * lets one request expand a daily series across centuries. A little over a year
+ * covers every view the UI can render, including a year grid with padding.
+ */
+export const MAX_QUERY_RANGE_DAYS = 400;
+
+const MAX_QUERY_RANGE_MS = MAX_QUERY_RANGE_DAYS * 24 * 60 * 60 * 1000;
+
+/** Whether [start, end] is ordered and no wider than the supported window. */
+export function isSupportedRange(start: string, end: string): boolean {
+  const startMs = new Date(start).getTime();
+  const endMs = new Date(end).getTime();
+  if (Number.isNaN(startMs) || Number.isNaN(endMs)) return false;
+  return startMs < endMs && endMs - startMs <= MAX_QUERY_RANGE_MS;
+}
+
 export const dateRangeSchema = z
   .object({
     start: datetimeSchema,
@@ -54,6 +74,10 @@ export const dateRangeSchema = z
   })
   .refine((data) => new Date(data.start) < new Date(data.end), {
     message: 'Start date must be before end date',
+    path: ['end'],
+  })
+  .refine((data) => isSupportedRange(data.start, data.end), {
+    message: `Date range must not exceed ${MAX_QUERY_RANGE_DAYS} days`,
     path: ['end'],
   });
 

@@ -63,11 +63,11 @@
     "@types/react-dom": "^19.2.7",
     "@types/zxcvbn": "^4.4.5",
     "@vitejs/plugin-react": "^6.1.1",
-    "@vitest/coverage-v8": "^5.0.0",
+    "@vitest/coverage-v8": "5.0.0",
     "jsdom": "^30.0.1",
     "rollup-plugin-visualizer": "^7.1.1",
     "typescript": "^6.0.3",
     "vite": "^8.2.2",
-    "vitest": "^5.0.0"
+    "vitest": "5.0.0"
   }
 }

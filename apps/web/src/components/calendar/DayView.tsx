@@ -1,24 +1,40 @@
 import { addDays, format, isToday, subDays } from 'date-fns';
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 
 import { useCategories } from '@/hooks/use-categories';
 import { useEventsByDate } from '@/hooks/use-events';
+import { useToggleTask } from '@/hooks/use-task-mutations';
+import { useTasksByDate } from '@/hooks/use-tasks';
+import { useUserTimezone } from '@/hooks/use-user-timezone';
+import { segmentEventForDay } from '@/lib/event-segments';
 import { cn } from '@/lib/utils';
 import { useCalendarStore } from '@/stores/calendar-store';
+import { useUIStore } from '@/stores/ui-store';
 
 import { AllDayRow } from './AllDayRow';
 import { TimeGrid } from './TimeGrid';
 
 import type { CalendarCategory, Event, Task } from '@calley/shared';
 
+// Only unfinished tasks are shown on the calendar grid (see WeekView).
+const CALENDAR_TASK_STATUSES = ['todo', 'in_progress'];
+
 export function DayView() {
   const { currentDate } = useCalendarStore();
   const { data: categories = [] } = useCategories();
+  const userTimezone = useUserTimezone();
+  const { openTaskDrawer } = useUIStore();
+  const toggleTask = useToggleTask();
 
   // Fetch events for current day + 1 day buffer on each side
   const fetchStart = subDays(currentDate, 1).toISOString();
   const fetchEnd = addDays(currentDate, 2).toISOString();
   const { eventsByDate, isLoading } = useEventsByDate(fetchStart, fetchEnd);
+  const { tasksByDate } = useTasksByDate({
+    dueStart: fetchStart,
+    dueEnd: fetchEnd,
+    status: CALENDAR_TASK_STATUSES,
+  });
 
   // Build category lookup map
   const categoryMap = useMemo(() => {
@@ -36,13 +52,20 @@ export function DayView() {
   const { columns, allDayEventsByDate } = useMemo(() => {
     const dateKey = format(currentDate, 'yyyy-MM-dd');
     const dayEvents: Event[] = eventsByDate.get(dateKey) ?? [];
-    const dayTasks: Task[] = []; // Tasks integrated in Phase 3
+    const dayTasks: Task[] = tasksByDate.get(dateKey) ?? [];
+
+    // Clamp timed events to this day so a block never wraps below zero
+    // (cross-midnight events appear as two day-true segments instead).
+    const timedEvents = dayEvents
+      .filter((e) => !e.isAllDay)
+      .map((e) => segmentEventForDay(e, currentDate, userTimezone))
+      .filter((e): e is Event => e !== null);
 
     const cols = [
       {
         date: currentDate,
         dateKey,
-        events: dayEvents.filter((e) => !e.isAllDay),
+        events: timedEvents,
         tasks: dayTasks,
       },
     ];
@@ -54,7 +77,23 @@ export function DayView() {
     }
 
     return { columns: cols, allDayEventsByDate: allDay };
-  }, [currentDate, eventsByDate]);
+  }, [currentDate, eventsByDate, tasksByDate, userTimezone]);
+
+  const handleTaskClick = useCallback(
+    (task: Task) => openTaskDrawer({ taskId: task.id, instanceDate: task.instanceDate }),
+    [openTaskDrawer],
+  );
+
+  const handleTaskToggle = useCallback(
+    (task: Task) => {
+      // Only one-off tasks toggle from the grid; a recurring occurrence's
+      // checkbox must not mark the whole series done.
+      if (!task.rrule && !task.recurringTaskId && !task.isRecurringInstance) {
+        toggleTask.mutate(task.id);
+      }
+    },
+    [toggleTask],
+  );
 
   if (isLoading) {
     return <DayViewSkeleton />;
@@ -99,7 +138,12 @@ export function DayView() {
       <AllDayRow days={days} allDayEventsByDate={allDayEventsByDate} categories={categoryMap} />
 
       {/* Time grid — single column gets full width for detailed event blocks */}
-      <TimeGrid columns={columns} categories={categoryMap} />
+      <TimeGrid
+        columns={columns}
+        categories={categoryMap}
+        onTaskClick={handleTaskClick}
+        onTaskToggle={handleTaskToggle}
+      />
     </div>
   );
 }

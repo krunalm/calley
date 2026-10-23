@@ -1,7 +1,8 @@
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useSearch } from '@tanstack/react-router';
 import { parseISO } from 'date-fns';
 import { formatInTimeZone } from 'date-fns-tz';
-import { Link2Off, Loader2 } from 'lucide-react';
+import { Link2, Link2Off, Loader2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 
@@ -355,11 +356,36 @@ function ChangePasswordForm() {
 
 // ─── Connected Accounts ─────────────────────────────────────────────
 
+/** Base URL for OAuth link flows — a full-page navigation, not an apiClient call. */
+const OAUTH_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+
+/** Result banners for the `?oauth=` parameter the link callbacks redirect with. */
+const OAUTH_RESULT_MESSAGES: Record<string, { tone: 'success' | 'error'; text: string }> = {
+  linked: {
+    tone: 'success',
+    text: 'Account connected.',
+  },
+  failed: {
+    tone: 'error',
+    text: 'Connecting the account failed. Please try again.',
+  },
+  link_failed: {
+    tone: 'error',
+    text: 'Connecting the account failed. Please try again.',
+  },
+  no_email: {
+    tone: 'error',
+    text: 'That account has no verified email address, so it cannot be linked.',
+  },
+};
+
 function ConnectedAccounts() {
   const { data: user } = useCurrentUser();
   const { data: accounts = [], isLoading } = useOAuthAccounts();
   const unlinkAccount = useUnlinkOAuthAccount();
   const timezone = user?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const search = useSearch({ strict: false }) as { oauth?: string };
+  const oauthResult = search.oauth ? OAUTH_RESULT_MESSAGES[search.oauth] : undefined;
 
   if (isLoading) return null;
 
@@ -411,6 +437,12 @@ function ConnectedAccounts() {
     }
   };
 
+  const linkedProviders = new Set(accounts.map((a) => a.provider));
+  const linkableProviders = [
+    { provider: 'google', label: 'Google' },
+    { provider: 'github', label: 'GitHub' },
+  ].filter((p) => !linkedProviders.has(p.provider));
+
   return (
     <div className="space-y-6">
       <Separator />
@@ -421,7 +453,20 @@ function ConnectedAccounts() {
         </p>
       </div>
 
-      {accounts.length === 0 ? (
+      {oauthResult && (
+        <p
+          role="status"
+          className={
+            oauthResult.tone === 'success'
+              ? 'rounded-[var(--radius)] border border-[var(--border)] px-4 py-3 text-sm'
+              : 'rounded-[var(--radius)] border border-[var(--destructive)]/40 px-4 py-3 text-sm text-[var(--destructive)]'
+          }
+        >
+          {oauthResult.text}
+        </p>
+      )}
+
+      {accounts.length === 0 && linkableProviders.length === 0 ? (
         <p className="text-sm text-[var(--muted-foreground)]">No connected accounts</p>
       ) : (
         <ul className="space-y-3">
@@ -447,6 +492,31 @@ function ConnectedAccounts() {
               >
                 <Link2Off className="mr-1 h-3.5 w-3.5" />
                 Unlink
+              </Button>
+            </li>
+          ))}
+
+          {/* Providers not yet linked can be attached here. The OAuth flow used
+              to be login-only: a password-signup user could never add Google or
+              GitHub, because the login callback refuses automatic email linking
+              into an unverified account. */}
+          {linkableProviders.map((p) => (
+            <li
+              key={p.provider}
+              className="flex items-center justify-between rounded-[var(--radius)] border border-dashed border-[var(--border)] px-4 py-3"
+            >
+              <div className="flex items-center gap-3">
+                {providerIcon(p.provider)}
+                <div>
+                  <p className="text-sm font-medium">{p.label}</p>
+                  <p className="text-xs text-[var(--muted-foreground)]">Not connected</p>
+                </div>
+              </div>
+              <Button variant="outline" size="sm" asChild>
+                <a href={`${OAUTH_API_URL}/auth/oauth/${p.provider}/link`}>
+                  <Link2 className="mr-1 h-3.5 w-3.5" />
+                  Connect
+                </a>
               </Button>
             </li>
           ))}

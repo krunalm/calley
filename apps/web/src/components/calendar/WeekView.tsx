@@ -7,21 +7,34 @@ import {
   startOfWeek,
   subWeeks,
 } from 'date-fns';
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 
 import { useCategories } from '@/hooks/use-categories';
 import { useEventsByDate } from '@/hooks/use-events';
+import { useToggleTask } from '@/hooks/use-task-mutations';
+import { useTasksByDate } from '@/hooks/use-tasks';
+import { useUserTimezone } from '@/hooks/use-user-timezone';
+import { segmentEventForDay } from '@/lib/event-segments';
 import { cn } from '@/lib/utils';
 import { useCalendarStore } from '@/stores/calendar-store';
+import { useUIStore } from '@/stores/ui-store';
 
 import { AllDayRow } from './AllDayRow';
 import { TimeGrid } from './TimeGrid';
 
 import type { CalendarCategory, Event, Task } from '@calley/shared';
 
+// Only unfinished tasks are shown on the calendar grid: completed ones keep
+// their place in the task panel, where they are expected, without burying the
+// days' remaining work.
+const CALENDAR_TASK_STATUSES = ['todo', 'in_progress'];
+
 export function WeekView() {
   const { currentDate } = useCalendarStore();
   const { data: categories = [] } = useCategories();
+  const userTimezone = useUserTimezone();
+  const { openTaskDrawer } = useUIStore();
+  const toggleTask = useToggleTask();
 
   // Calculate week boundaries and generate days
   const { weekStart, weekEnd, days } = useMemo(() => {
@@ -34,6 +47,11 @@ export function WeekView() {
   const fetchStart = subWeeks(weekStart, 1).toISOString();
   const fetchEnd = addWeeks(weekEnd, 1).toISOString();
   const { eventsByDate, isLoading } = useEventsByDate(fetchStart, fetchEnd);
+  const { tasksByDate } = useTasksByDate({
+    dueStart: fetchStart,
+    dueEnd: fetchEnd,
+    status: CALENDAR_TASK_STATUSES,
+  });
 
   // Build category lookup map
   const categoryMap = useMemo(() => {
@@ -49,12 +67,19 @@ export function WeekView() {
     const cols = days.map((day: Date) => {
       const dateKey = format(day, 'yyyy-MM-dd');
       const dayEvents: Event[] = eventsByDate.get(dateKey) ?? [];
-      const dayTasks: Task[] = []; // Tasks integrated in Phase 3
+      const dayTasks: Task[] = tasksByDate.get(dateKey) ?? [];
+
+      // Clamp timed events to this day so a block never wraps below zero
+      // (cross-midnight events appear as two day-true segments instead).
+      const timedEvents = dayEvents
+        .filter((e) => !e.isAllDay)
+        .map((e) => segmentEventForDay(e, day, userTimezone))
+        .filter((e): e is Event => e !== null);
 
       return {
         date: day,
         dateKey,
-        events: dayEvents.filter((e) => !e.isAllDay),
+        events: timedEvents,
         tasks: dayTasks,
       };
     });
@@ -70,7 +95,24 @@ export function WeekView() {
     }
 
     return { columns: cols, allDayEventsByDate: allDay };
-  }, [days, eventsByDate]);
+  }, [days, eventsByDate, tasksByDate, userTimezone]);
+
+  const handleTaskClick = useCallback(
+    (task: Task) => openTaskDrawer({ taskId: task.id, instanceDate: task.instanceDate }),
+    [openTaskDrawer],
+  );
+
+  const handleTaskToggle = useCallback(
+    (task: Task) => {
+      // Toggling by id would mark an entire recurring series done — a checkbox
+      // on one occurrence must not do that, so only one-off tasks toggle from
+      // the grid; recurring ones go through the drawer's scope dialog.
+      if (!task.rrule && !task.recurringTaskId && !task.isRecurringInstance) {
+        toggleTask.mutate(task.id);
+      }
+    },
+    [toggleTask],
+  );
 
   if (isLoading) {
     return <WeekViewSkeleton />;
@@ -85,7 +127,12 @@ export function WeekView() {
       <AllDayRow days={days} allDayEventsByDate={allDayEventsByDate} categories={categoryMap} />
 
       {/* Time grid */}
-      <TimeGrid columns={columns} categories={categoryMap} />
+      <TimeGrid
+        columns={columns}
+        categories={categoryMap}
+        onTaskClick={handleTaskClick}
+        onTaskToggle={handleTaskToggle}
+      />
     </div>
   );
 }

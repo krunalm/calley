@@ -32,8 +32,8 @@ export function useSSE() {
       if (!mounted) return;
 
       // Connect to SSE stream. withCredentials ensures the session cookie
-      // is sent with the request. The server also supports a ?token= query
-      // param as a fallback for programmatic clients.
+      // is sent with the request — including on EventSource's automatic
+      // reconnects, which are ordinary same-site GETs.
       const es = new EventSource(`${API_URL}/stream`, {
         withCredentials: true,
       });

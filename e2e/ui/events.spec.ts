@@ -358,8 +358,11 @@ test.describe('UI — recurring events', () => {
   test('offers a reminder selector', async ({ authedPage }) => {
     await openEventDrawer(authedPage);
 
+    // New events default their reminder to the notification settings' value
+    // ("15 minutes before" on a fresh profile) — the settings used to be
+    // written but never read, and every reminder defaulted to "No reminder".
     await expect(
-      authedPage.getByRole('combobox').filter({ hasText: /no reminder/i }),
+      authedPage.getByRole('combobox').filter({ hasText: /15 minutes before/i }),
     ).toBeVisible();
   });
 

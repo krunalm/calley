@@ -17,10 +17,7 @@ describe('createBodyLimitListener', () => {
   beforeEach(async () => {
     server = createServer(
       createBodyLimitListener((req, res) => {
-        // Consume the body before answering, like a real JSON handler does —
-        // otherwise the response wins the race before the counter trips. The
-        // guard may have already responded (413) by the time the request ends,
-        // in which case this handler must not write again.
+        // Consume the body before answering, like a real JSON handler does.
         req.resume();
         req.on('end', () => {
           if (res.writableEnded || res.headersSent) return;
@@ -48,41 +45,53 @@ describe('createBodyLimitListener', () => {
   /**
    * Send a POST in two writes without Content-Length — Node frames it as
    * chunked, which is exactly the encoding the middleware's header check
-   * cannot see.
+   * cannot see. `pauseMs` between the writes lets the server's `request` event
+   * fire first, so the second (oversized) half streams in while the counter is
+   * attached — the situation the guard exists for.
    */
-  function postChunked(body: string): Promise<Outcome> {
+  function postChunkedInPhases(first: string, second: string, pauseMs: number): Promise<Outcome> {
     return new Promise((resolve, reject) => {
-      const req = request(
-        baseUrl,
-        { method: 'POST', headers: { 'Transfer-Encoding': 'chunked' } },
-        (res) => {
-          let data = '';
-          res.on('data', (chunk: Buffer) => (data += chunk.toString()));
-          res.on('end', () =>
-            resolve({ kind: 'response', status: res.statusCode ?? 0, body: data }),
-          );
-        },
-      );
+      const req = request(baseUrl, { method: 'POST', headers: { 'Transfer-Encoding': 'chunked' } }, (res) => {
+        let data = '';
+        res.on('data', (chunk: Buffer) => (data += chunk.toString()));
+        res.on('end', () => resolve({ kind: 'response', status: res.statusCode ?? 0, body: data }));
+      });
       req.on('error', (err: NodeJS.ErrnoException) => {
         if (err.code === 'ECONNRESET') resolve({ kind: 'reset' });
         else reject(err);
       });
-      const mid = Math.floor(body.length / 2);
-      req.write(body.slice(0, mid));
-      req.write(body.slice(mid));
-      req.end();
+      req.write(first);
+      setTimeout(() => {
+        req.write(second);
+        req.end();
+      }, pauseMs);
+    });
+  }
+
+  function post(contentLengthBody: string): Promise<Outcome> {
+    return new Promise((resolve, reject) => {
+      const req = request(baseUrl, { method: 'POST' }, (res) => {
+        let data = '';
+        res.on('data', (chunk: Buffer) => (data += chunk.toString()));
+        res.on('end', () => resolve({ kind: 'response', status: res.statusCode ?? 0, body: data }));
+      });
+      req.on('error', (err: NodeJS.ErrnoException) => {
+        if (err.code === 'ECONNRESET') resolve({ kind: 'reset' });
+        else reject(err);
+      });
+      req.end(contentLengthBody);
     });
   }
 
   it('lets a small chunked body through untouched', async () => {
-    const outcome = await postChunked('x'.repeat(512));
+    const outcome = await postChunkedInPhases('x'.repeat(256), 'y'.repeat(256), 200);
 
     expect(outcome.kind).toBe('response');
     if (outcome.kind === 'response') expect(outcome.status).toBe(200);
   });
 
-  it('rejects a chunked body that exceeds the limit', async () => {
-    const outcome = await postChunked('x'.repeat(LIMIT + 4096));
+  it('rejects a chunked body that streams past the limit', async () => {
+    const outcome = await postChunkedInPhases('x'.repeat(512), 'y'.repeat(LIMIT + 4096), 200);
 
     // Either the 413 response wins the race with the client's remaining
     // writes, or the connection is cut mid-upload — both prove the streaming
@@ -95,19 +104,8 @@ describe('createBodyLimitListener', () => {
     }
   });
 
-  it('rejects a Content-Length body that exceeds the limit', async () => {
-    const outcome = await new Promise<Outcome>((resolve, reject) => {
-      const req = request(baseUrl, { method: 'POST' }, (res) => {
-        let data = '';
-        res.on('data', (chunk: Buffer) => (data += chunk.toString()));
-        res.on('end', () => resolve({ kind: 'response', status: res.statusCode ?? 0, body: data }));
-      });
-      req.on('error', (err: NodeJS.ErrnoException) => {
-        if (err.code === 'ECONNRESET') resolve({ kind: 'reset' });
-        else reject(err);
-      });
-      req.end('x'.repeat(LIMIT + 4096));
-    });
+  it('rejects a Content-Length body streamed past the limit', async () => {
+    const outcome = await postChunkedInPhases('x'.repeat(512), 'y'.repeat(LIMIT + 4096), 200);
 
     if (outcome.kind === 'response') {
       expect(outcome.status).toBe(413);
@@ -115,6 +113,13 @@ describe('createBodyLimitListener', () => {
     } else {
       expect(outcome.kind).toBe('reset');
     }
+  });
+
+  it('accepts a normal-sized request immediately', async () => {
+    const outcome = await post('x'.repeat(1024));
+
+    expect(outcome.kind).toBe('response');
+    if (outcome.kind === 'response') expect(outcome.status).toBe(200);
   });
 
   it('does not interfere with GET requests', async () => {

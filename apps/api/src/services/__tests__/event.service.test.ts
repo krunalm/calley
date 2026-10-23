@@ -17,6 +17,9 @@ vi.mock('../../db', () => {
         findFirst: vi.fn(),
         findMany: vi.fn(),
       },
+      users: {
+        findFirst: vi.fn().mockResolvedValue({ timezone: 'UTC' }),
+      },
     },
     select: vi.fn(),
     insert: vi.fn(),
@@ -51,23 +54,30 @@ vi.mock('../reminder.service', () => ({
 }));
 
 // Mock recurrence service
-vi.mock('../recurrence.service', () => ({
-  recurrenceService: {
-    expandRecurringEvents: vi.fn((events: unknown[]) => events),
-    validateRrule: vi.fn(),
-    terminateSeriesAt: vi.fn((rrule: string, splitDate: Date) => {
-      const untilDate = new Date(splitDate.getTime() - 1);
-      const untilStr = untilDate
-        .toISOString()
-        .replace(/[-:]/g, '')
-        .replace(/\.\d{3}/, '');
-      let updated = rrule;
-      updated = updated.replace(/;?(UNTIL|COUNT)=[^;]*/g, '');
-      updated += `;UNTIL=${untilStr}`;
-      return updated;
-    }),
-  },
-}));
+vi.mock('../recurrence.service', () => {
+  const terminateSeriesAt = (rrule: string, splitDate: Date) => {
+    const untilDate = new Date(splitDate.getTime() - 1);
+    const untilStr = untilDate
+      .toISOString()
+      .replace(/[-:]/g, '')
+      .replace(/\.\d{3}/, '');
+    let updated = rrule;
+    updated = updated.replace(/;?(UNTIL|COUNT)=[^;]*/g, '');
+    updated += `;UNTIL=${untilStr}`;
+    return updated;
+  };
+  return {
+    recurrenceService: {
+      expandRecurringEvents: vi.fn((events: unknown[]) => events),
+      validateRrule: vi.fn(),
+      terminateSeriesAt: vi.fn(terminateSeriesAt),
+      splitSeriesAt: vi.fn((rrule: string, _dtstart: Date, splitDate: Date) => ({
+        head: terminateSeriesAt(rrule, splitDate),
+        tail: rrule,
+      })),
+    },
+  };
+});
 
 import { db } from '../../db';
 import { AppError } from '../../lib/errors';
@@ -831,6 +841,48 @@ describe('EventService', () => {
         isAllDay: true,
         startAt: new Date('2026-03-15T00:00:00Z'),
         endAt: new Date('2026-03-16T00:00:00Z'),
+      });
+      (db.query.events.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(eventRow);
+
+      const ics = await service.exportIcs(TEST_USER_ID, TEST_EVENT_ID);
+
+      expect(ics).toContain('DTSTART;VALUE=DATE:20260315');
+      expect(ics).toContain('DTEND;VALUE=DATE:20260316');
+    });
+
+    /**
+     * Regression: a single-day all-day event stored as [00:00, 23:59:59.999]
+     * (the drawer's convention) exported DTSTART == DTEND, which RFC 5545's
+     * exclusive DTEND turns into a zero-length event that importers reject.
+     */
+    it('exports an exclusive DTEND for a single-day all-day event', async () => {
+      const eventRow = makeEventRow({
+        isAllDay: true,
+        startAt: new Date('2026-03-15T00:00:00Z'),
+        endAt: new Date('2026-03-15T23:59:59.999Z'),
+      });
+      (db.query.events.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(eventRow);
+
+      const ics = await service.exportIcs(TEST_USER_ID, TEST_EVENT_ID);
+
+      expect(ics).toContain('DTSTART;VALUE=DATE:20260315');
+      expect(ics).toContain('DTEND;VALUE=DATE:20260316');
+    });
+
+    /**
+     * Regression: the all-day dates were sliced from the UTC instant, so a
+     * Tokyo user's March 15 event exported as March 14. The export must
+     * resolve the stored instants in the user's timezone first.
+     */
+    it('exports all-day dates in the user timezone, not UTC', async () => {
+      (db.query.users.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue({
+        timezone: 'Asia/Tokyo',
+      });
+      // A Tokyo all-day event for March 15: [Mar 15 00:00 JST, Mar 15 23:59:59.999 JST]
+      const eventRow = makeEventRow({
+        isAllDay: true,
+        startAt: new Date('2026-03-14T15:00:00Z'),
+        endAt: new Date('2026-03-15T14:59:59.999Z'),
       });
       (db.query.events.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(eventRow);
 

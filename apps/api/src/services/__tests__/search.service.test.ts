@@ -25,6 +25,18 @@ import { SearchService } from '../search.service';
 
 const TEST_USER_ID = 'testuser12345678901234567';
 
+/**
+ * Mock helper: the first db.execute call builds the tsquery from the search
+ * string (dictionary-filtered tokens); the next two are the event and task
+ * searches.
+ */
+function mockTsQuery(tsQuery: string, eventRows: unknown[] = [], taskRows: unknown[] = []) {
+  (db.execute as ReturnType<typeof vi.fn>)
+    .mockResolvedValueOnce([{ tsquery: tsQuery }])
+    .mockResolvedValueOnce(eventRows)
+    .mockResolvedValueOnce(taskRows);
+}
+
 function makeEventRow(overrides: Record<string, unknown> = {}) {
   return {
     id: 'testevent12345678901234567',
@@ -81,6 +93,12 @@ describe('SearchService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // mockClear does not drop queued mockResolvedValueOnce values, and a test
+    // that returns early after the tsquery build (dictionary-filtered to empty)
+    // leaves its two search mocks queued for the next test. Reset the mock and
+    // restore its default so each test starts with a clean queue.
+    (db.execute as ReturnType<typeof vi.fn>).mockReset();
+    (db.execute as ReturnType<typeof vi.fn>).mockResolvedValue([]);
     service = new SearchService();
   });
 
@@ -88,13 +106,7 @@ describe('SearchService', () => {
 
   describe('search', () => {
     it('should return events and tasks matching the query', async () => {
-      const eventRows = [makeEventRow()];
-      const taskRows = [makeTaskRow()];
-
-      // First call returns events, second returns tasks
-      (db.execute as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce(eventRows)
-        .mockResolvedValueOnce(taskRows);
+      mockTsQuery("'standup':*", [makeEventRow()], [makeTaskRow()]);
 
       const result = await service.search(TEST_USER_ID, 'standup');
 
@@ -111,7 +123,7 @@ describe('SearchService', () => {
 
       expect(result.events).toEqual([]);
       expect(result.tasks).toEqual([]);
-      // Should not call db.execute at all
+      // A blank query is rejected before any database work.
       expect(db.execute).not.toHaveBeenCalled();
     });
 
@@ -123,51 +135,48 @@ describe('SearchService', () => {
       expect(db.execute).not.toHaveBeenCalled();
     });
 
-    it('should sanitize special characters from query tokens', async () => {
-      // Query with special characters like SQL injection attempts or symbols
-      (db.execute as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+    it('should not query tables when the dictionary filters every token', async () => {
+      // e.g. punctuation-only input: to_tsvector produces no lexemes, so the
+      // tsquery comes back empty and both searches are skipped.
+      mockTsQuery('');
 
-      const result = await service.search(TEST_USER_ID, 'hello@world! te$t');
-
-      expect(result.events).toEqual([]);
-      expect(result.tasks).toEqual([]);
-      // db.execute should have been called (query was sanitized, not empty)
-      expect(db.execute).toHaveBeenCalledTimes(2);
-    });
-
-    it('should return empty for query with only special characters', async () => {
       const result = await service.search(TEST_USER_ID, '@#$% !!! ***');
 
       expect(result.events).toEqual([]);
       expect(result.tasks).toEqual([]);
-      // After sanitization, all tokens become empty strings, so no DB call
-      expect(db.execute).not.toHaveBeenCalled();
+      expect(db.execute).toHaveBeenCalledTimes(1);
+    });
+
+    // Regression: tokens were built in JS by stripping punctuation, so english
+    // stopwords reached `to_tsquery` and made it raise a syntax error — the
+    // client saw a 500 for perfectly ordinary searches like "the meeting".
+    // Now the dictionary itself decides what is searchable, so stopwords
+    // (and punctuation-only tokens) simply drop out.
+    it('drops stop words instead of erroring on natural-language queries', async () => {
+      mockTsQuery("'meet':*", [makeEventRow()], []);
+
+      const result = await service.search(TEST_USER_ID, 'the meeting');
+
+      expect(result.events).toHaveLength(1);
+      // One call built the tsquery, two ran the searches.
+      expect(db.execute).toHaveBeenCalledTimes(3);
     });
 
     it('should respect the limit parameter', async () => {
-      (db.execute as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce([makeEventRow()])
-        .mockResolvedValueOnce([makeTaskRow()]);
+      mockTsQuery("'meet':*", [makeEventRow()], [makeTaskRow()]);
 
       await service.search(TEST_USER_ID, 'meeting', 10);
 
-      // Should have been called with halfLimit = ceil(10/2) = 5
-      expect(db.execute).toHaveBeenCalledTimes(2);
-    });
-
-    it('should use default limit of 20 when not specified', async () => {
-      (db.execute as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
-
-      await service.search(TEST_USER_ID, 'test');
-
-      // Just verify it was called (default limit = 20, halfLimit = 10)
-      expect(db.execute).toHaveBeenCalledTimes(2);
+      // tsquery build + event search + task search
+      expect(db.execute).toHaveBeenCalledTimes(3);
     });
 
     it('should log search execution details', async () => {
-      (db.execute as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce([makeEventRow()])
-        .mockResolvedValueOnce([makeTaskRow(), makeTaskRow({ id: 'testtask2abcde12345678901' })]);
+      mockTsQuery(
+        "'standup':*",
+        [makeEventRow()],
+        [makeTaskRow(), makeTaskRow({ id: 'testtask2abcde12345678901' })],
+      );
 
       await service.search(TEST_USER_ID, 'standup');
 
@@ -183,9 +192,7 @@ describe('SearchService', () => {
     });
 
     it('should serialize Date fields to ISO strings in event results', async () => {
-      (db.execute as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce([makeEventRow()])
-        .mockResolvedValueOnce([]);
+      mockTsQuery("'standup':*", [makeEventRow()], []);
 
       const result = await service.search(TEST_USER_ID, 'standup');
 
@@ -197,9 +204,7 @@ describe('SearchService', () => {
     });
 
     it('should serialize Date fields to ISO strings in task results', async () => {
-      (db.execute as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([makeTaskRow()]);
+      mockTsQuery("'review':*", [], [makeTaskRow()]);
 
       const result = await service.search(TEST_USER_ID, 'review');
 
@@ -211,25 +216,21 @@ describe('SearchService', () => {
     });
 
     it('should handle single-word query correctly', async () => {
-      (db.execute as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce([makeEventRow()])
-        .mockResolvedValueOnce([]);
+      mockTsQuery("'meet':*", [makeEventRow()], []);
 
       const result = await service.search(TEST_USER_ID, 'meeting');
 
       expect(result.events).toHaveLength(1);
-      expect(db.execute).toHaveBeenCalledTimes(2);
+      expect(db.execute).toHaveBeenCalledTimes(3);
     });
 
     it('should handle multi-word query correctly', async () => {
-      (db.execute as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce([makeEventRow()])
-        .mockResolvedValueOnce([]);
+      mockTsQuery("'team':* & 'standup':* & 'meet':*", [makeEventRow()], []);
 
       const result = await service.search(TEST_USER_ID, 'team standup meeting');
 
       expect(result.events).toHaveLength(1);
-      expect(db.execute).toHaveBeenCalledTimes(2);
+      expect(db.execute).toHaveBeenCalledTimes(3);
     });
   });
 });

@@ -49,22 +49,31 @@ vi.mock('../reminder.service', () => ({
 }));
 
 // Mock recurrence service
-vi.mock('../recurrence.service', () => ({
-  recurrenceService: {
-    validateRrule: vi.fn(),
-    terminateSeriesAt: vi.fn((rrule: string, splitDate: Date) => {
-      const untilDate = new Date(splitDate.getTime() - 1);
-      const untilStr = untilDate
-        .toISOString()
-        .replace(/[-:]/g, '')
-        .replace(/\.\d{3}/, '');
-      let updated = rrule;
-      updated = updated.replace(/;?(UNTIL|COUNT)=[^;]*/g, '');
-      updated += `;UNTIL=${untilStr}`;
-      return updated;
-    }),
-  },
-}));
+vi.mock('../recurrence.service', () => {
+  const terminateSeriesAt = (rrule: string, splitDate: Date) => {
+    const untilDate = new Date(splitDate.getTime() - 1);
+    const untilStr = untilDate
+      .toISOString()
+      .replace(/[-:]/g, '')
+      .replace(/\.\d{3}/, '');
+    let updated = rrule;
+    updated = updated.replace(/;?(UNTIL|COUNT)=[^;]*/g, '');
+    updated += `;UNTIL=${untilStr}`;
+    return updated;
+  };
+  return {
+    recurrenceService: {
+      validateRrule: vi.fn(),
+      // Passthrough by default: tests that care about expansion override it.
+      expandRecurringTasks: vi.fn((tasks: unknown[]) => tasks),
+      terminateSeriesAt: vi.fn(terminateSeriesAt),
+      splitSeriesAt: vi.fn((rrule: string, _dtstart: Date, splitDate: Date) => ({
+        head: terminateSeriesAt(rrule, splitDate),
+        tail: rrule,
+      })),
+    },
+  };
+});
 
 // Mock SSE service
 vi.mock('../sse.service', () => ({
@@ -638,6 +647,112 @@ describe('TaskService', () => {
       expect(db.transaction).toHaveBeenCalled();
     });
 
+    /**
+     * Regression: the exception used to inherit the parent's dueAt — the
+     * series' FIRST due date — so editing the March 20 occurrence without
+     * touching the due field silently rescheduled it to the series' anchor.
+     */
+    it('defaults an exception due date to the occurrence being edited', async () => {
+      const recurringTask = makeTaskRow({
+        rrule: 'FREQ=DAILY',
+        dueAt: new Date('2026-03-01T10:00:00Z'),
+      });
+      const exceptionRow = makeTaskRow({
+        id: 'exception1234567890123456',
+        recurringTaskId: TEST_TASK_ID,
+        originalDate: new Date('2026-03-20T10:00:00Z'),
+      });
+      (db.query.tasks.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(recurringTask);
+
+      let insertedValues: Record<string, unknown> | undefined;
+      (db.transaction as ReturnType<typeof vi.fn>).mockImplementation(async (fn) => {
+        const txUpdateChain = {
+          set: vi.fn().mockReturnThis(),
+          where: vi.fn().mockResolvedValue([]),
+        };
+        const txInsertChain = {
+          values: vi.fn((values: Record<string, unknown>) => {
+            insertedValues = values;
+            return txInsertChain;
+          }),
+          returning: vi.fn().mockResolvedValue([exceptionRow]),
+        };
+        const tx = {
+          update: vi.fn().mockReturnValue(txUpdateChain),
+          insert: vi.fn().mockReturnValue(txInsertChain),
+        };
+        return fn(tx);
+      });
+
+      await service.updateTask(
+        TEST_USER_ID,
+        TEST_TASK_ID,
+        { title: 'Just this one' },
+        'instance',
+        '2026-03-20T10:00:00Z',
+      );
+
+      expect((insertedValues as { dueAt?: Date }).dueAt).toEqual(new Date('2026-03-20T10:00:00Z'));
+    });
+
+    it('starts the tail series at the split date and migrates its exceptions', async () => {
+      const recurringTask = makeTaskRow({
+        rrule: 'FREQ=DAILY;COUNT=10',
+        dueAt: new Date('2026-03-01T10:00:00Z'),
+        exDates: [
+          new Date('2026-03-05T10:00:00Z'), // before the split: stays on the head
+          new Date('2026-03-25T10:00:00Z'), // after the split: must move to the tail
+        ],
+      });
+      const newSeriesRow = makeTaskRow({
+        id: 'newseries12345678901234567',
+        rrule: 'FREQ=DAILY;COUNT=10',
+      });
+      (db.query.tasks.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(recurringTask);
+
+      let insertedValues: Record<string, unknown> | undefined;
+      const updateCalls: Array<Record<string, unknown>> = [];
+      (db.transaction as ReturnType<typeof vi.fn>).mockImplementation(async (fn) => {
+        const txUpdateChain = {
+          set: vi.fn().mockReturnThis(),
+          where: vi.fn().mockResolvedValue([]),
+        };
+        const txInsertChain = {
+          values: vi.fn((values: Record<string, unknown>) => {
+            insertedValues = values;
+            return txInsertChain;
+          }),
+          returning: vi.fn().mockResolvedValue([newSeriesRow]),
+        };
+        const tx = {
+          update: vi.fn().mockImplementation((table: unknown) => {
+            updateCalls.push({ table });
+            return txUpdateChain;
+          }),
+          insert: vi.fn().mockReturnValue(txInsertChain),
+        };
+        return fn(tx);
+      });
+
+      await service.updateTask(
+        TEST_USER_ID,
+        TEST_TASK_ID,
+        { title: 'Renamed tail' },
+        'following',
+        '2026-03-20T10:00:00Z',
+      );
+
+      // The tail series starts at the split occurrence, not the original anchor.
+      expect((insertedValues as { dueAt?: Date }).dueAt).toEqual(new Date('2026-03-20T10:00:00Z'));
+      // Only the post-split exclusion moves with it.
+      expect((insertedValues as { exDates?: Date[] }).exDates).toEqual([
+        new Date('2026-03-25T10:00:00Z'),
+      ]);
+      // Three updates: the head's rrule/exDates, and the re-pointing of
+      // future exception rows at the new series.
+      expect(updateCalls.length).toBe(2);
+    });
+
     it('should emit SSE event on direct update', async () => {
       const taskRow = makeTaskRow();
       const updatedRow = makeTaskRow({ title: 'Updated' });
@@ -1007,16 +1122,17 @@ describe('TaskService', () => {
   describe('listTasks', () => {
     it('should query tasks and return them', async () => {
       const taskRows = [makeTaskRow()];
-      (db.query.tasks.findMany as ReturnType<typeof vi.fn>).mockResolvedValue(taskRows);
+      (db.query.tasks.findMany as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce(taskRows) // point rows (one-offs + exceptions)
+        .mockResolvedValueOnce([]); // recurring parents
 
       const result = await service.listTasks(TEST_USER_ID, { sort: 'created_at' });
 
       expect(result).toHaveLength(1);
       expect(result[0].id).toBe(TEST_TASK_ID);
-      // One query, so Postgres applies the requested ordering across the whole
-      // result. Splitting recurring parents into a second query and
-      // concatenating discarded that ordering (see the regression below).
-      expect(db.query.tasks.findMany).toHaveBeenCalledTimes(1);
+      // Point rows and recurring parents are fetched by two queries (they take
+      // different due-date filters); the merged result must still be complete.
+      expect(db.query.tasks.findMany).toHaveBeenCalledTimes(2);
     });
 
     it('should return an empty array when no tasks match', async () => {
@@ -1028,11 +1144,9 @@ describe('TaskService', () => {
     });
 
     /**
-     * Regression: recurring parents and one-off tasks were fetched by two
-     * separate queries and concatenated, so the requested sort only held within
-     * each half — every recurring task sorted after every non-recurring one no
-     * matter what the client asked for. A user sorting by due date saw a
-     * recurring task due today below a one-off due next month.
+     * Point rows and recurring parents arrive from two queries, so the database
+     * cannot order the combined result anymore. The service's merge sort is
+     * what keeps a recurring task due today above a one-off due next month.
      */
     it('should order recurring and non-recurring tasks together', async () => {
       const recurringDueSoon = makeTaskRow({
@@ -1045,17 +1159,13 @@ describe('TaskService', () => {
         rrule: null,
         dueAt: new Date('2026-03-20T09:00:00Z'),
       });
-      // A single query means the database decides the order; the service must
-      // preserve whatever it returns rather than regrouping.
-      (db.query.tasks.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
-        recurringDueSoon,
-        oneOffDueLater,
-      ]);
+      (db.query.tasks.findMany as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce([oneOffDueLater]) // point rows
+        .mockResolvedValueOnce([recurringDueSoon]); // recurring parents
 
       const result = await service.listTasks(TEST_USER_ID, { sort: 'due_at' });
 
       expect(result.map((t) => t.id)).toEqual([recurringDueSoon.id, oneOffDueLater.id]);
-      expect(db.query.tasks.findMany).toHaveBeenCalledTimes(1);
     });
 
     it('should cap the number of rows a single listing can return', async () => {
@@ -1064,19 +1174,22 @@ describe('TaskService', () => {
       await service.listTasks(TEST_USER_ID, { sort: 'sort_order' });
 
       // The endpoint is unpaginated, so an uncapped query serialises an entire
-      // backlog into one response on every poll.
-      const [call] = (db.query.tasks.findMany as ReturnType<typeof vi.fn>).mock.calls;
-      expect(call[0].limit).toBeGreaterThan(0);
+      // backlog into one response on every poll. Both queries carry the cap.
+      const calls = (db.query.tasks.findMany as ReturnType<typeof vi.fn>).mock.calls;
+      expect(calls).toHaveLength(2);
+      for (const call of calls) {
+        expect(call[0].limit).toBeGreaterThan(0);
+      }
     });
 
     /**
-     * Regression: the recurring-parent query was built from a hard-coded
-     * condition list and silently dropped every caller-supplied filter, so
-     * filtering the task panel by "High" still listed low-priority recurring
-     * tasks. With a single query there is only one place filters can go, and
-     * this asserts they land there.
+     * Due-date filtering differs by row kind: point rows (one-offs and
+     * exceptions) are filtered directly, recurring parents are not — a
+     * parent's anchor date says nothing about which occurrences land in the
+     * window. Status and priority apply to both. This asserts each filter
+     * lands in the right query.
      */
-    it('should apply status, priority and due-date filters to every task', async () => {
+    it('should apply status, priority and due-date filters to the right query', async () => {
       (db.query.tasks.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([]);
 
       await service.listTasks(TEST_USER_ID, {
@@ -1089,32 +1202,96 @@ describe('TaskService', () => {
 
       const dialect = new PgDialect();
       const calls = (db.query.tasks.findMany as ReturnType<typeof vi.fn>).mock.calls;
-      expect(calls).toHaveLength(1);
+      expect(calls).toHaveLength(2);
 
-      const where = dialect.sqlToQuery(calls[0][0].where as never).sql;
+      const pointWhere = dialect.sqlToQuery(calls[0][0].where as never).sql;
+      expect(pointWhere).toContain('"tasks"."status"');
+      expect(pointWhere).toContain('"tasks"."priority"');
+      expect(pointWhere).toContain('"tasks"."due_at"');
+      // Points are exactly the rows without an rrule: one-offs and the
+      // exception rows a single-instance edit creates.
+      expect(pointWhere).toContain('"tasks"."rrule" is null');
+      expect(pointWhere).toContain('"tasks"."deleted_at" is null');
 
-      expect(where).toContain('"tasks"."status"');
-      expect(where).toContain('"tasks"."priority"');
-      expect(where).toContain('"tasks"."due_at"');
-
-      // Exception rows stay out of the top-level listing; parents of every kind
-      // stay in.
-      expect(where).toContain('"tasks"."recurring_task_id" is null');
-      expect(where).toContain('"tasks"."deleted_at" is null');
-      expect(where).toContain('"tasks"."user_id"');
-      expect(where).not.toContain('"tasks"."rrule" is not null');
+      const parentWhere = dialect.sqlToQuery(calls[1][0].where as never).sql;
+      expect(parentWhere).toContain('"tasks"."status"');
+      expect(parentWhere).toContain('"tasks"."priority"');
+      // Parents must NOT be due-date filtered: expansion decides which of
+      // their occurrences fall in the window, not the anchor date.
+      expect(parentWhere).not.toContain('"tasks"."due_at"');
+      expect(parentWhere).toContain('"tasks"."rrule" is not null');
+      expect(parentWhere).toContain('"tasks"."recurring_task_id" is null');
     });
 
     it('should handle different sort options', async () => {
       const taskRow = makeTaskRow();
       for (const sort of ['due_at', 'priority', 'created_at', 'sort_order'] as const) {
         vi.clearAllMocks();
-        (db.query.tasks.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([taskRow]);
+        (db.query.tasks.findMany as ReturnType<typeof vi.fn>)
+          .mockResolvedValueOnce([taskRow])
+          .mockResolvedValueOnce([]);
 
         const result = await service.listTasks(TEST_USER_ID, { sort });
 
         expect(result).toHaveLength(1);
-        expect(db.query.tasks.findMany).toHaveBeenCalledTimes(1);
+        expect(db.query.tasks.findMany).toHaveBeenCalledTimes(2);
+      }
+    });
+
+    it('expands recurring parents into instances within the requested window', async () => {
+      const parent = makeTaskRow({
+        id: 'cccccccccccccccccccccccc',
+        rrule: 'FREQ=DAILY',
+        dueAt: new Date('2026-03-01T09:00:00Z'),
+      });
+      const exception = makeTaskRow({
+        id: 'dddddddddddddddddddddddd',
+        rrule: null,
+        recurringTaskId: parent.id,
+        originalDate: new Date('2026-03-02T09:00:00Z'),
+        dueAt: new Date('2026-03-02T09:00:00Z'),
+      });
+
+      (db.query.tasks.findMany as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce([exception]) // point rows
+        .mockResolvedValueOnce([parent]); // recurring parents
+
+      // The module-level mock is a passthrough; simulate what the real
+      // expander produces for this series: Mar 1 and Mar 3 occurrences (the
+      // Mar 2 occurrence was replaced by the exception row above).
+      vi.mocked(recurrenceService.expandRecurringTasks).mockImplementationOnce((() => [
+        {
+          ...parent,
+          dueAt: '2026-03-01T09:00:00.000Z',
+          isRecurringInstance: true,
+          instanceDate: '2026-03-01T09:00:00.000Z',
+        },
+        {
+          ...parent,
+          dueAt: '2026-03-03T09:00:00.000Z',
+          isRecurringInstance: true,
+          instanceDate: '2026-03-03T09:00:00.000Z',
+        },
+      ]) as never);
+
+      const result = await service.listTasks(TEST_USER_ID, {
+        sort: 'due_at',
+        dueStart: '2026-03-01T00:00:00Z',
+        dueEnd: '2026-03-04T00:00:00Z',
+      });
+
+      // Three occurrences (Mar 1–3) with the exception row replacing Mar 2.
+      // The expansion used to not exist at all — recurring tasks appeared once
+      // at their anchor date, and exceptions never appeared anywhere.
+      expect(result.map((t) => t.id)).toEqual([
+        'cccccccccccccccccccccccc', // Mar 1
+        'dddddddddddddddddddddddd', // Mar 2 — exception row
+        'cccccccccccccccccccccccc', // Mar 3
+      ]);
+      const instances = result.filter((t) => t.id === parent.id);
+      expect(instances).toHaveLength(2);
+      for (const instance of instances) {
+        expect((instance as unknown as Record<string, unknown>).isRecurringInstance).toBe(true);
       }
     });
   });

@@ -1,3 +1,4 @@
+import rruleLib from 'rrule';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock logger
@@ -14,7 +15,7 @@ import { AppError } from '../../lib/errors';
 import { logger } from '../../lib/logger';
 import { RecurrenceService } from '../recurrence.service';
 
-import type { ExceptionOverride, RecurrableEvent } from '../recurrence.service';
+import type { ExceptionOverride, RecurrableEvent, RecurrableTask } from '../recurrence.service';
 
 // ─── Test Fixtures ──────────────────────────────────────────────────
 
@@ -1319,6 +1320,200 @@ describe('RecurrenceService', () => {
 
       expect(result).not.toContain('COUNT=');
       expect(result).toContain('UNTIL=');
+    });
+
+    /**
+     * Regression: regex surgery on the raw string left a leading semicolon
+     * when COUNT came first — `COUNT=5;FREQ=DAILY` became
+     * `;FREQ=DAILY;UNTIL=…`, which rrule.js refuses to parse. Valid RRULEs may
+     * order their parts freely, so the rule is now reassembled from parts.
+     */
+    it('reassembles reordered RRULE parts into a parseable rule', () => {
+      const result = service.terminateSeriesAt(
+        'COUNT=5;FREQ=DAILY',
+        new Date('2026-03-20T10:00:00Z'),
+      );
+
+      expect(result.startsWith(';')).toBe(false);
+      expect(result).toContain('FREQ=DAILY');
+      expect(result).toContain('UNTIL=');
+      expect(result).not.toContain('COUNT=');
+      expect(() => rruleLib.RRule.fromString(result)).not.toThrow();
+    });
+  });
+
+  // ─── splitSeriesAt ─────────────────────────────────────────────────
+
+  describe('splitSeriesAt', () => {
+    it('keeps the remaining occurrences on a COUNT-bounded tail', () => {
+      // 10 daily occurrences starting Mar 1, split at the 6th (Mar 6): the
+      // head keeps 5, and the tail must keep the 5 the original had left —
+      // a verbatim copy would restart the counter and resurrect 5 occurrences.
+      const rrule = 'FREQ=DAILY;COUNT=10';
+      const dtstart = new Date('2026-03-01T09:00:00Z');
+      const splitDate = new Date('2026-03-06T09:00:00Z');
+
+      const { head, tail } = service.splitSeriesAt(rrule, dtstart, splitDate);
+
+      expect(head).toContain('UNTIL=');
+      expect(head).not.toContain('COUNT=');
+      expect(tail).toBe('FREQ=DAILY;COUNT=5');
+    });
+
+    it('keeps BYDAY parts on a COUNT-adjusted tail', () => {
+      const rrule = 'FREQ=WEEKLY;BYDAY=MO,WE;COUNT=8';
+      const dtstart = new Date('2026-03-02T09:00:00Z'); // a Monday
+      const splitDate = new Date('2026-03-09T09:00:00Z'); // the Monday of week 2
+
+      const { tail } = service.splitSeriesAt(rrule, dtstart, splitDate);
+
+      // 2 occurrences (Mar 2, Mar 4) belong to the head, so the tail keeps 6.
+      expect(tail).toBe('FREQ=WEEKLY;BYDAY=MO,WE;COUNT=6');
+    });
+
+    it('returns tail null when splitting at or after the series end', () => {
+      const rrule = 'FREQ=DAILY;COUNT=3';
+      const dtstart = new Date('2026-03-01T09:00:00Z');
+      const splitDate = new Date('2026-03-10T09:00:00Z'); // after the last occurrence
+
+      const { head, tail } = service.splitSeriesAt(rrule, dtstart, splitDate);
+
+      expect(head).toContain('UNTIL=');
+      expect(tail).toBeNull();
+    });
+
+    it('copies an open-ended rule verbatim for the tail', () => {
+      const rrule = 'FREQ=WEEKLY;BYDAY=MO';
+      const dtstart = new Date('2026-03-02T09:00:00Z');
+      const splitDate = new Date('2026-03-09T09:00:00Z');
+
+      const { head, tail } = service.splitSeriesAt(rrule, dtstart, splitDate);
+
+      expect(head).toContain('UNTIL=');
+      expect(tail).toBe(rrule);
+    });
+  });
+
+  // ─── expandRecurringTasks ───────────────────────────────────────────
+
+  describe('expandRecurringTasks', () => {
+    function makeTask(overrides: Partial<RecurrableTask> = {}): RecurrableTask {
+      return {
+        id: 'task1',
+        userId: 'user1',
+        categoryId: 'cat1',
+        title: 'Water the plants',
+        description: null,
+        dueAt: '2026-03-01T09:00:00.000Z',
+        priority: 'none',
+        status: 'todo',
+        completedAt: null,
+        rrule: 'FREQ=DAILY',
+        exDates: [],
+        recurringTaskId: null,
+        originalDate: null,
+        sortOrder: 0,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        deletedAt: null,
+        ...overrides,
+      };
+    }
+
+    it('expands a recurring parent into instances within the window', () => {
+      const result = service.expandRecurringTasks(
+        [makeTask()],
+        '2026-03-01T00:00:00Z',
+        '2026-03-04T00:00:00Z',
+      );
+
+      expect(result).toHaveLength(3); // Mar 1, 2, 3
+      for (const instance of result) {
+        expect(
+          (instance as RecurrableTask & { isRecurringInstance: boolean }).isRecurringInstance,
+        ).toBe(true);
+      }
+      expect(result[1]).toMatchObject({ dueAt: '2026-03-02T09:00:00.000Z' });
+    });
+
+    it('skips occurrences listed in exDates', () => {
+      const result = service.expandRecurringTasks(
+        [makeTask({ exDates: ['2026-03-02T09:00:00.000Z'] })],
+        '2026-03-01T00:00:00Z',
+        '2026-03-04T00:00:00Z',
+      );
+
+      expect(result).toHaveLength(2);
+      expect(result.map((t) => t.dueAt)).not.toContain('2026-03-02T09:00:00.000Z');
+    });
+
+    it('passes exception rows through untouched', () => {
+      const exception = makeTask({
+        id: 'exception1',
+        rrule: null,
+        recurringTaskId: 'task1',
+        originalDate: '2026-03-02T09:00:00.000Z',
+      });
+
+      const result = service.expandRecurringTasks(
+        [makeTask(), exception],
+        '2026-03-01T00:00:00Z',
+        '2026-03-04T00:00:00Z',
+      );
+
+      // 3 occurrences from the parent + the exception row as-is. The caller
+      // (TaskService) normally excludes Mar 2 via the parent's exDates — here
+      // it does not, exercising the passthrough.
+      expect(result).toHaveLength(4);
+      expect(result).toContain(exception);
+    });
+
+    it('passes a parent without a due date through untouched', () => {
+      const orphan = makeTask({ dueAt: null, rrule: 'FREQ=DAILY' });
+
+      const result = service.expandRecurringTasks(
+        [orphan],
+        '2026-03-01T00:00:00Z',
+        '2026-03-04T00:00:00Z',
+      );
+
+      expect(result).toEqual([orphan]);
+    });
+
+    it('uses half-open bounds: an occurrence exactly at the window end is excluded', () => {
+      const result = service.expandRecurringTasks(
+        [makeTask()],
+        '2026-03-01T00:00:00Z',
+        '2026-03-04T09:00:00Z', // Mar 4 09:00 is itself an occurrence
+      );
+
+      expect(result).toHaveLength(3); // Mar 1, 2, 3 — not Mar 4
+    });
+  });
+
+  // ─── per-response expansion budget ──────────────────────────────────
+
+  describe('per-response expansion budget', () => {
+    it('truncates expanded instances across every series in one listing', () => {
+      const parents = [1, 2, 3].map((n) =>
+        makeRecurrableEvent({
+          id: `event-${n}`,
+          rrule: 'FREQ=DAILY',
+          startAt: '2024-01-01T00:00:00.000Z',
+          endAt: '2024-01-01T01:00:00.000Z',
+        }),
+      );
+
+      // Each series expands to its 1000-instance cap; the per-response budget
+      // (2000) must stop the third series from pushing the total past 2000.
+      const result = service.expandRecurringEvents(
+        parents,
+        '2024-01-01T00:00:00Z',
+        '2030-01-01T00:00:00Z',
+      );
+
+      expect(result).toHaveLength(2000);
+      expect(logger.warn).toHaveBeenCalled();
     });
   });
 });

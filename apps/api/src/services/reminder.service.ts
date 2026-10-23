@@ -111,8 +111,26 @@ export class ReminderService {
       })
       .returning();
 
-    // 5. Enqueue BullMQ delayed job
-    await this.enqueueReminderJob(reminder as ReminderRow);
+    // 5. Enqueue BullMQ delayed job. If the queue refuses it (Redis down, etc.)
+    //    the row written in step 4 must not survive as an orphan: it would sit
+    //    unsent until some future restart re-enqueued it, while the client —
+    //    seeing the request fail — retries and creates a duplicate. Remove the
+    //    row and surface the failure so one attempt maps to one reminder.
+    try {
+      await this.enqueueReminderJob(reminder as ReminderRow);
+    } catch (err) {
+      try {
+        await db
+          .delete(reminders)
+          .where(and(eq(reminders.id, reminder.id), eq(reminders.userId, userId)));
+      } catch (cleanupErr) {
+        logger.error(
+          { err: cleanupErr, reminderId: reminder.id },
+          'Failed to remove reminder row after enqueue failure',
+        );
+      }
+      throw err;
+    }
 
     logger.info(
       { userId, reminderId: reminder.id, itemType: data.itemType, itemId: data.itemId, triggerAt },

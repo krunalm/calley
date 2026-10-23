@@ -1,5 +1,5 @@
 import { Worker } from 'bullmq';
-import { format } from 'date-fns';
+import { formatInTimeZone } from 'date-fns-tz';
 import { and, eq, isNull } from 'drizzle-orm';
 
 import { db } from '../db';
@@ -77,29 +77,21 @@ async function getItemInfo(
 // ─── Helper: Send email notification ───────────────────────────────
 
 async function sendReminderEmail(
-  userId: string,
+  user: { email: string; timezone: string | null },
   itemType: 'event' | 'task',
   itemInfo: ResolvedItemInfo,
   minutesBefore: number,
 ): Promise<void> {
-  const user = await db.query.users.findFirst({
-    where: eq(users.id, userId),
-    columns: { email: true },
-  });
-
-  if (!user) {
-    logger.warn({ userId }, 'User not found for reminder email');
-    return;
-  }
+  const timezone = user.timezone || 'UTC';
 
   const appBaseUrl = process.env.CORS_ORIGIN || 'http://localhost:3000';
-  const dateParam = format(itemInfo.time, 'yyyy-MM-dd');
-  const appUrl =
-    itemType === 'event'
-      ? `${appBaseUrl}/calendar?date=${dateParam}&view=day`
-      : `${appBaseUrl}/calendar?date=${dateParam}&view=day`;
+  // The link points at the item's day on the user's own calendar. Formatting the
+  // UTC instant on the server (UTC in every deployed container) sent users in
+  // other timezones to the wrong — often previous — day.
+  const dateParam = formatInTimeZone(itemInfo.time, timezone, 'yyyy-MM-dd');
+  const appUrl = `${appBaseUrl}/calendar?date=${dateParam}&view=day`;
 
-  const timeFormatted = format(itemInfo.time, "EEE, MMM d 'at' h:mm a");
+  const timeFormatted = formatInTimeZone(itemInfo.time, timezone, "EEE, MMM d 'at' h:mm a");
 
   const { html, text } = reminderNotificationEmail({
     itemType,
@@ -121,11 +113,12 @@ async function sendReminderEmail(
 
 async function sendReminderPush(
   userId: string,
+  timezone: string | null,
   itemType: 'event' | 'task',
   itemInfo: ResolvedItemInfo,
 ): Promise<void> {
   const appBaseUrl = process.env.CORS_ORIGIN || 'http://localhost:3000';
-  const dateParam = format(itemInfo.time, 'yyyy-MM-dd');
+  const dateParam = formatInTimeZone(itemInfo.time, timezone || 'UTC', 'yyyy-MM-dd');
   const url = `${appBaseUrl}/calendar?date=${dateParam}&view=day`;
 
   await pushSubscriptionService.sendPushToUser(userId, {
@@ -146,62 +139,96 @@ export async function processReminderJob(data: ReminderJobData): Promise<void> {
 
   logger.info({ reminderId, userId, itemType, itemId, method }, 'Processing reminder job');
 
-  // 1. Verify reminder exists and hasn't been sent (idempotency)
-  const reminder = await db.query.reminders.findFirst({
-    where: and(eq(reminders.id, reminderId), isNull(reminders.sentAt)),
-  });
+  // 1. Atomically claim the reminder BEFORE delivering it. The previous flow —
+  //    read where sentAt IS NULL, deliver, then mark sent — let two workers
+  //    observe the same unsent reminder (duplicate jobs after a restart, a
+  //    stalled job retried) and both deliver. The conditional update is the
+  //    claim: exactly one worker's write lands, and only that worker proceeds.
+  //    Marking sentAt up front also means a worker crash mid-delivery can no
+  //    longer double-send on the retry; the trade-off — a crash losing one
+  //    reminder — is the safer side of at-most-once for notifications.
+  const [claimed] = await db
+    .update(reminders)
+    .set({ sentAt: new Date() })
+    .where(and(eq(reminders.id, reminderId), isNull(reminders.sentAt)))
+    .returning();
 
-  if (!reminder) {
+  if (!claimed) {
     logger.info({ reminderId }, 'Reminder already sent or deleted, skipping');
     return;
   }
+
+  // Release the claim when this attempt cannot deliver, so a later attempt
+  // still can. Failure to release is logged but not fatal: throwing while the
+  // claim stands would burn the reminder permanently on a transient error, so
+  // a failed release falls back to at-most-once.
+  const releaseClaim = async () => {
+    try {
+      await db.update(reminders).set({ sentAt: null }).where(eq(reminders.id, reminderId));
+    } catch (err) {
+      logger.error({ err, reminderId }, 'Failed to release reminder claim after error');
+    }
+  };
 
   // 2. Verify parent event/task exists and is not deleted
   const itemInfo = await getItemInfo(userId, itemType, itemId);
 
   if (!itemInfo || itemInfo.isDeleted) {
     logger.info({ reminderId, itemType, itemId }, 'Parent item deleted, skipping reminder');
-    // Mark as sent so it's not retried
-    await db.update(reminders).set({ sentAt: new Date() }).where(eq(reminders.id, reminderId));
+    // The claim stands: the reminder is retired, which is the point.
     return;
   }
 
-  const referenceTime = itemInfo.time;
-
   // The item is still there but currently has no time to fire against — a task
-  // whose due date was cleared. Leave the reminder unsent: marking it sent here
-  // would retire it permanently, so restoring the due date could never bring it
-  // back (resyncItemReminders only considers unsent reminders).
-  if (!referenceTime) {
+  // whose due date was cleared. Release the claim so the reminder stays
+  // pending: restoring the due date resynchronises it
+  // (resyncItemReminders only considers unsent reminders).
+  if (!itemInfo.time) {
     logger.info(
       { reminderId, itemType, itemId },
       'Item has no due date, leaving reminder pending until one is set',
     );
+    await releaseClaim();
     return;
   }
 
-  const resolvedInfo: ResolvedItemInfo = { ...itemInfo, time: referenceTime };
+  const resolvedInfo: ResolvedItemInfo = { ...itemInfo, time: itemInfo.time };
 
-  // 3. Send notification(s) in parallel when both channels are needed
-  const notifications: Promise<void>[] = [];
-  if (method === 'email' || method === 'both') {
-    notifications.push(sendReminderEmail(userId, itemType, resolvedInfo, reminder.minutesBefore));
-  }
-  if (method === 'push' || method === 'both') {
-    notifications.push(sendReminderPush(userId, itemType, resolvedInfo));
-  }
-  await Promise.all(notifications);
+  // 3. Load the recipient's email + timezone once, for both channels.
+  const user = await db.query.users.findFirst({
+    where: eq(users.id, userId),
+    columns: { email: true, timezone: true },
+  });
 
-  // 4. Emit reminder:fired on SSE for in-app toast
+  if (!user) {
+    logger.warn({ userId }, 'User not found for reminder delivery');
+    return;
+  }
+
+  // 4. Send notification(s) in parallel when both channels are needed
+  try {
+    const notifications: Promise<void>[] = [];
+    if (method === 'email' || method === 'both') {
+      notifications.push(sendReminderEmail(user, itemType, resolvedInfo, claimed.minutesBefore));
+    }
+    if (method === 'push' || method === 'both') {
+      notifications.push(sendReminderPush(userId, user.timezone, itemType, resolvedInfo));
+    }
+    await Promise.all(notifications);
+  } catch (err) {
+    // Delivery failed — hand the reminder back so BullMQ's retry (this rethrow)
+    // can try again, instead of a transient error permanently consuming it.
+    await releaseClaim();
+    throw err;
+  }
+
+  // 5. Emit reminder:fired on SSE for in-app toast
   sseService.emit(userId, 'reminder:fired', {
     reminderId,
     itemType,
     itemId,
     title: resolvedInfo.title,
   });
-
-  // 5. Mark reminder as sent
-  await db.update(reminders).set({ sentAt: new Date() }).where(eq(reminders.id, reminderId));
 
   logger.info({ reminderId, method }, 'Reminder sent successfully');
 }

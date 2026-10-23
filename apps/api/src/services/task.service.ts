@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, isNull, lte, sql } from 'drizzle-orm';
+import { and, eq, gte, inArray, isNotNull, isNull, lt, sql } from 'drizzle-orm';
 
 import { db } from '../db';
 import { calendarCategories, reminders, tasks } from '../db/schema';
@@ -92,77 +92,141 @@ const MAX_EX_DATES = 500;
  */
 const MAX_TASKS_PER_LIST = 1000;
 
+// ─── Sorting ────────────────────────────────────────────────────────
+
+const PRIORITY_RANK: Record<string, number> = { high: 0, medium: 1, low: 2 };
+
+/**
+ * Sort merged task rows in JS, mirroring the SQL orderings the endpoint used
+ * to get from a single query.
+ *
+ * listTasks now runs two queries — point rows (one-offs and per-instance
+ * exceptions, which take due-date filters directly) and recurring parents
+ * (which must not, since their anchor date says nothing about which occurrences
+ * land in the window) — so the database can no longer order the combined
+ * result. Null due dates sort last under 'due_at', matching Postgres ASC.
+ */
+function sortTaskResponses(rows: TaskResponse[], sort: ListTasksQuery['sort']): TaskResponse[] {
+  const byId = (a: TaskResponse, b: TaskResponse) => a.id.localeCompare(b.id);
+  const bySortOrder = (a: TaskResponse, b: TaskResponse) => a.sortOrder - b.sortOrder;
+  const byCreatedAtAsc = (a: TaskResponse, b: TaskResponse) =>
+    a.createdAt === b.createdAt ? 0 : a.createdAt < b.createdAt ? -1 : 1;
+  const byCreatedAtDesc = (a: TaskResponse, b: TaskResponse) =>
+    a.createdAt === b.createdAt ? 0 : a.createdAt > b.createdAt ? -1 : 1;
+  const byDueAt = (a: TaskResponse, b: TaskResponse) => {
+    if (a.dueAt === b.dueAt) return 0;
+    if (a.dueAt === null) return 1;
+    if (b.dueAt === null) return -1;
+    return a.dueAt < b.dueAt ? -1 : 1;
+  };
+
+  switch (sort) {
+    case 'due_at':
+      return rows.sort((a, b) => byDueAt(a, b) || bySortOrder(a, b) || byId(a, b));
+    case 'priority':
+      return rows.sort(
+        (a, b) =>
+          (PRIORITY_RANK[a.priority] ?? 3) - (PRIORITY_RANK[b.priority] ?? 3) ||
+          bySortOrder(a, b) ||
+          byId(a, b),
+      );
+    case 'created_at':
+      return rows.sort((a, b) => byCreatedAtDesc(a, b) || byId(a, b) * -1);
+    case 'sort_order':
+    default:
+      return rows.sort((a, b) => bySortOrder(a, b) || byCreatedAtAsc(a, b) || byId(a, b));
+  }
+}
+
 // ─── Service ────────────────────────────────────────────────────────
 
 export class TaskService {
   /**
    * List tasks for a user with optional filters.
    * Supports filtering by status, priority, due date range, and sorting.
+   *
+   * Two row kinds behave differently under a due-date filter and cannot share
+   * one query:
+   *
+   * - Point rows — one-off tasks and per-instance exception rows (the rows
+   *   `updateTask` with scope 'instance' creates). Their own dueAt is the
+   *   whole story, so the filter applies directly. Exceptions are listed as
+   *   standalone tasks: without them every single-instance edit vanished from
+   *   every listing, which is how "edit this occurrence" used to make the
+   *   task disappear.
+   *
+   * - Recurring parents. A parent whose anchor date is outside the window can
+   *   still generate occurrences inside it (and vice versa), so parents are
+   *   fetched without a due filter and, when a window was requested, expanded
+   *   into instances within it. Without a window the parent is returned as-is
+   *   (the task panel shows a series once, at its anchor date).
    */
   async listTasks(userId: string, filters: ListTasksQuery): Promise<TaskResponse[]> {
-    const conditions = [
-      eq(tasks.userId, userId),
-      isNull(tasks.deletedAt),
-      isNull(tasks.recurringTaskId), // Exclude exception instances from top-level listing
-    ];
+    const commonConditions = [eq(tasks.userId, userId), isNull(tasks.deletedAt)];
 
     if (filters.status && filters.status.length > 0) {
-      conditions.push(inArray(tasks.status, filters.status));
+      commonConditions.push(inArray(tasks.status, filters.status));
     }
 
     if (filters.priority && filters.priority.length > 0) {
-      conditions.push(inArray(tasks.priority, filters.priority));
+      commonConditions.push(inArray(tasks.priority, filters.priority));
     }
 
+    // Point rows: one-offs and exceptions — rrule is null on both.
+    const pointConditions = [...commonConditions, isNull(tasks.rrule)];
     if (filters.dueStart) {
-      conditions.push(gte(tasks.dueAt, new Date(filters.dueStart)));
+      pointConditions.push(gte(tasks.dueAt, new Date(filters.dueStart)));
     }
-
     if (filters.dueEnd) {
-      conditions.push(lte(tasks.dueAt, new Date(filters.dueEnd)));
+      // Half-open [dueStart, dueEnd), matching the event listing boundaries so
+      // adjacent calendar windows neither double-report nor drop a task due
+      // exactly on the seam.
+      pointConditions.push(lt(tasks.dueAt, new Date(filters.dueEnd)));
     }
 
-    // Determine sort order
-    let orderBy;
-    switch (filters.sort) {
-      case 'due_at':
-        orderBy = [asc(tasks.dueAt), asc(tasks.sortOrder)];
-        break;
-      case 'priority': {
-        // Custom priority ordering: high > medium > low > none
-        const priorityOrder = sql`CASE ${tasks.priority}
-          WHEN 'high' THEN 0
-          WHEN 'medium' THEN 1
-          WHEN 'low' THEN 2
-          ELSE 3
-        END`;
-        orderBy = [asc(priorityOrder), asc(tasks.sortOrder)];
-        break;
-      }
-      case 'created_at':
-        // `id` breaks ties: two tasks created in the same tick would otherwise
-        // come back in an undefined order.
-        orderBy = [desc(tasks.createdAt), desc(tasks.id)];
-        break;
-      case 'sort_order':
-      default:
-        orderBy = [asc(tasks.sortOrder), asc(tasks.createdAt)];
-        break;
+    // Recurring parents only — exceptions are fetched as point rows.
+    const parentConditions = [
+      ...commonConditions,
+      isNotNull(tasks.rrule),
+      isNull(tasks.recurringTaskId),
+    ];
+
+    const [pointRows, parentRows] = await Promise.all([
+      db.query.tasks.findMany({
+        where: and(...pointConditions),
+        limit: MAX_TASKS_PER_LIST,
+      }),
+      db.query.tasks.findMany({
+        where: and(...parentConditions),
+        limit: MAX_TASKS_PER_LIST,
+      }),
+    ]);
+
+    const hasDueRange = !!filters.dueStart || !!filters.dueEnd;
+
+    let parentResults: TaskResponse[];
+    if (hasDueRange) {
+      // A missing bound is open-ended; the per-response expansion budget caps
+      // the work an open window can cause.
+      const start = filters.dueStart ?? new Date(0).toISOString();
+      const end = filters.dueEnd ?? '9999-01-01T00:00:00.000Z';
+
+      const expanded = recurrenceService.expandRecurringTasks(
+        parentRows.map((t) => toTaskResponse(t as TaskRow)),
+        start,
+        end,
+      );
+
+      // Recast: expanded instances carry isRecurringInstance/instanceDate at
+      // runtime, exactly like recurring event instances do.
+      parentResults = expanded as TaskResponse[];
+    } else {
+      parentResults = parentRows.map((t) => toTaskResponse(t as TaskRow));
     }
 
-    // One query, one sort. Recurring parents and one-off tasks used to be
-    // fetched separately and concatenated, which silently discarded the
-    // requested ordering across the join: every recurring task landed after
-    // every non-recurring one no matter what `sort` asked for. They satisfy
-    // identical filters — this method does no recurrence expansion, so a
-    // recurring parent is returned as-is — so there is nothing to separate.
-    const rows = await db.query.tasks.findMany({
-      where: and(...conditions),
-      orderBy,
-      limit: MAX_TASKS_PER_LIST,
-    });
+    const merged = [...pointRows.map((t) => toTaskResponse(t as TaskRow)), ...parentResults];
 
-    return rows.map((t) => toTaskResponse(t as TaskRow));
+    return sortTaskResponses(merged, filters.sort).slice(0, MAX_TASKS_PER_LIST);
   }
 
   /**
@@ -568,6 +632,13 @@ export class TaskService {
     }
 
     const origDate = new Date(instanceDate);
+    origDate.setMilliseconds(0);
+
+    // The occurrence's own date — not the series' anchor date — is the default
+    // due date for the exception. Before this, editing the March 19 occurrence
+    // without touching the due field silently rescheduled it to the series'
+    // first due date, so "edit this occurrence" made the task move.
+    const instanceDueAt = parentTask.dueAt ? origDate : null;
 
     const result = await db.transaction(async (tx) => {
       // Add instance date to parent's exDates
@@ -595,11 +666,7 @@ export class TaskService {
           title: data.title ?? parentTask.title,
           description: data.description !== undefined ? data.description : parentTask.description,
           dueAt:
-            data.dueAt !== undefined
-              ? data.dueAt
-                ? new Date(data.dueAt)
-                : null
-              : parentTask.dueAt,
+            data.dueAt !== undefined ? (data.dueAt ? new Date(data.dueAt) : null) : instanceDueAt,
           priority: data.priority ?? parentTask.priority,
           status: data.status ?? parentTask.status,
           recurringTaskId: parentTask.id,
@@ -639,13 +706,52 @@ export class TaskService {
 
     const splitDate = new Date(instanceDate);
 
-    // Terminate the original series just before the split date
-    const updatedRrule = recurrenceService.terminateSeriesAt(parentTask.rrule!, splitDate);
+    // Terminate the original series just before the split date, and compute the
+    // tail's rule with the occurrence budget the original had left — a
+    // verbatim copy would restart a `COUNT=N` counter and resurrect occurrences
+    // the original series had already consumed.
+    const { head: updatedRrule, tail: tailRrule } = recurrenceService.splitSeriesAt(
+      parentTask.rrule!,
+      parentTask.dueAt ?? splitDate,
+      splitDate,
+    );
+
+    if (tailRrule === null) {
+      throw new AppError(
+        422,
+        'VALIDATION_ERROR',
+        'This series has no occurrences on or after the selected date',
+      );
+    }
+
+    // Everything the user already did to the tail of the series has to move to
+    // the new series. The old parent stops generating occurrences at UNTIL, so
+    // a future exclusion or exception left behind on it is dead state: a
+    // deleted occurrence would reappear under the new series, and an edited one
+    // would silently revert to the series defaults. This mirrors the event
+    // service's split.
+    const splitMs = splitDate.getTime();
+    const parentExDates = (parentTask.exDates as Date[] | null) ?? [];
+    const retainedExDates = parentExDates.filter((d) => d.getTime() < splitMs);
+    const migratedExDates = parentExDates.filter((d) => d.getTime() >= splitMs);
+
+    // The new series starts at the split occurrence — not at the original
+    // series' anchor date — unless the edit explicitly moves the due date.
+    // `instanceDate` is the occurrence's own datetime, which already carries
+    // the series' time-of-day.
+    const newDueAt =
+      data.dueAt !== undefined
+        ? data.dueAt
+          ? new Date(data.dueAt)
+          : null
+        : parentTask.dueAt
+          ? new Date(splitDate)
+          : null;
 
     const result = await db.transaction(async (tx) => {
       await tx
         .update(tasks)
-        .set({ rrule: updatedRrule, updatedAt: new Date() })
+        .set({ rrule: updatedRrule, exDates: retainedExDates, updatedAt: new Date() })
         .where(
           and(
             eq(tasks.id, parentTask.id),
@@ -662,18 +768,28 @@ export class TaskService {
           categoryId: data.categoryId ?? parentTask.categoryId,
           title: data.title ?? parentTask.title,
           description: data.description !== undefined ? data.description : parentTask.description,
-          dueAt:
-            data.dueAt !== undefined
-              ? data.dueAt
-                ? new Date(data.dueAt)
-                : null
-              : parentTask.dueAt,
+          dueAt: newDueAt,
           priority: data.priority ?? parentTask.priority,
           status: data.status ?? parentTask.status,
-          rrule: data.rrule !== undefined ? data.rrule : parentTask.rrule,
+          rrule: data.rrule !== undefined ? data.rrule : tailRrule,
+          exDates: migratedExDates,
           sortOrder: parentTask.sortOrder,
         })
         .returning();
+
+      // Re-point future exception rows at the new series so the edits they
+      // carry keep applying to the occurrences they replaced.
+      await tx
+        .update(tasks)
+        .set({ recurringTaskId: newSeries.id, updatedAt: new Date() })
+        .where(
+          and(
+            eq(tasks.recurringTaskId, parentTask.id),
+            eq(tasks.userId, userId),
+            isNull(tasks.deletedAt),
+            gte(tasks.originalDate, splitDate),
+          ),
+        );
 
       return newSeries;
     });

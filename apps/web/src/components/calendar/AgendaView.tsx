@@ -5,6 +5,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useCategories } from '@/hooks/use-categories';
 import { useEvents } from '@/hooks/use-events';
+import { useToggleTask } from '@/hooks/use-task-mutations';
+import { useTasksByDate } from '@/hooks/use-tasks';
 import { useUserTimezone } from '@/hooks/use-user-timezone';
 import { useCalendarStore } from '@/stores/calendar-store';
 import { useUIStore } from '@/stores/ui-store';
@@ -23,6 +25,7 @@ export function AgendaView() {
   const { openEventDrawer, openTaskDrawer } = useUIStore();
   const userTimezone = useUserTimezone();
   const { data: categories = [] } = useCategories();
+  const toggleTask = useToggleTask();
 
   // Track how many extra days have been loaded via infinite scroll
   const [extraDaysForward, setExtraDaysForward] = useState(0);
@@ -37,6 +40,11 @@ export function AgendaView() {
   const fetchStart = rangeStart.toISOString();
   const fetchEnd = rangeEnd.toISOString();
   const { data: events = [], isLoading } = useEvents(fetchStart, fetchEnd);
+  const { tasksByDate } = useTasksByDate({
+    dueStart: fetchStart,
+    dueEnd: fetchEnd,
+    status: ['todo', 'in_progress'],
+  });
 
   // Build category lookup map
   const categoryMap = useMemo(() => {
@@ -88,11 +96,10 @@ export function AgendaView() {
       days.map((day) => {
         const dateKey = format(day, 'yyyy-MM-dd');
         const dayEvents = eventsByDate.get(dateKey) ?? [];
-        // Tasks will be integrated in Phase 3
-        const dayTasks: Task[] = [];
+        const dayTasks = tasksByDate.get(dateKey) ?? [];
         return { date: day, dateKey, events: dayEvents, tasks: dayTasks };
       }),
-    [days, eventsByDate],
+    [days, eventsByDate, tasksByDate],
   );
 
   // Virtual scrolling
@@ -150,9 +157,20 @@ export function AgendaView() {
 
   const handleTaskClick = useCallback(
     (task: Task) => {
-      openTaskDrawer({ taskId: task.id });
+      openTaskDrawer({ taskId: task.id, instanceDate: task.instanceDate });
     },
     [openTaskDrawer],
+  );
+
+  const handleTaskToggle = useCallback(
+    (task: Task) => {
+      // Only one-off tasks toggle from the agenda; a recurring occurrence's
+      // checkbox must not mark the whole series done.
+      if (!task.rrule && !task.recurringTaskId && !task.isRecurringInstance) {
+        toggleTask.mutate(task.id);
+      }
+    },
+    [toggleTask],
   );
 
   if (isLoading) {
@@ -189,6 +207,7 @@ export function AgendaView() {
                 isToday={isSameDay(row.date, today)}
                 onEventClick={handleEventClick}
                 onTaskClick={handleTaskClick}
+                onTaskToggle={handleTaskToggle}
               />
             </div>
           );

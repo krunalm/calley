@@ -12,6 +12,12 @@ interface TaskDrawerState {
   open: boolean;
   taskId: string | null;
   defaultDate?: Date;
+  /**
+   * The occurrence a recurring-instance edit targets. Expanded instances carry
+   * it; without it the drawer would PATCH the parent with scope=instance and no
+   * instanceDate, which the API rejects.
+   */
+  instanceDate?: string;
 }
 
 interface UIStore {

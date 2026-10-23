@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { addDays, format, isBefore, max, min, parseISO } from 'date-fns';
+import { addDays, format, isBefore, max, min, parseISO, startOfDay } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz';
 import { useMemo } from 'react';
 
@@ -50,12 +50,16 @@ export function useEventsByDate(start: string, end: string) {
       existing.push(event);
       map.set(dateKey, existing);
 
-      // For multi-day all-day events, also add to intermediate dates
-      // clamped to the requested [start, end] window
-      if (!event.isAllDay) continue;
+      // Days beyond the start day that the event extends into, clamped to the
+      // requested [start, end] window. All-day events have always been spread
+      // this way; timed events crossing midnight used to appear only on their
+      // start date, so the tail of a 23:00–01:00 event was invisible in every
+      // grid (and its start-day block rendered as a minimum-height stub).
       const zonedStart = toZonedTime(parseISO(event.startAt), userTimezone);
       const zonedEnd = toZonedTime(parseISO(event.endAt), userTimezone);
-      const loopStart = max([addDays(zonedStart, 1), zonedRequestedStart]);
+      // start-of-day so an event starting at 23:00 still picks up the following
+      // day — addDays(23:00, 1) would jump past it entirely.
+      const loopStart = max([startOfDay(addDays(zonedStart, 1)), zonedRequestedStart]);
       const loopEnd = min([zonedEnd, zonedRequestedEnd]);
       let current = loopStart;
       while (isBefore(current, loopEnd)) {

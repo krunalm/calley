@@ -5,26 +5,6 @@ import { logger } from '../lib/logger';
 
 import type { Event, SearchResults, Task } from '@calley/shared';
 
-/**
- * Sanitize a user-supplied search query for PostgreSQL `to_tsquery`.
- *
- * Splits on whitespace, strips non-alphanumeric characters from each token,
- * appends the `:*` prefix-match operator, and joins with `&` (AND).
- *
- * Example: "team standup" → "team:* & standup:*"
- */
-function sanitizeQuery(query: string): string {
-  const tokens = query
-    .trim()
-    .split(/\s+/)
-    .map((t) => t.replace(/[^\w]/g, ''))
-    .filter((t) => t.length > 0);
-
-  if (tokens.length === 0) return '';
-
-  return tokens.map((t) => `${t}:*`).join(' & ');
-}
-
 function toISOOrNull(val: unknown): string | null {
   if (val === null || val === undefined) return null;
   if (val instanceof Date) return val.toISOString();
@@ -94,7 +74,13 @@ export class SearchService {
    * to the current date.
    */
   async search(userId: string, query: string, limit: number = 20): Promise<SearchResults> {
-    const tsQuery = sanitizeQuery(query);
+    // Cheap empty check first — a blank query must not cost a database round
+    // trip. The dictionary-driven check below handles the subtler cases.
+    if (!query.trim()) {
+      return { events: [], tasks: [] };
+    }
+
+    const tsQuery = await this.buildTsQuery(query);
 
     if (!tsQuery) {
       return { events: [], tasks: [] };
@@ -116,6 +102,34 @@ export class SearchService {
       events: eventRows,
       tasks: taskRows,
     };
+  }
+
+  /**
+   * Build a prefix-match tsquery from a user-supplied search string, keeping
+   * only tokens the english text-search dictionary considers meaningful.
+   *
+   * `to_tsquery` is fed `'token':* & 'token':*`. Building tokens in JS by
+   * stripping punctuation was not enough: english stopwords make `to_tsquery`
+   * raise a syntax error — a search for "the meeting" surfaced as a 500.
+   * Filtering through `to_tsvector` drops stopwords and stems each token in the
+   * query's own dictionary, so whatever survives is guaranteed to be a valid
+   * tsquery operand — and stemmed prefix tokens are exactly what the indexed
+   * lexemes can match.
+   */
+  private async buildTsQuery(query: string): Promise<string> {
+    const rows = await db.execute(sql`
+      SELECT COALESCE(
+        string_agg(quote_literal(lexeme) || ':*', ' & '),
+        ''
+      ) AS tsquery
+      FROM (
+        SELECT DISTINCT lexeme
+        FROM unnest(to_tsvector('english', ${query}))
+      ) AS tokens
+    `);
+
+    const resultArray = Array.isArray(rows) ? rows : Array.from(rows as Iterable<unknown>);
+    return String((resultArray[0] as { tsquery?: string } | undefined)?.tsquery ?? '');
   }
 
   private async searchEvents(userId: string, tsQuery: string, limit: number): Promise<Event[]> {

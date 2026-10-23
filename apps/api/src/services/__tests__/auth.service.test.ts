@@ -281,6 +281,30 @@ describe('AuthService', () => {
       expect(db.update).toHaveBeenCalled();
     });
 
+    /**
+     * Regression: the counter used to be read, then written back as a literal
+     * after the ~100ms Argon2 verify — parallel guesses each wrote their own
+     * stale value and none ever reached the threshold. The write must be a
+     * SQL-side increment so the database owns the count.
+     */
+    it('increments the failure counter atomically in SQL', async () => {
+      const userRow = makeUserRow({ failedLogins: 0 });
+      (db.query.users.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(userRow);
+      (argon2.verify as ReturnType<typeof vi.fn>).mockResolvedValue(false);
+      const chain = mockUpdateChain([]);
+
+      await expect(
+        service.login({ email: 'test@example.com', password: 'wrong' }, META),
+      ).rejects.toMatchObject({ statusCode: 401 });
+
+      const setArg = chain.set.mock.calls[0][0] as {
+        failedLogins?: number | { queryChunks?: unknown };
+      };
+      expect(setArg.failedLogins).toBeDefined();
+      // A drizzle SQL expression, not the stale number we read.
+      expect(typeof setArg.failedLogins).toBe('object');
+    });
+
     it('should lock account after 5 failed login attempts', async () => {
       const userRow = makeUserRow({ failedLogins: 4 }); // 4 already, this makes 5
       (db.query.users.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(userRow);
@@ -776,7 +800,12 @@ describe('AuthService', () => {
       const existingUser = makeUserRow({ email: 'oauth@example.com' });
 
       // Transaction mock
-      const txQueryOauth = { findFirst: vi.fn().mockResolvedValue(undefined) }; // No existing OAuth
+      const txQueryOauth = {
+        findFirst: vi.fn().mockResolvedValue(undefined), // No existing OAuth
+        // The existing account already carries a provider link, so its email
+        // is proven — auto-linking another provider is safe.
+        findMany: vi.fn().mockResolvedValue([{ id: 'existing_link' }]),
+      };
       const txQueryUsers = { findFirst: vi.fn().mockResolvedValue(existingUser) }; // Email match
       const txInsertChain = {
         values: vi.fn().mockResolvedValue(undefined),
@@ -808,6 +837,43 @@ describe('AuthService', () => {
           metadata: { provider: 'google' },
         }),
       );
+    });
+
+    /**
+     * Account pre-hijacking: password signup accepts any email without
+     * verification, so an attacker can pre-register a victim's address and
+     * wait for the victim to "Sign in with Google". Blind email linking handed
+     * the attacker's account the victim's OAuth identity. Linking into a
+     * password-only account must be refused — the victim signs in with their
+     * password and links the provider from Settings instead.
+     */
+    it('refuses to auto-link into a password-only account', async () => {
+      const existingUser = makeUserRow({ email: 'oauth@example.com' });
+
+      const txQueryOauth = {
+        findFirst: vi.fn().mockResolvedValue(undefined),
+        findMany: vi.fn().mockResolvedValue([]), // no provider links — unproven email
+      };
+      const txQueryUsers = { findFirst: vi.fn().mockResolvedValue(existingUser) };
+      const tx = {
+        query: {
+          oauthAccounts: txQueryOauth,
+          users: txQueryUsers,
+        },
+        insert: vi.fn(),
+        update: vi.fn(),
+      };
+      (db.transaction as ReturnType<typeof vi.fn>).mockImplementation(async (fn) => fn(tx));
+
+      await expect(service.handleOAuthCallback('google', oauthProfile, META)).rejects.toMatchObject(
+        {
+          statusCode: 409,
+          code: 'CONFLICT',
+        },
+      );
+
+      expect(tx.insert).not.toHaveBeenCalled();
+      expect(lucia.createSession).not.toHaveBeenCalled();
     });
 
     it('should create a new user when no existing OAuth or email match', async () => {
@@ -870,6 +936,89 @@ describe('AuthService', () => {
 
       // No session should be created
       expect(lucia.createSession).not.toHaveBeenCalled();
+    });
+  });
+
+  // ─── linkOAuthAccount ──────────────────────────────────────────────
+
+  describe('linkOAuthAccount', () => {
+    const linkProfile = {
+      providerAccountId: 'google_12345',
+      email: 'test@example.com',
+      name: 'OAuth User',
+      avatarUrl: 'https://example.com/avatar.jpg',
+    };
+
+    it('links a provider to the signed-in user with a matching email', async () => {
+      (db.query.users.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(makeUserRow());
+      (db.query.oauthAccounts.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+      const insertChain = {
+        values: vi.fn().mockResolvedValue(undefined),
+      };
+      (db.insert as ReturnType<typeof vi.fn>).mockReturnValue(insertChain);
+      const updateChain = {
+        set: vi.fn().mockReturnThis(),
+        where: vi.fn().mockResolvedValue([]),
+      };
+      (db.update as ReturnType<typeof vi.fn>).mockReturnValue(updateChain);
+
+      await service.linkOAuthAccount(TEST_USER_ID, 'google', linkProfile);
+
+      expect(db.insert).toHaveBeenCalled();
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'oauth.link', userId: TEST_USER_ID }),
+      );
+    });
+
+    it('refuses to link a provider email that does not match the account', async () => {
+      (db.query.users.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(makeUserRow());
+
+      await expect(
+        service.linkOAuthAccount(TEST_USER_ID, 'google', {
+          ...linkProfile,
+          email: 'someone-else@example.com',
+        }),
+      ).rejects.toMatchObject({
+        statusCode: 422,
+        code: 'VALIDATION_ERROR',
+      });
+
+      expect(db.insert).not.toHaveBeenCalled();
+    });
+
+    it('refuses to link a provider identity owned by another account', async () => {
+      (db.query.users.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(makeUserRow());
+      (db.query.oauthAccounts.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue({
+        id: 'other_link',
+        userId: 'different-user',
+        provider: 'google',
+        providerAccountId: 'google_12345',
+      });
+
+      await expect(
+        service.linkOAuthAccount(TEST_USER_ID, 'google', linkProfile),
+      ).rejects.toMatchObject({
+        statusCode: 409,
+        code: 'CONFLICT',
+      });
+
+      expect(db.insert).not.toHaveBeenCalled();
+    });
+
+    it('is idempotent when the provider is already linked to this user', async () => {
+      (db.query.users.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(makeUserRow());
+      (db.query.oauthAccounts.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue({
+        id: 'own_link',
+        userId: TEST_USER_ID,
+        provider: 'google',
+        providerAccountId: 'google_12345',
+      });
+
+      await expect(
+        service.linkOAuthAccount(TEST_USER_ID, 'google', linkProfile),
+      ).resolves.toBeUndefined();
+
+      expect(db.insert).not.toHaveBeenCalled();
     });
   });
 

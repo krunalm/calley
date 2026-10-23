@@ -10,12 +10,15 @@ import {
   subMonths,
 } from 'date-fns';
 import { motion, useReducedMotion } from 'framer-motion';
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 
 import { useCategories } from '@/hooks/use-categories';
 import { useEventsByDate } from '@/hooks/use-events';
+import { useToggleTask } from '@/hooks/use-task-mutations';
+import { useTasksByDate } from '@/hooks/use-tasks';
 import { staggerContainer, staggerItem } from '@/lib/motion';
 import { useCalendarStore } from '@/stores/calendar-store';
+import { useUIStore } from '@/stores/ui-store';
 
 import { DayCell } from './DayCell';
 
@@ -23,9 +26,14 @@ import type { CalendarCategory, Event, Task } from '@calley/shared';
 
 const DAY_HEADERS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+// Only unfinished tasks are shown on the calendar grid (see WeekView).
+const CALENDAR_TASK_STATUSES = ['todo', 'in_progress'];
+
 export function MonthView() {
   const { currentDate } = useCalendarStore();
   const { data: categories = [] } = useCategories();
+  const { openTaskDrawer } = useUIStore();
+  const toggleTask = useToggleTask();
 
   // Calculate date range for the visible grid, including buffer for prefetch
   const monthStart = startOfMonth(currentDate);
@@ -37,6 +45,11 @@ export function MonthView() {
   const fetchStart = subMonths(gridStart, 1).toISOString();
   const fetchEnd = addMonths(gridEnd, 1).toISOString();
   const { eventsByDate, isLoading } = useEventsByDate(fetchStart, fetchEnd);
+  const { tasksByDate } = useTasksByDate({
+    dueStart: fetchStart,
+    dueEnd: fetchEnd,
+    status: CALENDAR_TASK_STATUSES,
+  });
 
   // Build category lookup map
   const categoryMap = useMemo(() => {
@@ -65,6 +78,22 @@ export function MonthView() {
   }, [days]);
 
   const prefersReducedMotion = useReducedMotion();
+
+  const handleTaskClick = useCallback(
+    (task: Task) => openTaskDrawer({ taskId: task.id, instanceDate: task.instanceDate }),
+    [openTaskDrawer],
+  );
+
+  const handleTaskToggle = useCallback(
+    (task: Task) => {
+      // Only one-off tasks toggle from the grid; a recurring occurrence's
+      // checkbox must not mark the whole series done.
+      if (!task.rrule && !task.recurringTaskId && !task.isRecurringInstance) {
+        toggleTask.mutate(task.id);
+      }
+    },
+    [toggleTask],
+  );
 
   if (isLoading) {
     return <MonthViewSkeleton />;
@@ -103,7 +132,7 @@ export function MonthView() {
             {week.map((day) => {
               const dateKey = format(day, 'yyyy-MM-dd');
               const dayEvents: Event[] = eventsByDate.get(dateKey) ?? [];
-              const dayTasks: Task[] = []; // Tasks will be integrated in Phase 3
+              const dayTasks: Task[] = tasksByDate.get(dateKey) ?? [];
 
               return (
                 <DayCell
@@ -113,6 +142,8 @@ export function MonthView() {
                   events={dayEvents}
                   tasks={dayTasks}
                   categories={categoryMap}
+                  onTaskClick={handleTaskClick}
+                  onTaskToggle={handleTaskToggle}
                 />
               );
             })}

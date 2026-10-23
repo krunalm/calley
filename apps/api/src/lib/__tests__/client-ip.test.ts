@@ -7,6 +7,9 @@ import { getClientIp } from '../client-ip';
  * Forwarded headers are attacker-controlled unless a reverse proxy overwrites
  * them, so honouring them unconditionally lets any caller choose which
  * rate-limit bucket to land in and whose address to stamp on an audit entry.
+ *
+ * When proxies ARE configured, the chain is read from the right (the side our
+ * own proxy appends to), never from the left (the side a client can forge).
  */
 describe('getClientIp', () => {
   const previous = process.env.TRUSTED_PROXIES;
@@ -52,19 +55,65 @@ describe('getClientIp', () => {
     expect(ip).toBeNull();
   });
 
-  it('honours x-forwarded-for behind a configured proxy', async () => {
+  it('takes the right-most xff entry behind a wildcard proxy', async () => {
     process.env.TRUSTED_PROXIES = '*';
 
-    const { ip } = await resolve({ 'x-forwarded-for': '203.0.113.9, 10.0.0.1' });
+    // The proxy appended the address it saw; the left-most value is the one a
+    // client could have forged, so it must NOT be used.
+    const { ip } = await resolve(
+      { 'x-forwarded-for': '1.2.3.4, 203.0.113.9' },
+      { socket: '10.0.0.1' },
+    );
 
-    // The left-most entry is the original client; the rest are proxy hops.
     expect(ip).toBe('203.0.113.9');
+  });
+
+  it('uses the single entry a one-hop proxy appends', async () => {
+    process.env.TRUSTED_PROXIES = '*';
+
+    // With no incoming header, nginx sets X-Forwarded-For to just the address
+    // it observed — the real client.
+    const { ip } = await resolve({ 'x-forwarded-for': '198.51.100.7' }, { socket: '10.0.0.1' });
+
+    expect(ip).toBe('198.51.100.7');
+  });
+
+  it('peels configured proxy addresses from the right', async () => {
+    process.env.TRUSTED_PROXIES = '10.0.0.1, 10.0.0.2';
+
+    // Chain as our proxies would build it: client, then each proxy hop.
+    const { ip } = await resolve(
+      { 'x-forwarded-for': '203.0.113.9, 10.0.0.2' },
+      { socket: '10.0.0.1' },
+    );
+
+    expect(ip).toBe('203.0.113.9');
+  });
+
+  it('supports CIDR ranges in the proxy list', async () => {
+    process.env.TRUSTED_PROXIES = '172.16.0.0/12';
+
+    const { ip } = await resolve(
+      { 'x-forwarded-for': '203.0.113.9, 172.17.0.5' },
+      { socket: '172.18.0.2' },
+    );
+
+    expect(ip).toBe('203.0.113.9');
+  });
+
+  it('ignores the forwarded header when the peer is not a configured proxy', async () => {
+    process.env.TRUSTED_PROXIES = '10.0.0.1';
+
+    // The request arrives from some other address; its XFF is its own forgery.
+    const { ip } = await resolve({ 'x-forwarded-for': '1.2.3.4' }, { socket: '198.51.100.7' });
+
+    expect(ip).toBe('198.51.100.7');
   });
 
   it('falls back to x-real-ip behind a configured proxy', async () => {
     process.env.TRUSTED_PROXIES = '*';
 
-    const { ip } = await resolve({ 'x-real-ip': ' 203.0.113.9 ' });
+    const { ip } = await resolve({ 'x-real-ip': ' 203.0.113.9 ' }, { socket: '10.0.0.1' });
 
     expect(ip).toBe('203.0.113.9');
   });

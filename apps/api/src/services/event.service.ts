@@ -1,7 +1,17 @@
-import { and, eq, gte, inArray, isNotNull, isNull, lte } from 'drizzle-orm';
+import {
+  addDays,
+  format,
+  getHours,
+  getMilliseconds,
+  getMinutes,
+  getSeconds,
+  startOfDay,
+} from 'date-fns';
+import { toZonedTime } from 'date-fns-tz';
+import { and, eq, gt, gte, inArray, isNotNull, isNull, lt } from 'drizzle-orm';
 
 import { db } from '../db';
-import { calendarCategories, eventExceptions, events, reminders } from '../db/schema';
+import { calendarCategories, eventExceptions, events, reminders, users } from '../db/schema';
 import { AppError } from '../lib/errors';
 import { logger } from '../lib/logger';
 import { reminderQueue } from '../lib/queue';
@@ -206,10 +216,13 @@ export class EventService {
     const conditions = [
       eq(events.userId, userId),
       isNull(events.deletedAt),
-      // Event overlaps the query range:
-      // event.startAt < rangeEnd AND event.endAt > rangeStart
-      lte(events.startAt, endDate),
-      gte(events.endAt, startDate),
+      // Event overlaps the query range, on half-open boundaries
+      // [start, end): event.startAt < rangeEnd AND event.endAt > rangeStart.
+      // Half-open matches the recurrence expansion filter, so a window and the
+      // adjacent window each return exactly one copy of a boundary event
+      // instead of both returning it (inclusive) or neither (exclusive).
+      lt(events.startAt, endDate),
+      gt(events.endAt, startDate),
     ];
 
     if (categoryIds && categoryIds.length > 0) {
@@ -218,14 +231,20 @@ export class EventService {
 
     // Also find recurring parent events whose series may extend into the range.
     // A recurring event's parent may have a startAt before the range but generates
-    // instances within the range. We fetch all non-deleted recurring parents for
-    // the user so the recurrence service can expand them.
+    // instances within the range. Every occurrence is at or after the parent's
+    // startAt (rrule expansion is anchored on it), so parents that start after the
+    // range end can never contribute and are excluded here — without this bound,
+    // every non-deleted recurring series the user owns was fetched and expanded
+    // on every calendar query. Series that end before the range cannot be
+    // filtered in SQL (their end lives inside the RRULE string), so they are
+    // fetched but expand to nothing.
     const nonRecurringConditions = [...conditions, isNull(events.rrule)];
     const recurringConditions = [
       eq(events.userId, userId),
       isNull(events.deletedAt),
       isNotNull(events.rrule),
       isNull(events.recurringEventId), // Only parent events
+      lt(events.startAt, endDate),
     ];
 
     if (categoryIds && categoryIds.length > 0) {
@@ -582,7 +601,15 @@ export class EventService {
       throw new AppError(404, 'NOT_FOUND', 'Event not found');
     }
 
-    return this.generateIcs(event as EventRow);
+    // All-day events are calendar dates in the user's timezone, so the export
+    // has to resolve the stored UTC instants in that zone or the wrong date
+    // comes out for every non-UTC user.
+    const user = await db.query.users.findFirst({
+      where: eq(users.id, userId),
+      columns: { timezone: true },
+    });
+
+    return this.generateIcs(event as EventRow, user?.timezone || 'UTC');
   }
 
   // ─── Private Helpers ────────────────────────────────────────────────
@@ -776,8 +803,23 @@ export class EventService {
       throw new AppError(422, 'VALIDATION_ERROR', 'End time must be after start time');
     }
 
-    // Terminate the original series just before the split date
-    const updatedRrule = recurrenceService.terminateSeriesAt(parentEvent.rrule!, splitDate);
+    // Terminate the original series just before the split date, and compute
+    // the tail's rule with the occurrence budget the original had left — a
+    // verbatim copy would restart a `COUNT=N` counter and resurrect occurrences
+    // the original series had already consumed.
+    const { head: updatedRrule, tail: tailRrule } = recurrenceService.splitSeriesAt(
+      parentEvent.rrule!,
+      parentEvent.startAt,
+      splitDate,
+    );
+
+    if (tailRrule === null) {
+      throw new AppError(
+        422,
+        'VALIDATION_ERROR',
+        'This series has no occurrences on or after the selected date',
+      );
+    }
 
     // Everything the user already did to the tail of the series has to move
     // with it. The old parent stops generating occurrences at UNTIL, so an
@@ -817,7 +859,7 @@ export class EventService {
           isAllDay: data.isAllDay !== undefined ? data.isAllDay : parentEvent.isAllDay,
           color: data.color !== undefined ? data.color : parentEvent.color,
           visibility: data.visibility ?? parentEvent.visibility,
-          rrule: data.rrule !== undefined ? data.rrule : parentEvent.rrule,
+          rrule: data.rrule !== undefined ? data.rrule : tailRrule,
           exDates: migratedExDates,
         })
         .returning();
@@ -1000,7 +1042,7 @@ export class EventService {
    * Generate an ICS (iCalendar) file for a single event.
    * Follows RFC 5545 format.
    */
-  private generateIcs(event: EventRow): string {
+  private generateIcs(event: EventRow, timezone: string): string {
     const lines: string[] = [];
 
     lines.push('BEGIN:VCALENDAR');
@@ -1014,8 +1056,28 @@ export class EventService {
 
     // Format dates for ICS
     if (event.isAllDay) {
-      const startStr = event.startAt.toISOString().slice(0, 10).replace(/-/g, '');
-      const endStr = event.endAt.toISOString().slice(0, 10).replace(/-/g, '');
+      // All-day events are dates on the user's calendar, not UTC instants: the
+      // UTC slice of the stored timestamps is the wrong date for every
+      // non-UTC timezone. The zoned start is the event's first calendar day.
+      //
+      // DTEND is exclusive (RFC 5545 §3.6.1). Two storage shapes are in use:
+      // a midnight-to-midnight end is already exclusive, while an
+      // end-of-last-day (23:59:59.999) end needs the following date — otherwise
+      // a single-day all-day event exports DTSTART == DTEND and importers
+      // produce a zero-length (or rejected) event.
+      const zonedStart = toZonedTime(event.startAt, timezone);
+      const zonedEnd = toZonedTime(event.endAt, timezone);
+
+      const startStr = format(zonedStart, 'yyyyMMdd');
+
+      const endIsExactMidnight =
+        getHours(zonedEnd) === 0 &&
+        getMinutes(zonedEnd) === 0 &&
+        getSeconds(zonedEnd) === 0 &&
+        getMilliseconds(zonedEnd) === 0;
+      const exclusiveEnd = endIsExactMidnight ? zonedEnd : startOfDay(addDays(zonedEnd, 1));
+      const endStr = format(exclusiveEnd, 'yyyyMMdd');
+
       lines.push(`DTSTART;VALUE=DATE:${startStr}`);
       lines.push(`DTEND;VALUE=DATE:${endStr}`);
     } else {

@@ -28,6 +28,7 @@ import { useCreateEvent, useDeleteEvent, useUpdateEvent } from '@/hooks/use-even
 import { useUserTimezone } from '@/hooks/use-user-timezone';
 import { apiClient } from '@/lib/api-client';
 import { queryKeys } from '@/lib/query-keys';
+import { useNotificationPreferences } from '@/stores/notification-preferences';
 import { useUIStore } from '@/stores/ui-store';
 
 import { RecurrenceScopeDialog } from './RecurrenceScopeDialog';
@@ -152,6 +153,20 @@ export function EventDrawer() {
   // Recurrence builder modal state
   const [recurrenceBuilderOpen, setRecurrenceBuilderOpen] = useState(false);
 
+  // The notification settings are the source of defaults for new reminders:
+  // they used to be written but never read, so every reminder was created as
+  // 'push' regardless of the configured method.
+  const { defaultReminderMinutes, defaultReminderMethod, emailNotifications } =
+    useNotificationPreferences();
+
+  const reminderMethod: 'push' | 'email' | 'both' = useMemo(() => {
+    if (!emailNotifications) return 'push';
+    if (defaultReminderMethod === 'email' || defaultReminderMethod === 'both') {
+      return defaultReminderMethod;
+    }
+    return 'push';
+  }, [defaultReminderMethod, emailNotifications]);
+
   // Compute default values
   const getDefaults = useCallback((): EventFormValues => {
     if (isEditMode && existingEvent) {
@@ -197,9 +212,19 @@ export function EventDrawer() {
       color: '',
       visibility: 'private',
       rrule: '',
-      reminderMinutes: 'none',
+      // New events start from the user's configured default reminder instead
+      // of always "No reminder".
+      reminderMinutes: defaultReminderMinutes,
     };
-  }, [isEditMode, existingEvent, defaultDate, defaultTime, categories, userTimezone]);
+  }, [
+    isEditMode,
+    existingEvent,
+    defaultDate,
+    defaultTime,
+    categories,
+    userTimezone,
+    defaultReminderMinutes,
+  ]);
 
   // Build timezone-aware schema so the end > start refine uses the user's timezone
   const eventFormSchema = useMemo(() => createEventFormSchema(userTimezone), [userTimezone]);
@@ -269,11 +294,11 @@ export function EventDrawer() {
         visibility: data.visibility,
         rrule,
         ...(reminderMinutes != null
-          ? { reminder: { minutesBefore: reminderMinutes, method: 'push' as const } }
+          ? { reminder: { minutesBefore: reminderMinutes, method: reminderMethod } }
           : {}),
       };
     },
-    [userTimezone],
+    [userTimezone, reminderMethod],
   );
 
   const submitWithScope = useCallback(

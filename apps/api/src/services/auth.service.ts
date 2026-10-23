@@ -259,16 +259,26 @@ export class AuthService {
     const validPassword = await argon2.verify(user.passwordHash, data.password);
 
     if (!validPassword) {
-      const newFailedLogins = failedLoginsBaseline + 1;
+      // Increment atomically. Reading the counter, hashing for ~100ms, then
+      // writing the stale value back let parallel guesses overwrite each
+      // other's increments — five simultaneous attempts could each record "1"
+      // and the threshold would never be reached. The database owns the
+      // counter; the returned row is the post-increment truth (the fallback to
+      // the value we read only applies on drivers that return nothing).
+      const [incremented] = await db
+        .update(users)
+        .set({ failedLogins: sql`${users.failedLogins} + 1` })
+        .where(eq(users.id, user.id))
+        .returning({ failedLogins: users.failedLogins });
+
+      const newFailedLogins = incremented?.failedLogins ?? failedLoginsBaseline + 1;
 
       if (newFailedLogins >= LOCKOUT_THRESHOLD) {
-        // Lock the account
+        // Lock the account. Only `lockedUntil` is written here — the increment
+        // above already persisted the count.
         await db
           .update(users)
-          .set({
-            failedLogins: newFailedLogins,
-            lockedUntil: new Date(Date.now() + LOCKOUT_DURATION_MS),
-          })
+          .set({ lockedUntil: new Date(Date.now() + LOCKOUT_DURATION_MS) })
           .where(eq(users.id, user.id));
 
         logger.warn({ userId: user.id }, 'Account locked after failed login attempts');
@@ -302,7 +312,8 @@ export class AuthService {
         throw new AppError(401, 'UNAUTHORIZED', 'Invalid email or password');
       }
 
-      await db.update(users).set({ failedLogins: newFailedLogins }).where(eq(users.id, user.id));
+      // No separate counter write here — the atomic increment above already
+      // persisted it.
 
       // Audit failed login
       auditService.log({
@@ -315,7 +326,6 @@ export class AuthService {
 
       throw new AppError(401, 'UNAUTHORIZED', 'Invalid email or password');
     }
-
     // Successful login — reset failed logins and clear lockout
     await db.update(users).set({ failedLogins: 0, lockedUntil: null }).where(eq(users.id, user.id));
 
@@ -677,6 +687,28 @@ export class AuthService {
       });
 
       if (existingUser) {
+        // Automatic email-based linking is only safe when the existing account
+        // has already proven ownership of that address through a provider we
+        // trust to verify emails. Password signup accepts any address without
+        // verification, so linking into a password-only account would let an
+        // attacker pre-register a victim's email by password and then inherit
+        // the victim's OAuth sign-in — the classic account pre-hijacking flow.
+        // The victim must instead sign in with their password and link the
+        // provider from Settings (authenticated linking, see
+        // `linkOAuthAccount`).
+        const existingLinks = await tx.query.oauthAccounts.findMany({
+          where: eq(oauthAccounts.userId, existingUser.id),
+          columns: { id: true },
+        });
+
+        if (existingLinks.length === 0) {
+          throw new AppError(
+            409,
+            'CONFLICT',
+            'An account with this email already exists. Sign in with your password, then link this provider from Settings.',
+          );
+        }
+
         // Link OAuth account to the existing user
         await tx.insert(oauthAccounts).values({
           userId: existingUser.id,
@@ -794,6 +826,83 @@ export class AuthService {
       provider: a.provider,
       createdAt: a.createdAt,
     }));
+  }
+
+  /**
+   * Link an OAuth provider to the *currently signed-in* user's account.
+   *
+   * This is the safe counterpart to the automatic email linking in
+   * `handleOAuthCallback`: the caller holds a valid session for the account
+   * being linked, and the provider email must match that account's email, so
+   * nothing is linked into an account the user has not proven control of.
+   *
+   * Idempotent: linking a provider account that is already linked to this
+   * user succeeds silently.
+   */
+  async linkOAuthAccount(
+    userId: string,
+    provider: 'google' | 'github',
+    profile: {
+      providerAccountId: string;
+      email: string;
+      name: string;
+      avatarUrl: string | null;
+    },
+  ): Promise<void> {
+    const user = await db.query.users.findFirst({
+      where: eq(users.id, userId),
+    });
+
+    if (!user) {
+      throw new AppError(404, 'NOT_FOUND', 'User not found');
+    }
+
+    const email = profile.email.toLowerCase();
+    if (email !== user.email.toLowerCase()) {
+      throw new AppError(
+        422,
+        'VALIDATION_ERROR',
+        'This provider account has a different email address than your Calley account.',
+      );
+    }
+
+    // The unique index on (provider, providerAccountId) makes the insert race
+    // safe, but a pre-check yields a friendly error instead of a 500 when the
+    // provider identity is already taken by another user.
+    const existingOAuth = await db.query.oauthAccounts.findFirst({
+      where: and(
+        eq(oauthAccounts.provider, provider),
+        eq(oauthAccounts.providerAccountId, profile.providerAccountId),
+      ),
+    });
+
+    if (existingOAuth) {
+      if (existingOAuth.userId === userId) return; // already linked — idempotent
+      throw new AppError(
+        409,
+        'CONFLICT',
+        'This provider account is already linked to a different Calley account.',
+      );
+    }
+
+    await db.insert(oauthAccounts).values({
+      userId,
+      provider,
+      providerAccountId: profile.providerAccountId,
+    });
+
+    // Update avatar if the user doesn't have one yet
+    if (!user.avatarUrl && profile.avatarUrl) {
+      await db.update(users).set({ avatarUrl: profile.avatarUrl }).where(eq(users.id, userId));
+    }
+
+    logger.info({ userId, provider }, 'OAuth account linked from settings');
+
+    auditService.log({
+      action: 'oauth.link',
+      userId,
+      metadata: { provider },
+    });
   }
 
   /**

@@ -34,6 +34,7 @@ vi.mock('../../services/sse.service', () => ({ sseService: { emit: vi.fn() } }))
 
 import { db } from '../../db';
 import { sendEmail } from '../../lib/email';
+import { pushSubscriptionService } from '../../services/push-subscription.service';
 import { sseService } from '../../services/sse.service';
 import { processReminderJob } from '../reminder.job';
 
@@ -44,8 +45,16 @@ const TASK_ID = 'testtask123456789012345678';
 const EVENT_ID = 'testevent12345678901234567';
 const REMINDER_ID = 'testreminder1234567890123';
 
-function mockUpdateChain() {
-  const chain = { set: vi.fn().mockReturnThis(), where: vi.fn().mockResolvedValue([]) };
+/**
+ * The atomic claim is `update(reminders).set({sentAt}).where(...).returning()`.
+ * What the mock resolves controls whether the caller "won" the claim.
+ */
+function mockClaim(result: unknown[]) {
+  const chain = {
+    set: vi.fn().mockReturnThis(),
+    where: vi.fn().mockReturnThis(),
+    returning: vi.fn().mockResolvedValue(result),
+  };
   (db.update as ReturnType<typeof vi.fn>).mockReturnValue(chain);
   return chain;
 }
@@ -65,6 +74,16 @@ function pendingReminder(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function jobPayload(method: 'email' | 'push' | 'both' = 'email') {
+  return {
+    reminderId: REMINDER_ID,
+    userId: USER_ID,
+    itemType: 'task' as const,
+    itemId: TASK_ID,
+    method,
+  };
+}
+
 // ─── Tests ──────────────────────────────────────────────────────────
 
 describe('processReminderJob', () => {
@@ -72,6 +91,7 @@ describe('processReminderJob', () => {
     vi.clearAllMocks();
     (db.query.users.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue({
       email: 'user@example.com',
+      timezone: 'America/New_York',
     });
   });
 
@@ -80,98 +100,72 @@ describe('processReminderJob', () => {
   // A reminder retired that way can never be revived, because resyncItemReminders
   // only considers unsent reminders. Clearing a due date and setting it again
   // therefore silently lost the reminder for good.
-  it('leaves the reminder unsent when the task has no due date', async () => {
-    (db.query.reminders.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(pendingReminder());
+  it('releases the claim when the task has no due date', async () => {
+    const chain = mockClaim([pendingReminder()]);
     (db.query.tasks.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue({
       title: 'Write notes',
       dueAt: null,
       deletedAt: null,
     });
-    mockUpdateChain();
 
-    await processReminderJob({
-      reminderId: REMINDER_ID,
-      userId: USER_ID,
-      itemType: 'task',
-      itemId: TASK_ID,
-      method: 'email',
-    });
+    await processReminderJob(jobPayload());
 
-    // Not retired, and nothing delivered.
-    expect(db.update).not.toHaveBeenCalled();
+    // Claimed, then handed back — the reminder stays pending.
+    expect(chain.set).toHaveBeenCalledWith({ sentAt: expect.any(Date) });
+    expect(chain.set).toHaveBeenCalledWith({ sentAt: null });
     expect(sendEmail).not.toHaveBeenCalled();
     expect(sseService.emit).not.toHaveBeenCalled();
   });
 
-  it('still retires the reminder when the task is actually deleted', async () => {
-    (db.query.reminders.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(pendingReminder());
+  it('keeps the claim when the task is actually deleted', async () => {
+    const chain = mockClaim([pendingReminder()]);
     (db.query.tasks.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue({
       title: 'Write notes',
       dueAt: new Date('2026-04-20T14:00:00Z'),
       deletedAt: new Date('2026-04-19T00:00:00Z'),
     });
-    const chain = mockUpdateChain();
 
-    await processReminderJob({
-      reminderId: REMINDER_ID,
-      userId: USER_ID,
-      itemType: 'task',
-      itemId: TASK_ID,
-      method: 'email',
-    });
+    await processReminderJob(jobPayload());
 
     expect(chain.set).toHaveBeenCalledWith({ sentAt: expect.any(Date) });
+    expect(chain.set).not.toHaveBeenCalledWith({ sentAt: null });
     expect(sendEmail).not.toHaveBeenCalled();
   });
 
-  it('still retires the reminder when the task row is gone', async () => {
-    (db.query.reminders.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(pendingReminder());
+  it('keeps the claim when the task row is gone', async () => {
+    const chain = mockClaim([pendingReminder()]);
     (db.query.tasks.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
-    const chain = mockUpdateChain();
 
-    await processReminderJob({
-      reminderId: REMINDER_ID,
-      userId: USER_ID,
-      itemType: 'task',
-      itemId: TASK_ID,
-      method: 'email',
-    });
+    await processReminderJob(jobPayload());
 
     expect(chain.set).toHaveBeenCalledWith({ sentAt: expect.any(Date) });
+    expect(chain.set).not.toHaveBeenCalledWith({ sentAt: null });
   });
 
-  it('delivers and marks sent for a task that does have a due date', async () => {
-    (db.query.reminders.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(pendingReminder());
+  it('delivers for a task that does have a due date', async () => {
+    const chain = mockClaim([pendingReminder()]);
     (db.query.tasks.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue({
       title: 'Write notes',
       dueAt: new Date('2026-04-20T14:00:00Z'),
       deletedAt: null,
     });
-    const chain = mockUpdateChain();
 
-    await processReminderJob({
-      reminderId: REMINDER_ID,
-      userId: USER_ID,
-      itemType: 'task',
-      itemId: TASK_ID,
-      method: 'email',
-    });
+    await processReminderJob(jobPayload());
 
     expect(sendEmail).toHaveBeenCalledTimes(1);
     expect(sseService.emit).toHaveBeenCalledWith(USER_ID, 'reminder:fired', expect.any(Object));
+    // The claim already marked the reminder sent — no second write.
+    expect(chain.set).toHaveBeenCalledTimes(1);
     expect(chain.set).toHaveBeenCalledWith({ sentAt: expect.any(Date) });
   });
 
   it('delivers for an event, whose startAt is always present', async () => {
-    (db.query.reminders.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(
-      pendingReminder({ itemType: 'event', itemId: EVENT_ID }),
-    );
+    const chain = mockClaim([pendingReminder({ itemType: 'event', itemId: EVENT_ID })]);
     (db.query.events.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue({
       title: 'Standup',
       startAt: new Date('2026-04-15T10:00:00Z'),
       deletedAt: null,
     });
-    const chain = mockUpdateChain();
 
     await processReminderJob({
       reminderId: REMINDER_ID,
@@ -185,19 +179,74 @@ describe('processReminderJob', () => {
     expect(chain.set).toHaveBeenCalledWith({ sentAt: expect.any(Date) });
   });
 
-  it('skips a reminder that was already sent', async () => {
-    (db.query.reminders.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
-    mockUpdateChain();
+  // The claim is the whole defense against double delivery: two workers seeing
+  // the same unsent reminder (duplicate jobs after a restart, a stalled job
+  // retried) previously both delivered, because the read-then-send-then-mark
+  // flow only checked sentAt *before* either had written it.
+  it('does not deliver when another worker already claimed the reminder', async () => {
+    mockClaim([]); // the conditional update matched no unsent row
 
-    await processReminderJob({
-      reminderId: REMINDER_ID,
-      userId: USER_ID,
-      itemType: 'task',
-      itemId: TASK_ID,
-      method: 'email',
+    await processReminderJob(jobPayload());
+
+    expect(sendEmail).not.toHaveBeenCalled();
+    expect(pushSubscriptionService.sendPushToUser).not.toHaveBeenCalled();
+    expect(sseService.emit).not.toHaveBeenCalled();
+  });
+
+  it('releases the claim and rethrows when delivery fails, so the job retries', async () => {
+    const chain = mockClaim([pendingReminder()]);
+    (db.query.tasks.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue({
+      title: 'Write notes',
+      dueAt: new Date('2026-04-20T14:00:00Z'),
+      deletedAt: null,
+    });
+    (sendEmail as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('SMTP down'));
+
+    await expect(processReminderJob(jobPayload())).rejects.toThrow('SMTP down');
+
+    expect(chain.set).toHaveBeenCalledWith({ sentAt: null });
+    expect(sseService.emit).not.toHaveBeenCalled();
+  });
+
+  // Regression: emails formatted the UTC instant with the server's local zone
+  // (UTC in every deployed container). A 23:30 UTC reminder read "7:30 PM" and
+  // deep-linked to the wrong calendar day for anyone outside UTC.
+  it('formats delivery text and deep links in the user timezone', async () => {
+    mockClaim([pendingReminder()]);
+    (db.query.tasks.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue({
+      title: 'Write notes',
+      // 2026-04-20 14:00 UTC is 10:00 AM in America/New_York
+      dueAt: new Date('2026-04-20T14:00:00Z'),
+      deletedAt: null,
     });
 
-    expect(db.update).not.toHaveBeenCalled();
-    expect(sendEmail).not.toHaveBeenCalled();
+    await processReminderJob(jobPayload());
+
+    expect(sendEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'user@example.com',
+        subject: 'Reminder: Write notes',
+      }),
+    );
+
+    const { html } = (sendEmail as ReturnType<typeof vi.fn>).mock.calls[0][0] as {
+      html: string;
+    };
+    expect(html).toContain('10:00 AM');
+    expect(html).toContain('date=2026-04-20');
+  });
+
+  it('sends both channels when method is both', async () => {
+    mockClaim([pendingReminder({ method: 'both' })]);
+    (db.query.tasks.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue({
+      title: 'Write notes',
+      dueAt: new Date('2026-04-20T14:00:00Z'),
+      deletedAt: null,
+    });
+
+    await processReminderJob(jobPayload('both'));
+
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+    expect(pushSubscriptionService.sendPushToUser).toHaveBeenCalledTimes(1);
   });
 });

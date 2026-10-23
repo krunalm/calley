@@ -26,6 +26,7 @@ import { useCategories } from '@/hooks/use-categories';
 import { useCreateTask, useDeleteTask, useUpdateTask } from '@/hooks/use-task-mutations';
 import { useTask } from '@/hooks/use-tasks';
 import { useUserTimezone } from '@/hooks/use-user-timezone';
+import { useNotificationPreferences } from '@/stores/notification-preferences';
 import { useUIStore } from '@/stores/ui-store';
 
 import type { EditScope } from '@calley/shared';
@@ -95,7 +96,7 @@ const STATUS_OPTIONS = [
 
 export function TaskDrawer() {
   const {
-    taskDrawer: { open, taskId, defaultDate },
+    taskDrawer: { open, taskId, defaultDate, instanceDate },
     closeTaskDrawer,
   } = useUIStore();
 
@@ -104,6 +105,20 @@ export function TaskDrawer() {
   const createTask = useCreateTask();
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
+
+  // The notification settings are the source of defaults for new reminders:
+  // they used to be written but never read, so every reminder was created as
+  // 'push' regardless of the configured method.
+  const { defaultReminderMinutes, defaultReminderMethod, emailNotifications } =
+    useNotificationPreferences();
+
+  const reminderMethod: 'push' | 'email' | 'both' = useMemo(() => {
+    if (!emailNotifications) return 'push';
+    if (defaultReminderMethod === 'email' || defaultReminderMethod === 'both') {
+      return defaultReminderMethod;
+    }
+    return 'push';
+  }, [defaultReminderMethod, emailNotifications]);
 
   // Fetch existing task data for edit mode
   const isEditMode = !!taskId;
@@ -126,8 +141,12 @@ export function TaskDrawer() {
     if (isEditMode && existingTask) {
       let dueDate = '';
       let dueTime = '';
-      if (existingTask.dueAt) {
-        const zonedDue = toZonedTime(parseISO(existingTask.dueAt), userTimezone);
+      // When editing a recurring instance, the form's due date must be the
+      // occurrence's own date — the parent row's dueAt is the series' first
+      // due date, so "editing" an instance used to silently reschedule it.
+      const dueSource = instanceDate ?? existingTask.dueAt;
+      if (dueSource) {
+        const zonedDue = toZonedTime(parseISO(dueSource), userTimezone);
         dueDate = format(zonedDue, 'yyyy-MM-dd');
         dueTime = format(zonedDue, 'HH:mm');
       }
@@ -145,7 +164,8 @@ export function TaskDrawer() {
       };
     }
 
-    // Create mode defaults
+    // Create mode defaults — the reminder preset comes from the user's
+    // notification settings instead of always starting at "No reminder".
     const defaultCategory = categories.find((c) => c.isDefault);
     let dueDate = '';
     if (defaultDate) {
@@ -161,9 +181,17 @@ export function TaskDrawer() {
       status: 'todo',
       categoryId: defaultCategory?.id ?? categories[0]?.id ?? '',
       rrule: '',
-      reminderMinutes: 'none',
+      reminderMinutes: defaultReminderMinutes,
     };
-  }, [isEditMode, existingTask, defaultDate, categories, userTimezone]);
+  }, [
+    isEditMode,
+    existingTask,
+    defaultDate,
+    categories,
+    userTimezone,
+    instanceDate,
+    defaultReminderMinutes,
+  ]);
 
   const {
     register,
@@ -221,11 +249,11 @@ export function TaskDrawer() {
         categoryId: data.categoryId,
         rrule,
         ...(reminderMinutes != null
-          ? { reminder: { minutesBefore: reminderMinutes, method: 'push' as const } }
+          ? { reminder: { minutesBefore: reminderMinutes, method: reminderMethod } }
           : {}),
       };
     },
-    [userTimezone],
+    [userTimezone, reminderMethod],
   );
 
   const submitWithScope = useCallback(
@@ -243,7 +271,7 @@ export function TaskDrawer() {
             taskId,
             data: updatePayload,
             scope,
-            instanceDate: existingTask?.instanceDate ?? undefined,
+            instanceDate: instanceDate ?? existingTask?.instanceDate ?? undefined,
           },
           { onSuccess: () => closeTaskDrawer() },
         );
@@ -251,7 +279,16 @@ export function TaskDrawer() {
         createTask.mutate(payload, { onSuccess: () => closeTaskDrawer() });
       }
     },
-    [isEditMode, taskId, existingTask, buildApiPayload, updateTask, createTask, closeTaskDrawer],
+    [
+      isEditMode,
+      taskId,
+      instanceDate,
+      existingTask,
+      buildApiPayload,
+      updateTask,
+      createTask,
+      closeTaskDrawer,
+    ],
   );
 
   const onSubmit = useCallback(
@@ -274,13 +311,13 @@ export function TaskDrawer() {
           {
             taskId,
             scope,
-            instanceDate: existingTask?.instanceDate ?? undefined,
+            instanceDate: instanceDate ?? existingTask?.instanceDate ?? undefined,
           },
           { onSuccess: () => closeTaskDrawer() },
         );
       }
     },
-    [scopeDialog, submitWithScope, taskId, existingTask, deleteTask, closeTaskDrawer],
+    [scopeDialog, submitWithScope, taskId, instanceDate, existingTask, deleteTask, closeTaskDrawer],
   );
 
   const handleDelete = useCallback(() => {

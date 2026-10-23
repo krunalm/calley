@@ -1,4 +1,4 @@
-import { addHours, format } from 'date-fns';
+import { addHours, endOfDay, format } from 'date-fns';
 import { fromZonedTime } from 'date-fns-tz';
 import { CalendarDays, CheckSquare } from 'lucide-react';
 import { useCallback, useRef, useState } from 'react';
@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/Popover';
 import { useCategories } from '@/hooks/use-categories';
 import { useCreateEvent } from '@/hooks/use-event-mutations';
+import { useCreateTask } from '@/hooks/use-task-mutations';
 import { useUserTimezone } from '@/hooks/use-user-timezone';
 import { cn } from '@/lib/utils';
 import { useUIStore } from '@/stores/ui-store';
@@ -57,6 +58,7 @@ function QuickCreatePopoverContent({
   const userTimezone = useUserTimezone();
   const { openEventDrawer, openTaskDrawer } = useUIStore();
   const createEvent = useCreateEvent();
+  const createTask = useCreateTask();
   const { data: categories = [] } = useCategories();
 
   const [title, setTitle] = useState('');
@@ -80,8 +82,13 @@ function QuickCreatePopoverContent({
 
     if (itemType === 'event') {
       const isAllDay = !defaultTime;
-      const startAt = fromZonedTime(startTime, userTimezone).toISOString();
-      const endAt = fromZonedTime(endTime, userTimezone).toISOString();
+      // An all-day quick-create spans the whole selected day, matching the
+      // EventDrawer's storage convention — it used to end one hour after
+      // midnight, a one-hour "all-day" event.
+      const eventStartZoned = isAllDay ? defaultDate : defaultTime!;
+      const eventEndZoned = isAllDay ? endOfDay(defaultDate) : addHours(defaultTime!, 1);
+      const startAt = fromZonedTime(eventStartZoned, userTimezone).toISOString();
+      const endAt = fromZonedTime(eventEndZoned, userTimezone).toISOString();
 
       createEvent.mutate({
         title: trimmed,
@@ -91,19 +98,32 @@ function QuickCreatePopoverContent({
         categoryId: defaultCategory.id,
         visibility: 'private',
       });
+    } else {
+      // The Task branch used to fall straight through and close the popover —
+      // the title the user typed was silently discarded. A quick-created task
+      // is due on the selected day: at the tapped time when the popover came
+      // from a time slot, otherwise end of that day.
+      const dueZoned = defaultTime ?? endOfDay(defaultDate);
+      const dueAt = fromZonedTime(dueZoned, userTimezone).toISOString();
+
+      createTask.mutate({
+        title: trimmed,
+        dueAt,
+        priority: 'none',
+        categoryId: defaultCategory.id,
+      });
     }
-    // Task creation will be handled in Phase 3
 
     onOpenChange(false);
   }, [
     title,
     itemType,
     defaultTime,
-    startTime,
-    endTime,
+    defaultDate,
     userTimezone,
     defaultCategory,
     createEvent,
+    createTask,
     onOpenChange,
   ]);
 

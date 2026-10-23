@@ -1,75 +1,40 @@
 import { Hono } from 'hono';
-import { getCookie } from 'hono/cookie';
-import { z } from 'zod';
 
-import { lucia } from '../lib/lucia';
+import { authMiddleware } from '../middleware/auth.middleware';
 import { rateLimit } from '../middleware/rate-limit.middleware';
-import { validate } from '../middleware/validate.middleware';
 import { MAX_QUEUE_BACKLOG_BYTES, sseService } from '../services/sse.service';
 
 import type { AppVariables } from '../types/hono';
 
-// ─── Zod schema for SSE query params ────────────────────────────────
-
-const streamQuerySchema = z.object({
-  token: z.string().min(1).optional(),
-});
-
 const stream = new Hono<{ Variables: AppVariables }>();
 
-// Rate limit: max 10 requests per minute per user
-stream.use(
-  '/*',
-  rateLimit({
-    limit: 10,
-    windowSeconds: 60,
-    keyPrefix: 'sse',
-  }),
-);
+// Rate limit first (cheap, anonymous), then authenticate.
+stream.use('/*', rateLimit({ limit: 10, windowSeconds: 60, keyPrefix: 'sse' }));
+
+/**
+ * Authentication happens exclusively via the session cookie, through the same
+ * middleware as every other authenticated route.
+ *
+ * An earlier `?token=<sessionId>` fallback existed for EventSource reconnects,
+ * but it weakened the security model in two ways that no longer pay for it:
+ * browsers send `SameSite=Lax` cookies on the top-level GET navigations an
+ * EventSource makes (and this app's stream is same-origin behind nginx), and
+ * the fallback validated raw session IDs without the idle-session policy, so a
+ * week-idle session that normal routes reject could still subscribe. Raw
+ * session IDs in URLs also leak into logs, browser history, and Referer
+ * headers. EventSource reconnects re-issue the same cookie-authenticated GET,
+ * so nothing is lost by removing it.
+ */
+stream.use('/*', authMiddleware);
 
 /**
  * GET /stream
  *
- * Server-Sent Events stream. Authenticates via session cookie (preferred)
- * or via `?token=<sessionId>` query param as a resilient fallback for
- * browsers that don't send cookies on EventSource reconnect.
+ * Server-Sent Events stream, authenticated by the session cookie.
  * Connection kept alive with heartbeat every 30 seconds.
  */
-stream.get('/', validate('query', streamQuerySchema), async (c) => {
-  let userId: string | undefined;
-
-  // 1. Try cookie-based auth (preferred)
-  const sessionId = getCookie(c, lucia.sessionCookieName) ?? null;
-  if (sessionId) {
-    const { session, user } = await lucia.validateSession(sessionId);
-    if (session && user) {
-      userId = user.id;
-
-      // Refresh session cookie if Lucia says the session was renewed
-      if (session.fresh) {
-        const sessionCookie = lucia.createSessionCookie(session.id);
-        c.header('Set-Cookie', sessionCookie.serialize(), { append: true });
-      }
-    }
-  }
-
-  // 2. Fallback: token query param (for EventSource reconnects without cookies)
-  if (!userId) {
-    const { token } = c.get('validatedQuery') as z.infer<typeof streamQuerySchema>;
-    if (token) {
-      const { session, user } = await lucia.validateSession(token);
-      if (session && user) {
-        userId = user.id;
-      }
-    }
-  }
-
-  // 3. Neither worked — reject
-  if (!userId) {
-    return c.json({ error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, 401);
-  }
-
-  const resolvedUserId = userId;
+stream.get('/', async (c) => {
+  const userId = c.get('userId')!;
 
   let registered: ReturnType<typeof sseService.addConnection> = null;
 
@@ -77,7 +42,7 @@ stream.get('/', validate('query', streamQuerySchema), async (c) => {
     {
       start(controller) {
         // Register the connection
-        const connection = sseService.addConnection(resolvedUserId, controller);
+        const connection = sseService.addConnection(userId, controller);
         registered = connection;
 
         if (!connection) {
@@ -103,7 +68,7 @@ stream.get('/', validate('query', streamQuerySchema), async (c) => {
         const signal = c.req.raw.signal;
         if (signal) {
           const cleanup = () => {
-            sseService.removeConnection(resolvedUserId, connection);
+            sseService.removeConnection(userId, connection);
           };
 
           if (signal.aborted) {
@@ -123,7 +88,7 @@ stream.get('/', validate('query', streamQuerySchema), async (c) => {
        */
       cancel() {
         if (registered) {
-          sseService.removeConnection(resolvedUserId, registered);
+          sseService.removeConnection(userId, registered);
           registered = null;
         }
       },

@@ -1,6 +1,6 @@
 import { generateCodeVerifier, generateState } from 'arctic';
 import { Hono } from 'hono';
-import { getCookie, setCookie } from 'hono/cookie';
+import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { z } from 'zod';
 
 import {
@@ -18,13 +18,14 @@ import { getClientIp } from '../lib/client-ip';
 import { clearCsrfCookie, generateCsrfToken, setCsrfCookie } from '../lib/csrf';
 import { AppError } from '../lib/errors';
 import { logger } from '../lib/logger';
+import { lucia } from '../lib/lucia';
 import {
   githubOAuth,
   googleOAuth,
   isGithubOAuthConfigured,
   isGoogleOAuthConfigured,
 } from '../lib/oauth';
-import { authMiddleware } from '../middleware/auth.middleware';
+import { authMiddleware, validateSessionWithIdlePolicy } from '../middleware/auth.middleware';
 import { doubleSubmitCsrf } from '../middleware/csrf.middleware';
 import { rateLimit } from '../middleware/rate-limit.middleware';
 import { validate } from '../middleware/validate.middleware';
@@ -342,6 +343,123 @@ function setOAuthCookie(c: Context, name: string, value: string): void {
 
 // ─── Google OAuth ─────────────────────────────────────────────────────
 
+/** Normalized OAuth identity shared by the login and link flows. */
+interface OAuthIdentity {
+  providerAccountId: string;
+  /** Only ever a provider-verified email; null when none is available. */
+  email: string | null;
+  name: string;
+  avatarUrl: string | null;
+}
+
+/**
+ * Fetch the Google profile for an access token.
+ * Only a Google-verified email is used — an unverified one proves nothing about
+ * address ownership and must never drive account linking.
+ */
+async function fetchGoogleProfile(accessToken: string): Promise<OAuthIdentity | null> {
+  const response = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  if (!response.ok) {
+    logger.error({ status: response.status }, 'Google OAuth: failed to fetch user profile');
+    return null;
+  }
+
+  const googleProfile = (await response.json()) as {
+    sub: string;
+    email?: string;
+    email_verified?: boolean;
+    name?: string;
+    picture?: string;
+  };
+
+  const email = googleProfile.email_verified ? (googleProfile.email ?? null) : null;
+
+  return {
+    providerAccountId: googleProfile.sub,
+    email,
+    name: googleProfile.name || '',
+    avatarUrl: googleProfile.picture || null,
+  };
+}
+
+/**
+ * Fetch the GitHub profile (user + verified emails) for an access token.
+ * GitHub's `user:email` scope exposes the address list; only a verified email
+ * is used, preferring the primary one.
+ */
+async function fetchGithubProfile(accessToken: string): Promise<OAuthIdentity | null> {
+  const headers = {
+    Authorization: `Bearer ${accessToken}`,
+    Accept: 'application/vnd.github+json',
+    'User-Agent': 'Calley-App',
+  };
+
+  const [userResponse, emailsResponse] = await Promise.all([
+    fetch('https://api.github.com/user', { headers }),
+    fetch('https://api.github.com/user/emails', { headers }),
+  ]);
+
+  if (!userResponse.ok) {
+    logger.error({ status: userResponse.status }, 'GitHub OAuth: failed to fetch user profile');
+    return null;
+  }
+
+  const githubUser = (await userResponse.json()) as {
+    id: number;
+    login: string;
+    name: string | null;
+    avatar_url: string;
+  };
+
+  let email: string | null = null;
+  if (emailsResponse.ok) {
+    const emails = (await emailsResponse.json()) as Array<{
+      email: string;
+      primary: boolean;
+      verified: boolean;
+    }>;
+
+    const primaryEmail = emails.find((e) => e.primary && e.verified);
+    const verifiedEmail = primaryEmail || emails.find((e) => e.verified);
+    email = verifiedEmail?.email ?? null;
+  }
+
+  return {
+    providerAccountId: String(githubUser.id),
+    email,
+    name: githubUser.name || githubUser.login,
+    avatarUrl: githubUser.avatar_url || null,
+  };
+}
+
+/**
+ * Resolve the signed-in user for an OAuth *link* callback, or redirect to
+ * the login page when there is no usable session. Linking is only ever
+ * performed for a live session — the account being linked into must belong to
+ * whoever is holding the browser.
+ */
+async function requireLinkSession(c: Context): Promise<{ userId: string } | null> {
+  const sessionId = getCookie(c, lucia.sessionCookieName);
+  if (!sessionId) return null;
+
+  const validated = await validateSessionWithIdlePolicy(sessionId);
+  if (!validated || validated.idleExpired) {
+    const blankCookie = lucia.createBlankSessionCookie();
+    c.header('Set-Cookie', blankCookie.serialize(), { append: true });
+    return null;
+  }
+
+  if (validated.session.fresh) {
+    const sessionCookie = lucia.createSessionCookie(validated.session.id);
+    c.header('Set-Cookie', sessionCookie.serialize(), { append: true });
+  }
+
+  return { userId: validated.user.id };
+}
+
 /**
  * GET /auth/oauth/google
  * Initiates Google OAuth flow.
@@ -374,6 +492,52 @@ auth.get(
 );
 
 /**
+ * GET /auth/oauth/google/link
+ * Initiates Google OAuth for an already signed-in user who wants to link
+ * Google to their account (Settings → Profile → Linked accounts).
+ *
+ * The flow reuses the provider callback but with its own state cookies, so the
+ * callback can tell a link attempt from a login. The session must already
+ * exist — this route never creates or merges accounts.
+ */
+auth.get(
+  '/auth/oauth/google/link',
+  rateLimit({ limit: 10, windowSeconds: 900, keyPrefix: 'auth:oauth:google:link' }),
+  authMiddleware,
+  async (c) => {
+    if (!isGoogleOAuthConfigured) {
+      throw new AppError(503, 'INTERNAL_ERROR', 'Google login is not configured');
+    }
+
+    const state = generateState();
+    const codeVerifier = generateCodeVerifier();
+
+    const url = googleOAuth.createAuthorizationURL(state, codeVerifier, [
+      'openid',
+      'profile',
+      'email',
+    ]);
+
+    setOAuthCookie(c, 'google_link_state', state);
+    setOAuthCookie(c, 'google_link_code_verifier', codeVerifier);
+
+    return c.redirect(url.toString());
+  },
+);
+
+/** Settings page that link callbacks redirect back to. */
+const PROFILE_SETTINGS_URL = `${FRONTEND_URL}/settings/profile`;
+
+/** Where the login callbacks send the browser when a provider fails. */
+function oauthLoginErrorRedirect(err: AppError): string {
+  // A password-signup account with this email exists: tell the user instead of
+  // silently linking into a possibly hijacked account.
+  if (err.code === 'CONFLICT') return `${FRONTEND_URL}/login?error=oauth_email_exists`;
+  if (err.code === 'VALIDATION_ERROR') return `${FRONTEND_URL}/login?error=oauth_no_email`;
+  return `${FRONTEND_URL}/login?error=oauth_failed`;
+}
+
+/**
  * GET /auth/oauth/google/callback
  * Handles Google OAuth callback.
  * Verifies state, exchanges code for tokens, fetches profile, creates/links account.
@@ -393,7 +557,20 @@ auth.get(
   validate('query', oauthCallbackQuerySchema),
   async (c) => {
     const { code, state } = c.get('validatedQuery') as z.infer<typeof oauthCallbackQuerySchema>;
-    const storedState = getCookie(c, 'google_oauth_state');
+
+    // Link mode: the browser came from Settings with link-specific state
+    // cookies. Handle it before the login flow — the two share this endpoint so
+    // deployments need only one registered redirect URI. A stale link cookie
+    // (they expire in 10 minutes) must not hijack a fresh login, so the login
+    // state cookie wins whenever both are present.
+    const linkState = getCookie(c, 'google_link_state');
+    const linkVerifier = getCookie(c, 'google_link_code_verifier');
+    const loginState = getCookie(c, 'google_oauth_state');
+    if ((linkState !== undefined || linkVerifier !== undefined) && loginState === undefined) {
+      return handleGoogleLink(c, code, state, linkState, linkVerifier);
+    }
+
+    const storedState = loginState;
     const storedCodeVerifier = getCookie(c, 'google_oauth_code_verifier');
 
     // Verify OAuth state cookie matches the state returned by the provider
@@ -405,42 +582,19 @@ auth.get(
     try {
       // Exchange code for tokens
       const tokens = await googleOAuth.validateAuthorizationCode(code, storedCodeVerifier);
-      const accessToken = tokens.accessToken();
 
-      // Fetch user profile from Google
-      const response = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-
-      if (!response.ok) {
-        logger.error({ status: response.status }, 'Google OAuth: failed to fetch user profile');
+      const profile = await fetchGoogleProfile(tokens.accessToken());
+      if (!profile) {
         return c.redirect(`${FRONTEND_URL}/login?error=oauth_failed`);
       }
-
-      const googleProfile = (await response.json()) as {
-        sub: string;
-        email?: string;
-        email_verified?: boolean;
-        name?: string;
-        picture?: string;
-      };
-
-      // Only use verified emails from Google
-      const email = googleProfile.email_verified ? (googleProfile.email ?? null) : null;
 
       const userAgent = c.req.header('user-agent') ?? null;
       const ipAddress = getIpAddress(c);
 
-      const { cookie } = await authService.handleOAuthCallback(
-        'google',
-        {
-          providerAccountId: googleProfile.sub,
-          email,
-          name: googleProfile.name || '',
-          avatarUrl: googleProfile.picture || null,
-        },
-        { userAgent, ipAddress },
-      );
+      const { cookie } = await authService.handleOAuthCallback('google', profile, {
+        userAgent,
+        ipAddress,
+      });
 
       c.header('Set-Cookie', cookie.serialize(), { append: true });
 
@@ -452,13 +606,63 @@ auth.get(
     } catch (err) {
       if (err instanceof AppError) {
         logger.warn({ code: err.code, message: err.message }, 'Google OAuth: handled error');
-        return c.redirect(`${FRONTEND_URL}/login?error=oauth_no_email`);
+        return c.redirect(oauthLoginErrorRedirect(err));
       }
       logger.error({ err }, 'Google OAuth: unexpected error during callback');
       return c.redirect(`${FRONTEND_URL}/login?error=oauth_failed`);
     }
   },
 );
+
+/**
+ * Google callback in link mode: exchange the code, require a verified email,
+ * and attach the provider identity to the signed-in user's account.
+ */
+async function handleGoogleLink(
+  c: Context,
+  code: string,
+  state: string,
+  storedState: string | undefined,
+  storedVerifier: string | undefined,
+) {
+  const cookiePath = oauthCookiePath(c);
+  deleteCookie(c, 'google_link_state', { path: cookiePath });
+  deleteCookie(c, 'google_link_code_verifier', { path: cookiePath });
+
+  if (!storedState || !storedVerifier || state !== storedState) {
+    logger.warn({ storedState: !!storedState }, 'Google OAuth link: state mismatch');
+    return c.redirect(`${PROFILE_SETTINGS_URL}?oauth=failed`);
+  }
+
+  const linkSession = await requireLinkSession(c);
+  if (!linkSession) {
+    return c.redirect(`${FRONTEND_URL}/login?error=oauth_link_failed`);
+  }
+
+  try {
+    const tokens = await googleOAuth.validateAuthorizationCode(code, storedVerifier);
+    const profile = await fetchGoogleProfile(tokens.accessToken());
+
+    if (!profile) return c.redirect(`${PROFILE_SETTINGS_URL}?oauth=failed`);
+    if (!profile.email) return c.redirect(`${PROFILE_SETTINGS_URL}?oauth=no_email`);
+
+    await authService.linkOAuthAccount(linkSession.userId, 'google', {
+      providerAccountId: profile.providerAccountId,
+      email: profile.email,
+      name: profile.name,
+      avatarUrl: profile.avatarUrl,
+    });
+
+    return c.redirect(`${PROFILE_SETTINGS_URL}?oauth=linked`);
+  } catch (err) {
+    if (err instanceof AppError) {
+      logger.warn({ code: err.code, message: err.message }, 'Google OAuth link: handled error');
+      return c.redirect(`${PROFILE_SETTINGS_URL}?oauth=link_failed`);
+    }
+    logger.error({ err }, 'Google OAuth link: unexpected error');
+    return c.redirect(`${PROFILE_SETTINGS_URL}?oauth=failed`);
+  }
+}
 
 // ─── GitHub OAuth ─────────────────────────────────────────────────────
 
@@ -488,6 +692,30 @@ auth.get(
 );
 
 /**
+ * GET /auth/oauth/github/link
+ * Initiates GitHub OAuth for an already signed-in user who wants to link
+ * GitHub to their account (Settings → Profile → Linked accounts).
+ */
+auth.get(
+  '/auth/oauth/github/link',
+  rateLimit({ limit: 10, windowSeconds: 900, keyPrefix: 'auth:oauth:github:link' }),
+  authMiddleware,
+  async (c) => {
+    if (!isGithubOAuthConfigured) {
+      throw new AppError(503, 'INTERNAL_ERROR', 'GitHub login is not configured');
+    }
+
+    const state = generateState();
+
+    const url = githubOAuth.createAuthorizationURL(state, ['user:email']);
+
+    setOAuthCookie(c, 'github_link_state', state);
+
+    return c.redirect(url.toString());
+  },
+);
+
+/**
  * GET /auth/oauth/github/callback
  * Handles GitHub OAuth callback.
  * Verifies state, exchanges code for tokens, fetches profile + email, creates/links account.
@@ -503,7 +731,16 @@ auth.get(
   validate('query', oauthCallbackQuerySchema),
   async (c) => {
     const { code, state } = c.get('validatedQuery') as z.infer<typeof oauthCallbackQuerySchema>;
-    const storedState = getCookie(c, 'github_oauth_state');
+
+    // Link mode: same arrangement as the Google callback — the login state
+    // cookie wins over a stale link cookie.
+    const linkState = getCookie(c, 'github_link_state');
+    const loginState = getCookie(c, 'github_oauth_state');
+    if (linkState !== undefined && loginState === undefined) {
+      return handleGithubLink(c, code, state, linkState);
+    }
+
+    const storedState = loginState;
 
     // Verify OAuth state cookie matches the state returned by the provider
     if (!storedState || state !== storedState) {
@@ -514,69 +751,19 @@ auth.get(
     try {
       // Exchange code for tokens
       const tokens = await githubOAuth.validateAuthorizationCode(code);
-      const accessToken = tokens.accessToken();
 
-      // Fetch user profile from GitHub
-      const [userResponse, emailsResponse] = await Promise.all([
-        fetch('https://api.github.com/user', {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            Accept: 'application/vnd.github+json',
-            'User-Agent': 'Calley-App',
-          },
-        }),
-        fetch('https://api.github.com/user/emails', {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            Accept: 'application/vnd.github+json',
-            'User-Agent': 'Calley-App',
-          },
-        }),
-      ]);
-
-      if (!userResponse.ok) {
-        logger.error({ status: userResponse.status }, 'GitHub OAuth: failed to fetch user profile');
+      const profile = await fetchGithubProfile(tokens.accessToken());
+      if (!profile) {
         return c.redirect(`${FRONTEND_URL}/login?error=oauth_failed`);
-      }
-
-      const githubUser = (await userResponse.json()) as {
-        id: number;
-        login: string;
-        name: string | null;
-        avatar_url: string;
-      };
-
-      // Determine the primary verified email
-      let email: string | null = null;
-
-      if (emailsResponse.ok) {
-        const emails = (await emailsResponse.json()) as Array<{
-          email: string;
-          primary: boolean;
-          verified: boolean;
-        }>;
-
-        // Prefer the primary verified email
-        const primaryEmail = emails.find((e) => e.primary && e.verified);
-        // Fall back to any verified email
-        const verifiedEmail = primaryEmail || emails.find((e) => e.verified);
-
-        email = verifiedEmail?.email ?? null;
       }
 
       const userAgent = c.req.header('user-agent') ?? null;
       const ipAddress = getIpAddress(c);
 
-      const { cookie } = await authService.handleOAuthCallback(
-        'github',
-        {
-          providerAccountId: String(githubUser.id),
-          email,
-          name: githubUser.name || githubUser.login,
-          avatarUrl: githubUser.avatar_url || null,
-        },
-        { userAgent, ipAddress },
-      );
+      const { cookie } = await authService.handleOAuthCallback('github', profile, {
+        userAgent,
+        ipAddress,
+      });
 
       c.header('Set-Cookie', cookie.serialize(), { append: true });
 
@@ -588,12 +775,60 @@ auth.get(
     } catch (err) {
       if (err instanceof AppError) {
         logger.warn({ code: err.code, message: err.message }, 'GitHub OAuth: handled error');
-        return c.redirect(`${FRONTEND_URL}/login?error=oauth_no_email`);
+        return c.redirect(oauthLoginErrorRedirect(err));
       }
       logger.error({ err }, 'GitHub OAuth: unexpected error during callback');
       return c.redirect(`${FRONTEND_URL}/login?error=oauth_failed`);
     }
   },
 );
+
+/**
+ * GitHub callback in link mode: exchange the code, require a verified email,
+ * and attach the provider identity to the signed-in user's account.
+ */
+async function handleGithubLink(
+  c: Context,
+  code: string,
+  state: string,
+  storedState: string | undefined,
+) {
+  const cookiePath = oauthCookiePath(c);
+  deleteCookie(c, 'github_link_state', { path: cookiePath });
+
+  if (!storedState || state !== storedState) {
+    logger.warn({ storedState: !!storedState }, 'GitHub OAuth link: state mismatch');
+    return c.redirect(`${PROFILE_SETTINGS_URL}?oauth=failed`);
+  }
+
+  const linkSession = await requireLinkSession(c);
+  if (!linkSession) {
+    return c.redirect(`${FRONTEND_URL}/login?error=oauth_link_failed`);
+  }
+
+  try {
+    const tokens = await githubOAuth.validateAuthorizationCode(code);
+    const profile = await fetchGithubProfile(tokens.accessToken());
+
+    if (!profile) return c.redirect(`${PROFILE_SETTINGS_URL}?oauth=failed`);
+    if (!profile.email) return c.redirect(`${PROFILE_SETTINGS_URL}?oauth=no_email`);
+
+    await authService.linkOAuthAccount(linkSession.userId, 'github', {
+      providerAccountId: profile.providerAccountId,
+      email: profile.email,
+      name: profile.name,
+      avatarUrl: profile.avatarUrl,
+    });
+
+    return c.redirect(`${PROFILE_SETTINGS_URL}?oauth=linked`);
+  } catch (err) {
+    if (err instanceof AppError) {
+      logger.warn({ code: err.code, message: err.message }, 'GitHub OAuth link: handled error');
+      return c.redirect(`${PROFILE_SETTINGS_URL}?oauth=link_failed`);
+    }
+    logger.error({ err }, 'GitHub OAuth link: unexpected error');
+    return c.redirect(`${PROFILE_SETTINGS_URL}?oauth=failed`);
+  }
+}
 
 export default auth;

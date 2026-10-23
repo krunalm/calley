@@ -26,6 +26,7 @@ vi.mock('../../services/auth.service', () => {
 
 // Mock auth middleware
 vi.mock('../../middleware/auth.middleware', () => ({
+  validateSessionWithIdlePolicy: vi.fn(),
   authMiddleware: vi.fn(
     async (c: { set: (k: string, v: unknown) => void }, next: () => Promise<void>) => {
       c.set('userId', 'testuser12345678901234567');

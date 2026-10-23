@@ -7,6 +7,7 @@ import { validateEnv } from './lib/env';
 import { logger } from './lib/logger';
 import { closeQueues } from './lib/queue';
 import { connectRedis, disconnectRedis } from './lib/redis';
+import { createBodyLimitingServer } from './lib/request-body-guard';
 import { sseService } from './services/sse.service';
 
 const port = Number(process.env.PORT) || 4000;
@@ -32,9 +33,18 @@ async function start() {
     logger.warn({ err }, 'Failed to initialize job processing — reminders will be disabled');
   }
 
-  server = serve({ fetch: app.fetch, port }, (info) => {
-    logger.info({ port: info.port }, 'Calley API running');
-  });
+  server = serve(
+    {
+      fetch: app.fetch,
+      port,
+      // Streaming body-limit enforcement: the middleware only sees
+      // Content-Length, so chunked uploads need a byte counter at the socket.
+      createServer: createBodyLimitingServer(),
+    },
+    (info) => {
+      logger.info({ port: info.port }, 'Calley API running');
+    },
+  );
 }
 
 let shuttingDown = false;

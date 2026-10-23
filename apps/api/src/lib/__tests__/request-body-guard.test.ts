@@ -51,11 +51,17 @@ describe('createBodyLimitListener', () => {
    */
   function postChunkedInPhases(first: string, second: string, pauseMs: number): Promise<Outcome> {
     return new Promise((resolve, reject) => {
-      const req = request(baseUrl, { method: 'POST', headers: { 'Transfer-Encoding': 'chunked' } }, (res) => {
-        let data = '';
-        res.on('data', (chunk: Buffer) => (data += chunk.toString()));
-        res.on('end', () => resolve({ kind: 'response', status: res.statusCode ?? 0, body: data }));
-      });
+      const req = request(
+        baseUrl,
+        { method: 'POST', headers: { 'Transfer-Encoding': 'chunked' } },
+        (res) => {
+          let data = '';
+          res.on('data', (chunk: Buffer) => (data += chunk.toString()));
+          res.on('end', () =>
+            resolve({ kind: 'response', status: res.statusCode ?? 0, body: data }),
+          );
+        },
+      );
       req.on('error', (err: NodeJS.ErrnoException) => {
         if (err.code === 'ECONNRESET') resolve({ kind: 'reset' });
         else reject(err);

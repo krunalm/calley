@@ -44,6 +44,10 @@ apps/web/vite.config.js.map
 # Docker volumes
 docker/data/
 
+# TLS certificates: the compose stack generates a self-signed pair into
+# docker/certs/ on first boot; mounted production certs must never be committed.
+docker/certs/
+
 # TypeScript incremental build
 *.tsbuildinfo
 

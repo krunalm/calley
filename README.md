@@ -235,7 +235,7 @@ docker compose up -d --build
 
 This starts all services:
 
-- **nginx** — Reverse proxy on ports 80/443
+- **nginx** — TLS-terminating reverse proxy (port 80 redirects to 443)
 - **web** — React frontend (served via nginx)
 - **api** — Hono API server
 - **db** — PostgreSQL 16
@@ -244,19 +244,27 @@ This starts all services:
 #### 3. Verify health
 
 ```bash
-curl http://localhost/api/health/ready
+curl -k https://localhost/api/v1/health/ready
 # Expected: {"status":"ok","db":"ok","redis":"ok","timestamp":"..."}
 ```
 
-#### 4. SSL/TLS
+#### 4. HTTPS
 
-To enable HTTPS:
+HTTPS is on by default and cannot be skipped: port 80 only redirects to 443,
+and the API marks its session cookies `Secure`, which browsers refuse to store
+over plain HTTP — a port-80-only deployment could log in and then immediately
+lose the session.
 
-1. Place your SSL certificate files in `docker/certs/` (`fullchain.pem` and `privkey.pem`)
-2. Uncomment the SSL server block in `docker/nginx.conf`
-3. Restart nginx: `docker compose restart nginx`
+When `docker/certs/` is empty at startup, the nginx container generates a
+self-signed certificate (hence `-k` above). Browsers will show a warning for it,
+so for real use:
 
-Alternatively, use [Caddy](https://caddyserver.com/) or [Traefik](https://traefik.io/) as a reverse proxy with automatic Let's Encrypt certificates.
+1. Place your certificate files in `docker/certs/` (`fullchain.pem` and `privkey.pem`)
+2. Restart nginx: `docker compose restart nginx`
+
+Alternatively, run the stack behind [Caddy](https://caddyserver.com/) or
+[Traefik](https://traefik.io/) for automatic Let's Encrypt certificates — set
+`TRUSTED_PROXIES` to that proxy's address if you front the whole stack with it.
 
 #### 5. Backups
 
@@ -324,6 +332,13 @@ Set `TRUSTED_PROXIES` in that case and the API will key on the `X-Forwarded-For`
 Set it **only** when a proxy you control terminates every request: the header is caller-supplied
 otherwise, and trusting it lets anyone pick their own bucket — and stamp an arbitrary address onto
 their session and audit records.
+
+The value is a comma-separated list of proxy IPs or IPv4 CIDR ranges (e.g. `10.0.0.0/8, 172.16.0.0/12`).
+The special value `*` trusts any single proxy hop. The chain is read right-to-most — the end a proxy
+appends the address it saw to — so a forged left-most entry can no longer pick the bucket: with
+`X-Forwarded-For: 1.2.3.4, 203.0.113.9` sent through the bundled nginx, the client is `203.0.113.9`.
+`TRUSTED_PROXIES` is unset by default and absent from `apps/api/.env.example` deliberately: it must
+be a conscious per-deployment decision.
 | `LOG_LEVEL` | Pino log level | `info` |
 
 ## CI/CD

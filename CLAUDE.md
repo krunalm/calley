@@ -258,6 +258,8 @@ Exception (id: evt_002)
 4. Merge in exception records (matched by `recurringEventId` + `originalDate`).
 5. Return all instances with `isRecurringInstance: true` flag.
 
+Tasks follow the same expansion flow via `recurrenceService.expandRecurringTasks`, with two differences: their per-instance exceptions are full rows in the tasks table (not a separate table), and `updateTask` scope `'instance'` also adds the occurrence to the parent's exDates — so exceptions are listed as standalone tasks and the expansion simply skips the excluded occurrence.
+
 ### 8. Date/Time Handling
 
 - All dates stored in PostgreSQL as UTC (`TIMESTAMP WITH TIME ZONE`).
@@ -642,7 +644,7 @@ test('create and view event', async ({ page }) => {
 
 6. **BullMQ delayed jobs**: When a reminder is created, compute the delay in milliseconds (`triggerAt - Date.now()`). If the delay is negative (trigger time is in the past), process immediately. On server restart, re-enqueue all unsent reminders.
 
-7. **SSE connections**: EventSource reconnects automatically on disconnect. But it doesn't include cookies on reconnect in some browsers. Use a token-in-URL fallback if needed (pass session token as query param for SSE only, validated server-side).
+7. **SSE connections**: EventSource sends the session cookie on same-site GETs, including automatic reconnects — that is the only auth path for `/stream`. An earlier `?token=<sessionId>` fallback was removed: it bypassed the idle-session policy, and raw session IDs in URLs leak into logs, history, and Referer headers. If a client genuinely cannot use cookies, add a short-lived, scoped stream ticket rather than re-introducing the raw session ID.
 
 8. **CSRF token**: The frontend reads the CSRF cookie (which is not HttpOnly) and sends it as the `X-CSRF-Token` header. The backend validates the header matches the cookie. This works because the cookie is `SameSite: Strict` — third-party sites can't read it.
 

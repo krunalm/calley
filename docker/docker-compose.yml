@@ -62,14 +62,21 @@ services:
       - calley
 
   nginx:
-    image: nginx:alpine
+    build:
+      context: ./nginx
     restart: unless-stopped
     ports:
       - '80:80'
       - '443:443'
+    environment:
+      # Common Name of the startup-generated self-signed certificate — set to
+      # your domain so browsers can match it until real certs are mounted.
+      - TLS_SELF_SIGNED_CN=${TLS_DOMAIN:-localhost}
     volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./certs:/etc/nginx/certs:ro
+      # Read-write: the entrypoint generates a self-signed pair here when the
+      # directory is empty. Mount your own fullchain.pem + privkey.pem for
+      # production use.
+      - ./certs:/etc/nginx/certs
     depends_on:
       - web
       - api

@@ -51,7 +51,7 @@
     "overrides": {
       "dompurify": "^3.4.14",
       "bn.js": "^4.12.5",
-      "fast-uri": "^3.1.6",
+      "fast-uri": "^3.1.9",
       "nanoid": "^3.3.17",
       "minimatch@3": "^3.1.4",
       "brace-expansion@1": "^1.1.21",
@@ -61,7 +61,8 @@
       "rollup": "^4.59.0",
       "source-map-js": "^1.2.2",
       "ajv@6": "^6.14.0",
-      "@humanfs/node": "^0.16.8"
+      "@humanfs/node": "^0.16.8",
+      "undici@8": "^8.12.2"
     }
   }
 }

@@ -35,7 +35,7 @@
     "isomorphic-dompurify": "4.6.0",
     "lucia": "^3.2.2",
     "pino": "^10.4.0",
-    "postgres": "^3.4.9",
+    "postgres": "^4.0.0",
     "resend": "^6.35.0",
     "rrule": "^2.8.1",
     "web-push": "^3.6.7",

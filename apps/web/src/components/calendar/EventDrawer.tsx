@@ -236,6 +236,7 @@ export function EventDrawer() {
     watch,
     reset,
     setValue,
+    setFocus,
     formState: { errors, isSubmitting },
   } = useForm<EventFormValues>({
     resolver: zodResolver(eventFormSchema),
@@ -380,7 +381,18 @@ export function EventDrawer() {
   return (
     <>
       <Sheet open={open} onOpenChange={(isOpen) => !isOpen && closeEventDrawer()}>
-        <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-lg">
+        <SheetContent
+          side="right"
+          className="w-full overflow-y-auto sm:max-w-lg"
+          // Focus the title here rather than with `autoFocus`: autoFocus fires
+          // during commit, before the dialog's focus scope takes over from the
+          // still-closing "New" menu, which pulls focus back and leaves the
+          // dialog to fall back to its close button.
+          onOpenAutoFocus={(e) => {
+            e.preventDefault();
+            setFocus('title');
+          }}
+        >
           <SheetHeader>
             <SheetTitle>{isEditMode ? 'Edit Event' : 'New Event'}</SheetTitle>
           </SheetHeader>
@@ -392,7 +404,6 @@ export function EventDrawer() {
               <Input
                 id="event-title"
                 placeholder="Event title"
-                autoFocus
                 aria-describedby={errors.title ? 'event-title-error' : undefined}
                 aria-invalid={!!errors.title}
                 {...register('title')}

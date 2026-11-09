@@ -200,6 +200,7 @@ export function TaskDrawer() {
     watch,
     reset,
     setValue,
+    setFocus,
     formState: { errors, isSubmitting },
   } = useForm<TaskFormValues>({
     resolver: zodResolver(taskFormSchema),
@@ -332,7 +333,18 @@ export function TaskDrawer() {
   return (
     <>
       <Sheet open={open} onOpenChange={(isOpen) => !isOpen && closeTaskDrawer()}>
-        <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-lg">
+        <SheetContent
+          side="right"
+          className="w-full overflow-y-auto sm:max-w-lg"
+          // Focus the title here rather than with `autoFocus`: autoFocus fires
+          // during commit, before the dialog's focus scope takes over from the
+          // still-closing "New" menu, which pulls focus back and leaves the
+          // dialog to fall back to its close button.
+          onOpenAutoFocus={(e) => {
+            e.preventDefault();
+            setFocus('title');
+          }}
+        >
           <SheetHeader>
             <SheetTitle>{isEditMode ? 'Edit Task' : 'New Task'}</SheetTitle>
           </SheetHeader>
@@ -344,7 +356,6 @@ export function TaskDrawer() {
               <Input
                 id="task-title"
                 placeholder="Task title"
-                autoFocus
                 aria-describedby={errors.title ? 'task-title-error' : undefined}
                 aria-invalid={!!errors.title}
                 {...register('title')}

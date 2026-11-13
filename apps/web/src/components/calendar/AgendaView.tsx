@@ -150,7 +150,10 @@ export function AgendaView() {
 
   const handleEventClick = useCallback(
     (event: Event) => {
-      openEventDrawer({ eventId: event.id });
+      openEventDrawer({
+        eventId: event.recurringEventId ?? event.id,
+        instanceDate: event.isRecurringInstance ? (event.instanceDate ?? event.startAt) : undefined,
+      });
     },
     [openEventDrawer],
   );

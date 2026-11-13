@@ -64,7 +64,7 @@ export async function logout(page: Page) {
   await page.getByRole('menuitem', { name: /sign ?out/i }).click();
   // Logout posts to the API before navigating, so give it the same budget as
   // the other cross-page waits — 10s is tight on a loaded CI runner.
-  await page.waitForURL('**/login**', { timeout: 20_000 });
+  await page.waitForURL('**/login**', { timeout: 20_000, waitUntil: 'commit' });
 }
 
 // ─── Navigation Helpers ─────────────────────────────────────────────

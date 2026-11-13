@@ -5,7 +5,7 @@ import { useCallback, useState } from 'react';
 
 import { RecurrenceScopeDialog } from '@/components/calendar/RecurrenceScopeDialog';
 import { Button } from '@/components/ui/button';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/Popover';
+import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/Popover';
 import { useCategories } from '@/hooks/use-categories';
 import { useDeleteEvent } from '@/hooks/use-event-mutations';
 import { useUserTimezone } from '@/hooks/use-user-timezone';
@@ -116,7 +116,7 @@ export function EventDetailPopover({
   return (
     <>
       <Popover open={open} onOpenChange={onOpenChange}>
-        <PopoverTrigger asChild>{children}</PopoverTrigger>
+        <PopoverAnchor asChild>{children}</PopoverAnchor>
         <PopoverContent
           className="w-80 p-0"
           align="start"

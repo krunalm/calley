@@ -14,7 +14,7 @@ export function Topbar() {
   const { toggleSearch } = useUIStore();
 
   return (
-    <header className="flex h-[60px] shrink-0 items-center gap-2 border-b border-[var(--border)] bg-[var(--surface)] px-3 sm:px-4">
+    <header className="flex min-h-[60px] shrink-0 flex-wrap items-center gap-2 border-b border-[var(--border)] bg-[var(--surface)] px-3 py-1 sm:h-[60px] sm:flex-nowrap sm:py-0 sm:px-4">
       {/* Left: Hamburger + Logo */}
       <Button
         variant="ghost"
@@ -41,13 +41,13 @@ export function Topbar() {
       </span>
 
       {/* Center: Date Navigation + View Switcher */}
-      <div className="flex flex-1 items-center justify-center gap-2 sm:gap-4">
+      <div className="order-last flex w-full items-center justify-center gap-1 sm:order-none sm:w-auto sm:flex-1 sm:gap-4">
         <DateNavigator />
         <ViewSwitcher />
       </div>
 
       {/* Right: Actions */}
-      <div className="flex items-center gap-1">
+      <div className="ml-auto flex items-center gap-1">
         <Button
           variant="ghost"
           size="icon"
@@ -63,7 +63,7 @@ export function Topbar() {
         <Button
           variant="ghost"
           size="icon"
-          className="hit-target hidden h-8 w-8 sm:flex"
+          className="hit-target flex h-8 w-8"
           onClick={toggleTaskPanel}
           aria-label="Toggle task panel"
           data-active={isTaskPanelOpen || undefined}

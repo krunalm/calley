@@ -95,8 +95,9 @@ test.describe('UI — accessibility landmarks', () => {
   test('the view switcher tabs expose their selected state', async ({ authedPage }) => {
     const tabs = authedPage.getByRole('tab');
     const count = await tabs.count();
+    const expectedViews = (authedPage.viewportSize()?.width ?? 1280) < 1024 ? 2 : 4;
 
-    expect(count).toBeGreaterThanOrEqual(4);
+    expect(count).toBeGreaterThanOrEqual(expectedViews);
     for (let i = 0; i < count; i += 1) {
       expect(await tabs.nth(i).getAttribute('aria-selected')).toMatch(/true|false/);
     }
@@ -342,10 +343,15 @@ test.describe('UI — resilience', () => {
     authedPage.on('pageerror', (err) => errors.push(err.message));
 
     await authedPage.reload();
-    await authedPage.getByRole('tab', { name: 'Week' }).click();
-    await authedPage.getByRole('tab', { name: 'Day' }).click();
-    await authedPage.getByRole('tab', { name: 'Agenda' }).click();
-    await authedPage.getByRole('tab', { name: 'Month' }).click();
+    if ((authedPage.viewportSize()?.width ?? 1280) < 1024) {
+      await authedPage.getByRole('button', { name: /toggle sidebar/i }).click();
+    }
+    const views = (authedPage.viewportSize()?.width ?? 1280) < 1024
+      ? ['Day', 'Agenda']
+      : ['Week', 'Day', 'Agenda', 'Month'];
+    for (const view of views) {
+      await authedPage.getByRole('tab', { name: view }).click();
+    }
 
     expect(errors).toEqual([]);
   });

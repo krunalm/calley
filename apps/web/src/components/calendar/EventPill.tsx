@@ -59,9 +59,9 @@ export const EventPill = memo(function EventPill({
     if (isDragging) return;
     if (showPopover) {
       setPopoverOpen(true);
-    } else {
-      onClick?.(event);
+      return;
     }
+    onClick?.(event);
   }, [event, onClick, showPopover, isDragging]);
 
   const pill = (
@@ -76,6 +76,7 @@ export const EventPill = memo(function EventPill({
         borderLeft: `3px solid ${color}`,
       }}
       aria-label={`${event.title}, ${timeLabel}`}
+      onClick={handleClick}
       {...attributes}
       {...listeners}
     >
@@ -83,7 +84,7 @@ export const EventPill = memo(function EventPill({
         ref={buttonRef}
         type="button"
         className="flex min-w-0 flex-1 items-center gap-1 text-left"
-        onClick={handleClick}
+        onPointerDown={(e) => e.stopPropagation()}
         tabIndex={0}
         data-event-id={event.id}
         aria-label={`${event.title}, ${timeLabel}. Shift+Enter to move with keyboard.`}

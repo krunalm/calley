@@ -10,7 +10,11 @@ import { createTestUser, signup } from './helpers';
  */
 
 test.describe('P1 — Core Features', () => {
-  test('Drag event to new time slot in week view → verify updated', async ({ page }) => {
+  test('Drag event to new time slot in week view → verify updated', async ({ page }, testInfo) => {
+    test.skip(
+      testInfo.project.name.startsWith('Mobile'),
+      'Week view is intentionally unavailable in the phone layout.',
+    );
     const user = createTestUser('p1-drag');
     await signup(page, user);
 

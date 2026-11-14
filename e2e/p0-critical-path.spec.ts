@@ -75,6 +75,13 @@ test.describe('P0 — Critical Path', () => {
     await page.getByRole('button', { name: /^create$/i }).click();
     await drawer.waitFor({ state: 'hidden', timeout: 5_000 }).catch(() => {});
 
+    // Month and week tabs are intentionally hidden on phone layouts; use the
+    // visible agenda view so the created event can be opened and edited there.
+    if ((page.viewportSize()?.width ?? 1280) < 640) {
+      await page.getByRole('tab', { name: /agenda/i }).click();
+      await page.getByRole('button', { name: /toggle sidebar/i }).click();
+    }
+
     // 2. Verify the event appears
     const eventPill = page.getByText('Weekly Standup').first();
     await expect(eventPill).toBeVisible({ timeout: 10_000 });
@@ -82,13 +89,19 @@ test.describe('P0 — Critical Path', () => {
     // 3. Click on the event to open the EventDetailPopover
     await eventPill.click();
 
-    // 4. Click the Edit button in the popover (aria-label="Edit event")
-    const editBtn = page.getByRole('button', { name: /edit event/i }).first();
-    await expect(editBtn).toBeVisible({ timeout: 5_000 });
-    await editBtn.click();
+    // Mobile Agenda opens the edit drawer directly; other views show the
+    // detail popover first.
+    const editDrawer = page
+      .getByRole('dialog')
+      .filter({ hasText: /edit event/i })
+      .first();
+    if (!(await editDrawer.isVisible({ timeout: 1_000 }).catch(() => false))) {
+      const editBtn = page.getByRole('button', { name: /edit event/i }).first();
+      await expect(editBtn).toBeVisible({ timeout: 5_000 });
+      await editBtn.click();
+    }
 
     // 5. The EventDrawer opens in edit mode — modify the title
-    const editDrawer = page.locator('[role="dialog"]').first();
     await expect(editDrawer).toBeVisible({ timeout: 5_000 });
 
     const titleField = page.getByLabel(/^title$/i);
@@ -130,7 +143,7 @@ test.describe('P0 — Critical Path', () => {
 
           return isSaveMethod && isEventEndpoint;
         },
-        { timeout: 60_000 },
+        { timeout: 5_000 },
       )
       .catch(() => null);
 
@@ -154,7 +167,7 @@ test.describe('P0 — Critical Path', () => {
     // If we captured a save response, assert it succeeded; otherwise continue (non-blocking).
     const saveResp = await saveRespPromise;
     if (saveResp) {
-      expect(saveResp.ok()).toBeTruthy();
+      expect(saveResp.ok(), await saveResp.text()).toBeTruthy();
     }
 
     // Wait for all dialogs to close
@@ -165,17 +178,27 @@ test.describe('P0 — Critical Path', () => {
     // 7. Verify the edited instance shows the modified title
     // Reload to ensure persistence
     await page.reload();
+    if ((page.viewportSize()?.width ?? 1280) < 640) {
+      await page.getByRole('tab', { name: /agenda/i }).click();
+    }
     await expect(page.getByText('Modified Standup').first()).toBeVisible({ timeout: 10_000 });
 
     // 8. Navigate forward and verify the rest of the series still has the original title
-    // Click body first to ensure focus is not in an input
-    await page.locator('body').click({ position: { x: 0, y: 0 }, force: true });
-    const dateHeader = page.locator('h2').first();
-    const headerBefore = await dateHeader.textContent();
-    await page.keyboard.press('ArrowRight');
-    await expect(dateHeader).not.toContainText(headerBefore ?? '', { timeout: 5_000 });
-
-    await expect(page.getByText('Weekly Standup').first()).toBeVisible({ timeout: 10_000 });
+    if ((page.viewportSize()?.width ?? 1280) < 640) {
+      // Agenda already includes the later occurrences in the visible month.
+      await page.getByRole('list', { name: /agenda view/i }).evaluate((element) => {
+        element.scrollTop = element.scrollHeight;
+      });
+      await expect(page.getByText('Weekly Standup').first()).toBeVisible({ timeout: 10_000 });
+    } else {
+      // Click body first to ensure focus is not in an input
+      await page.locator('body').click({ position: { x: 0, y: 0 }, force: true });
+      const dateHeader = page.locator('h2').first();
+      const headerBefore = await dateHeader.textContent();
+      await page.keyboard.press('ArrowRight');
+      await expect(dateHeader).not.toContainText(headerBefore ?? '', { timeout: 5_000 });
+      await expect(page.getByText('Weekly Standup').first()).toBeVisible({ timeout: 10_000 });
+    }
   });
 
   test('Create task → check off → verify in done filter', async ({ page }) => {

@@ -88,7 +88,7 @@ export default defineConfig({
   // Start local dev servers before running tests
   webServer: [
     {
-      command: 'pnpm --filter api dev',
+      command: 'pnpm --filter @calley/shared build && pnpm --filter api dev',
       url: API_URL + '/health',
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,

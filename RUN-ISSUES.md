@@ -126,7 +126,10 @@ These were observed while verifying the handoff on Chromium and the Pixel 5
 14. **The sidebar opens by default on phones.** `isSidebarOpen` defaults to
     `true` on every viewport, so on first load the overlay covers the calendar.
     Most of the Mobile Chrome failures that remain are taps on events or
-    controls intercepted by the open sidebar's backdrop.
+    controls intercepted by the open sidebar's backdrop — including most of
+    `e2e/ui/settings.spec.ts`, since the settings pages render under the same
+    layout. The handoff's `fixed` sidebar and this branch's `absolute` one fail
+    the same 16 settings cases.
 
 15. **More desktop-only E2E assertions run on the phone projects.**
     `e2e/ui/calendar.spec.ts` (Week/Month tab switching, the `sm:`-only wordmark)

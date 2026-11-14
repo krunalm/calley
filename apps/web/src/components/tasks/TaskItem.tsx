@@ -123,7 +123,6 @@ export const TaskItem = memo(function TaskItem({
             ? `Select "${task.title}"`
             : `Mark "${task.title}" as ${isDone ? 'incomplete' : 'complete'}`
         }
-        onPointerDown={(e) => e.stopPropagation()}
         className="mt-0.5 shrink-0"
       />
 
@@ -131,7 +130,6 @@ export const TaskItem = memo(function TaskItem({
       <button
         type="button"
         className="min-w-0 flex-1 text-left"
-        onPointerDown={(e) => e.stopPropagation()}
         onClick={handleClick}
         aria-label={isSelecting ? `Select task: ${task.title}` : `Edit task: ${task.title}`}
       >

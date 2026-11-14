@@ -118,7 +118,9 @@ export default function AppLayout() {
 
       <Topbar />
 
-      <div className="flex flex-1 overflow-hidden">
+      {/* relative: the mobile sidebar overlay is positioned against this row, so it
+          always starts directly below the topbar, however tall the topbar wraps. */}
+      <div className="relative flex flex-1 overflow-hidden">
         <Sidebar
           categories={categories}
           onCreateCategory={handleCreateCategory}

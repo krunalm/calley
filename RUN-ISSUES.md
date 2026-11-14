@@ -39,6 +39,13 @@ in the order they were discovered.
      draggable event wrapper and its keyboard-focusable child open the same
      detail UI, without competing toggle handlers. The custom click callback
      remains available when popovers are intentionally disabled.
+   - **Reconciled — not applied; `PopoverTrigger` kept.** Could not be
+     reproduced: on the unpatched default branch every Chromium popover,
+     edit and delete test passes. In controlled mode Radix's toggle resolves
+     to `!open`, so the inner button's `setOpen(true)` and the trigger's toggle
+     agree rather than compete. Swapping the trigger for an anchor would also
+     drop `aria-haspopup`/`aria-expanded` from the pill and leave Radix's
+     `triggerRef` empty, so Escape would no longer return focus to the event.
 
 5. **The local cross-browser E2E matrix could not launch Firefox or WebKit.**
    - **Observed:** Firefox UI tests failed with a missing Playwright Firefox
@@ -73,8 +80,13 @@ in the order they were discovered.
 10. **The mobile sidebar overlay covered the wrapped header row.**
     - **Observed:** after the topbar moved its date and view controls to a
       second row, the sidebar backdrop still started at 60px and blocked taps.
-    - **Fix:** Start the mobile sidebar and backdrop below the 88px wrapped
-      header, then return to the 60px offset from the small breakpoint upward.
+    - **Fix:** Position the mobile sidebar and its backdrop `absolute` inside
+      the (now `relative`) content row below the topbar instead of `fixed` at a
+      hard-coded offset, so they always start where the topbar ends.
+    - **Reconciled:** the handoff patch used `top-[88px] sm:top-[60px]`, but the
+      wrapped topbar measures 111px on a Pixel 5 and 120px at 320px wide, so the
+      overlay still covered the date navigation and view tabs. The layout-based
+      offset also stays correct while the offline banner is shown.
 
 11. **Editing a recurring event from mobile Agenda omitted its occurrence date.**
     - **Observed:** saving an occurrence returned
@@ -96,3 +108,46 @@ in the order they were discovered.
       the draggable parent and started a drag.
     - **Fix:** Stop pointer-down propagation on event buttons, task edit buttons,
       and task completion checkboxes. The two previously failing E2E cases pass.
+    - **Reconciled — not applied.** The calendar and task panel register dnd-kit
+      `MouseSensor`/`TouchSensor` (plus `KeyboardSensor`), which listen for
+      `mousedown`/`touchstart`, not `pointerdown`, and both require 5px of
+      movement (or a 200ms hold) before a drag starts — so stopping
+      `pointerdown` cannot prevent a drag. What it does block is Radix's
+      document-level outside-`pointerdown` dismissal, which matters in WebKit,
+      where clicking a button does not move focus. With the default-branch
+      versions of these components, every Chromium event, task, calendar and
+      P0–P2 spec passes, and no Mobile Chrome spec depends on the change.
+
+## Open follow-ups (found during verification, not fixed here)
+
+These were observed while verifying the handoff on Chromium and the Pixel 5
+"Mobile Chrome" project. They predate the handoff and are out of its scope.
+
+14. **The sidebar opens by default on phones.** `isSidebarOpen` defaults to
+    `true` on every viewport, so on first load the overlay covers the calendar.
+    Most of the Mobile Chrome failures that remain are taps on events or
+    controls intercepted by the open sidebar's backdrop.
+
+15. **More desktop-only E2E assertions run on the phone projects.**
+    `e2e/ui/calendar.spec.ts` (Week/Month tab switching, the `sm:`-only wordmark)
+    and the week-view resize case in `e2e/p2-edge-cases.spec.ts` assume views or
+    chrome that the phone layout hides on purpose, like the cases already fixed
+    in item 8.
+
+16. **Event titles can collapse to zero width in phone month cells.** A pill in a
+    narrow month cell can render only its start time, so `getByText(title)` is
+    "hidden"; the P0 first-event, P1 search and P2 keyboard-only Mobile Chrome
+    flows fail on that.
+
+17. **The topbar overflows horizontally just above the `sm` breakpoint.** At
+    640px wide the single-row topbar is 92px wider than the viewport (9px at
+    320px). This is the default-branch `sm:` layout, unchanged by the handoff.
+
+18. **Two mobile-viewport Chromium tests are flaky.** "the task panel opens over
+    the calendar on mobile" and "the agenda view renders on a mobile viewport"
+    each failed once (on different runs) and passed 5/5 on rerun; both click the
+    page and then press a keyboard shortcut.
+
+19. **Firefox and WebKit were not run in this verification.** The sandbox could
+    only provide Chromium; Mobile Safari and the desktop Firefox/WebKit projects
+    remain unverified for these changes.

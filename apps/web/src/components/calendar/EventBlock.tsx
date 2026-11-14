@@ -89,9 +89,9 @@ export const EventBlock = memo(function EventBlock({
     if (isDragging) return;
     if (showPopover) {
       setPopoverOpen(true);
-      return;
+    } else {
+      onClick?.(event);
     }
-    onClick?.(event);
   }, [event, onClick, showPopover, isDragging]);
 
   const block = (
@@ -111,7 +111,6 @@ export const EventBlock = memo(function EventBlock({
         borderLeft: `3px solid ${color}`,
       }}
       aria-label={`${event.title}, ${timeLabel}`}
-      onClick={handleClick}
       {...moveAttrs}
       {...moveListeners}
     >
@@ -120,7 +119,7 @@ export const EventBlock = memo(function EventBlock({
         ref={buttonRef}
         type="button"
         className="flex flex-1 flex-col overflow-hidden px-1.5 text-left"
-        onPointerDown={(e) => e.stopPropagation()}
+        onClick={handleClick}
         tabIndex={0}
         data-event-id={event.id}
         aria-label={`${event.title}, ${timeLabel}. Shift+Enter to move with keyboard.`}

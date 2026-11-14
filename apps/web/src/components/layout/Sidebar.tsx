@@ -34,9 +34,10 @@ export function Sidebar({
       <AnimatePresence>
         {isSidebarOpen && (
           <motion.div
-            // Starts below the topbar so the hamburger that opened the sidebar
-            // stays clickable and can close it again.
-            className="fixed inset-x-0 bottom-0 top-[88px] sm:top-[60px] z-[var(--z-modal-backdrop)] bg-black/20 lg:hidden"
+            // Positioned against the content row below the topbar (see _app.tsx),
+            // so the hamburger that opened the sidebar — and the rest of the
+            // topbar, however tall it wraps on phones — stays clickable.
+            className="absolute inset-0 z-[var(--z-modal-backdrop)] bg-black/20 lg:hidden"
             onClick={toggleSidebar}
             aria-hidden="true"
             initial={prefersReducedMotion ? false : { opacity: 0 }}
@@ -50,8 +51,8 @@ export function Sidebar({
       <motion.aside
         className={cn(
           'z-[var(--z-modal)] flex shrink-0 flex-col border-r border-[var(--border)] bg-[var(--surface)] overflow-hidden',
-          // Mobile: fixed overlay
-          'fixed inset-y-0 left-0 top-[88px] sm:top-[60px] lg:relative lg:top-0',
+          // Mobile: overlay within the content row; desktop: in-flow column
+          'absolute inset-y-0 left-0 lg:relative',
           !isSidebarOpen && '-translate-x-full lg:translate-x-0',
         )}
         animate={{

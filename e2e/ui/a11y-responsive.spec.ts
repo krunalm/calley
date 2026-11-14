@@ -346,9 +346,10 @@ test.describe('UI — resilience', () => {
     if ((authedPage.viewportSize()?.width ?? 1280) < 1024) {
       await authedPage.getByRole('button', { name: /toggle sidebar/i }).click();
     }
-    const views = (authedPage.viewportSize()?.width ?? 1280) < 1024
-      ? ['Day', 'Agenda']
-      : ['Week', 'Day', 'Agenda', 'Month'];
+    const views =
+      (authedPage.viewportSize()?.width ?? 1280) < 1024
+        ? ['Day', 'Agenda']
+        : ['Week', 'Day', 'Agenda', 'Month'];
     for (const view of views) {
       await authedPage.getByRole('tab', { name: view }).click();
     }

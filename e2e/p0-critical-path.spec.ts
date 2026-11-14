@@ -91,7 +91,10 @@ test.describe('P0 — Critical Path', () => {
 
     // Mobile Agenda opens the edit drawer directly; other views show the
     // detail popover first.
-    const editDrawer = page.getByRole('dialog').filter({ hasText: /edit event/i }).first();
+    const editDrawer = page
+      .getByRole('dialog')
+      .filter({ hasText: /edit event/i })
+      .first();
     if (!(await editDrawer.isVisible({ timeout: 1_000 }).catch(() => false))) {
       const editBtn = page.getByRole('button', { name: /edit event/i }).first();
       await expect(editBtn).toBeVisible({ timeout: 5_000 });

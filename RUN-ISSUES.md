@@ -6,9 +6,12 @@ in the order they were discovered.
 1. **E2E web servers could not start without a global `pnpm` binary.**
    - **Observed:** `corepack pnpm test:e2e` failed before tests began because
      Playwright's `webServer` commands invoked `pnpm` directly.
-   - **Fix:** Run both development servers through `corepack pnpm`, matching the
-     project's declared `packageManager` and allowing a fresh environment to run
-     E2E tests without a separate global installation.
+   - **Fix:** Environment setup, not a config change: run `corepack enable` once
+     so the `pnpm` shim for the declared `packageManager` is on `PATH`.
+   - **Reconciled:** the handoff patch originally switched the `webServer`
+     commands to `corepack pnpm`. That was reverted because Node 25+ no longer
+     bundles Corepack (`engines` allows Node ≥26) and `pnpm test:e2e` already
+     runs under pnpm, so the commands keep invoking `pnpm` directly.
 
 2. **The API E2E server started before its workspace dependency existed.**
    - **Observed:** the API exited with `ERR_MODULE_NOT_FOUND` for
@@ -19,9 +22,14 @@ in the order they were discovered.
 3. **The documented API development command did not load `apps/api/.env`.**
    - **Observed:** after following the README setup, `pnpm --filter api dev`
      crashed with `DATABASE_URL environment variable is required`.
-   - **Fix:** Pass the local environment file through Node's supported
-     `--env-file` flag in the API development script. This makes `pnpm dev` and
-     the E2E server honor the project's documented configuration.
+   - **Fix:** Pass `--env-file-if-exists=.env` to `tsx watch` in the API
+     development script. This makes `pnpm dev` and the E2E server honor
+     `apps/api/.env`, while variables exported in the shell still take
+     precedence and a missing file is not an error.
+   - **Reconciled:** the handoff patch originally used
+     `node --env-file=.env --import tsx --watch`. Node exits with
+     `.env: not found` under `--env-file` when the file is absent, which broke the
+     export-in-the-shell workflow documented in `e2e/README.md`.
 
 4. **Clicking a calendar event did not open its detail popover.**
    - **Observed:** three E2E edit/delete tests timed out waiting for the Edit
@@ -69,9 +77,9 @@ in the order they were discovered.
       header, then return to the 60px offset from the small breakpoint upward.
 
 11. **Editing a recurring event from mobile Agenda omitted its occurrence date.**
-    - **Observed:** saving an occurrence returned `instanceDate is required when
-      editing a single instance` because Agenda opened the edit drawer without
-      the parent event ID and occurrence timestamp.
+    - **Observed:** saving an occurrence returned
+      `instanceDate is required when editing a single instance` because Agenda
+      opened the edit drawer without the parent event ID and occurrence timestamp.
     - **Fix:** Pass the recurring parent ID and `instanceDate` from the expanded
       Agenda occurrence. The E2E flow also supports Agenda's direct edit drawer.
 

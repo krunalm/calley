@@ -88,13 +88,13 @@ export default defineConfig({
   // Start local dev servers before running tests
   webServer: [
     {
-      command: 'corepack pnpm --filter @calley/shared build && corepack pnpm --filter api dev',
+      command: 'pnpm --filter @calley/shared build && pnpm --filter api dev',
       url: API_URL + '/health',
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
     },
     {
-      command: 'corepack pnpm --filter web dev',
+      command: 'pnpm --filter web dev',
       url: BASE_URL,
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,

@@ -38,7 +38,7 @@
     "postgres": "^4.1.0",
     "resend": "^6.37.0",
     "rrule": "^2.8.1",
-    "web-push": "^3.6.7",
+    "web-push": "^4.0.0",
     "zod": "^4.6.7"
   },
   "devDependencies": {

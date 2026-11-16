@@ -1,5 +1,5 @@
 import { and, eq, inArray } from 'drizzle-orm';
-import webpush from 'web-push';
+import { sendNotification, setVapidDetails } from 'web-push';
 
 import { db } from '../db';
 import { userPushSubscriptions } from '../db/schema';
@@ -15,7 +15,7 @@ const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || '';
 const VAPID_SUBJECT = process.env.VAPID_SUBJECT || 'mailto:noreply@calley.app';
 
 if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
-  webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+  setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
   logger.info('VAPID keys configured for Web Push');
 } else {
   logger.warn('VAPID keys not configured — Web Push notifications will be disabled');
@@ -211,7 +211,7 @@ export class PushSubscriptionService {
     await Promise.allSettled(
       subscriptions.map(async (sub) => {
         try {
-          await webpush.sendNotification(
+          await sendNotification(
             {
               endpoint: sub.endpoint,
               keys: {
